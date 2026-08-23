@@ -174,6 +174,11 @@ let test_patterns () =
 let test_match_and_quotation () =
   check_parse "quotation and expression splice"
     "(quote (+ 1 (splice x)))" "`{ 1 + ${x} }";
+  check_parse "a nested quote belongs to the surrounding splice"
+    "(quote (fn (params x) (splice (quote x))))"
+    "`{ fn(x) -> ${ `{ x } } }";
+  check_parse "a quotation may contain a named definition"
+    "(quote (fn identity (params x) x))" "`{ fn identity(x) = x }";
   check_parse "a match expression"
     "(match xs (clause (list-pattern) 0) (clause (:: _ ys) (+ 1 (call length ys))))"
     "match xs {\n  [] -> 0\n  _ :: ys -> 1 + length(ys)\n}";

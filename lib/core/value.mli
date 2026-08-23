@@ -184,9 +184,8 @@ val equal : value -> value -> bool
     compare by name, so the same primitive drawn from two cloned global
     environments is the same value.
 
-    [Code] currently compares by identity. Comparing quoted code by
-    alpha-equivalence is a Phase 3 question, and no program that can reach this
-    equality has a [Code] value yet. *)
+    [Code] compares by alpha-equivalence: binder allocation order and printed
+    parameter choices are not observations of generated code. *)
 
 val to_string : value -> string
 (** A diagnostic rendering. Scalars and lists print structurally; everything with

@@ -74,12 +74,16 @@ let sugar =
     "1 + 2 * 3";
     "open fn f(n) = f(n)";
     "open fn f() = 1; f := fn() -> 2";
+    "`{ 1 + 2 }";
+    "let a = `{ 1 }; `{ ${a} + 2 }";
+    "match `{ 1 } { Lit(n) -> n; _ -> 0 }";
+    "match `{ 1 + 0 } { `{ ${a} + 0 } -> a; _ -> `{ 0 } }";
   ]
 
 let provenance =
   [
     "1 + 2"; "1; 2"; "let x = 1"; "fn f() = 1"; "open fn f() = 1"; "[1]";
-    "true && false"; "match 1 { _ -> 2 }";
+    "true && false"; "match 1 { _ -> 2 }"; "`{ ${`{ 1 }} }";
   ]
 
 let errors =
@@ -89,9 +93,6 @@ let errors =
     "head := 1";
     "fn f() = 1; fn f() = 2";
     "fn f() = 1; f := fn() -> 2";
-    "`{ 1 + 2 }";
-    "match e { Lit(c) -> c }";
-    "match e { `{ ${a} + 0 } -> a }";
   ]
 
 let () =

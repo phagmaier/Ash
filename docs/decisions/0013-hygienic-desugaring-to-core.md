@@ -1,6 +1,7 @@
 # 0013 — Hygienic desugaring to Core
 
-- **Status:** accepted
+- **Status:** accepted, amended in part by
+  [0018](0018-hygienic-code-and-refutable-shapes.md)
 - **Date:** 2026-08-23
 - **Task:** 1.4
 
@@ -99,6 +100,10 @@ values, which needs the Phase 3 quotation rules (3.1) and reflection-class
 primitives that ADR 0009 deliberately left unregistered. Lowering them now would
 mean inventing a code representation this phase would have to replace.
 
+This was the Phase 1 boundary. ADR 0018 removes it in task 3.1: quotation uses
+fresh-identity templates, code construction/observation primitives are Pure per
+spec D7 rather than Reflection, and constructor/quasiquote patterns now lower.
+
 ## Alternatives
 
 **Resolve free names to `NamedVar`.** It would make every program run without a
@@ -136,10 +141,10 @@ the surface syntax; if it means nothing, it should not be in the grammar.
 - `match_error` joins the pure class, so the registry is 25 primitives. The
   classification, type-expectation, and arity tables in `primitives_test` cover
   it, with a new `Always_fails` expectation for a primitive whose job is to fail.
-- Constructor and quasiquote patterns now fail at two different phases depending
-  on the mistake: an unknown or misarranged constructor is still a parse error,
-  while a well-formed one is a desugar-time `Unsupported`. Task 3.1 removes the
-  second.
+- Before task 3.1, constructor and quasiquote patterns failed at two different
+  phases depending on the mistake: an unknown or misarranged constructor was a
+  parse error, while a well-formed one was a desugar-time `Unsupported`. ADR 0018
+  removes the second boundary.
 - Generated-node markers are already what the collapse report will need to tell
   written code from emitted code; nothing later has to reconstruct them.
 

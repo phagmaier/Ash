@@ -225,11 +225,11 @@ does not.
 
 | Class | Members | Specialization |
 |-------|---------|----------------|
-| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, `cons`, `head`, `tail`, `empty?`, `length`, `list`, `list?`, `match_error` | fold when every argument is static |
+| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_splice`, `code_match`, `NamedVar`, `match_error` | fold when every argument is static |
 | allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
 | control | `callcc`, `invoke` | never folded: capturing at specialization time captures the specializer, and `invoke`'s class is its callee's |
-| reflection | — awaits staging and the tower | bespoke, and the classification target |
+| reflection | — awaits closed-code `run` and the tower | bespoke, and the classification target |
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
 write events to it and read scripted lines from it, so a program's *trace* is a
@@ -302,8 +302,9 @@ alternatives, and every Core constructor. Alternative arms must bind the same
 set of names, and a single path may not bind one name twice. Match clauses are
 separated by newline or `;`. Quasiquote pattern holes carry `Pattern_splice`,
 distinct from the `Expression_splice` in an ordinary quotation, so binder checks
-remain structural and source-located. Parsing these quote nodes does not assign
-their Phase 3 hygiene or execution semantics. See
+remain structural and source-located. Nested quotations inside splices and
+quoted named definitions have focused parser coverage; hygiene is assigned by
+the desugarer, not by parsing. See
 [`docs/decisions/0012-patterns-binders-and-quasiquotation.md`](docs/decisions/0012-patterns-binders-and-quasiquotation.md).
 
 ## Desugaring to Core
@@ -326,7 +327,10 @@ occurrence through it. Hygiene is therefore not a pass that runs afterwards — 
 | `-a` / `!a` | `0 - a` / `not(a)` |
 | `a <op> b`, `[a, b]` | primitive calls; `[]` is the `Nil` literal |
 | `x \|> f(a)` | `f(x, a)`, and `x \|> f` is `f(x)` |
-| `match s { … }` | nested `If` over `empty?`, `head`, `tail`, and `==` |
+| `match s { … }` | nested `If` over shape tests, `empty?`, `head`, `tail`, and `==` |
+| `` `{ e } `` / `${x}` | `Quote` of a hygienic template; pure `code_splice` calls at holes |
+| `Lit(p)`, `App(p,p)`, … | guarded `code_view` followed by ordinary nested patterns |
+| `` `{ ${p} … } `` pattern | alpha-aware `code_match`, then ordinary patterns over captures |
 
 Adjacent `fn` declarations in one statement list form a single `LetRec` group, so
 mutual recursion is written by writing it, and a statement list ending in a
@@ -349,15 +353,31 @@ the clauses after it, so a pattern can mention failure repeatedly without copyin
 what follows; a clause with an alternative pattern binds its body as a function
 of the clause's binders and every arm calls it. Running out of clauses calls
 `match_error`, because Core has no way to raise and answering unit would be a
-silently wrong answer.
+silently wrong answer. Structural patterns are refutable on the wrong value
+shape: `match 5 { [] -> 'empty; _ -> 'other }` answers `'other`, with `list?`
+guarding the accessors rather than letting `empty?` raise.
+
+Quotation is hygienic construction, not textual substitution. The desugarer
+places fresh-identity marker variables in a Core template and replaces those
+exact identities with spliced `Code`; a binder that merely prints the same name
+cannot capture the replacement, and a binder carried by the replacement cannot
+capture adjacent template code. Quoted binders remain visible to nested quotes
+inside splice expressions, while an otherwise free quoted name gets its own
+hygienic identity so open Code can be assembled for later explicit evaluation.
+Runtime name lookup is never inferred from an unbound source name:
+`NamedVar("x")` constructs that reflective Core node explicitly. `Code` equality
+and quasiquote matching are alpha-aware.
 
 A Core node produced by a surface node of the same shape keeps its span. Anything
 invented — the `Let` behind a statement separator, the `If` behind `&&`,
 everything behind `match` — keeps the same positions and records the rewrite, so
 `Span.source_span` still points diagnostics at user text while `Span.generators`
 says which rewrite produced the node. Quotation, splicing, Core constructor
-patterns, and quasiquote patterns parse but do not lower: they are refused by
-name until Phase 3 gives them hygienic code construction. See
+patterns, and quasiquote patterns now lower through immutable pure Code
+operations. The self-interpreter deliberately continues to use its Phase 2 data
+encoding until task 3.5, after closed-code `run` and the rest of the Code
+foundation can support replacing the encoding without weakening the existing
+layer tests. See
 [`docs/decisions/0013-hygienic-desugaring-to-core.md`](docs/decisions/0013-hygienic-desugaring-to-core.md).
 
 ## Continuations
@@ -434,11 +454,14 @@ centre of the project, and every line in it is paid for once per tower level.
 the interpreter with the ordinary parser and desugarer, runs it on the ground
 evaluator, and applies what it exports.
 
-Quotation is Phase 3, so the interpreted program arrives as tagged lists —
+Quotation did not exist when Phase 2 built the interpreter, so the interpreted
+program still arrives as tagged lists —
 `['app, func, args]`, `['lam, params, body]`, and an identifier as `[name, id]`,
 printed name plus unique id, so hygiene survives the encoding. Dispatch is an
 `if` chain over the form tag rather than the constructor patterns spec §6 sketches,
-because those parse but do not lower until Phase 3.
+which likewise did not lower in Phase 2. Task 3.1 now supplies both capabilities
+without changing this transport; task 3.5 owns converting the interpreter to
+real Code, constructor dispatch, and cross-level spans, then deleting `Encode`.
 
 Interpreted scalars, lists, cells, and primitives represent themselves, so a
 primitive can be handed one directly. The three things the interpreted level

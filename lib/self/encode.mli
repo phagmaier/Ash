@@ -1,10 +1,10 @@
 (** Core terms and a level's globals, as ordinary Ash data.
 
-    The self-interpreter reads its subject as data, and quotation is Phase 3, so
-    a term reaches it as tagged lists rather than as {!Ash_core.Value.Code}. This
-    module is the one place that encoding is written down; {!Ash_self.Self} is
-    its only caller, and [lib/self/eval.ash] is the reader that has to agree with
-    it.
+    The self-interpreter was built before quotation, so it still reads a term as
+    tagged lists rather than as {!Ash_core.Value.Code}. Task 3.5 owns deleting
+    this temporary transport after the Code foundation is complete. This module
+    is the one place the encoding is written down; {!Ash_self.Self} is its only
+    caller, and [lib/self/eval.ash] is the reader that has to agree with it.
 
     An identifier encodes as [[name, id]] — printed name plus unique id, never a
     string alone, so lexical identity survives the round trip (spec §D1). The id
@@ -33,10 +33,10 @@ val reveal : Value.value -> Value.value
     the two evaluators' answers comparable at all, since an interpreted closure
     is not a host one. Primitives are left alone because they need no
     counterpart: both levels hold the same primitive, and primitives compare by
-    name. Cells, code, and environments are left alone too, but for the opposite
-    reason — they compare by identity, so a program that returns one is asking a
-    question this encoding cannot answer, and answering it wrongly would be worse
-    than the comparison failing. *)
+    name. Cells, code, and environments are left alone too; a returned cell or
+    environment has no interpreted counterpart, while Code now compares by
+    alpha-equivalence. Task 3.5 replaces this comparison boundary with real Code
+    transport. *)
 
 val datum : globals:(Ident.t * Value.value) list -> Value.value -> Core.t
 (** A Core term that evaluates to [value]. Core literals hold only constants, so

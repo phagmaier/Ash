@@ -16,12 +16,12 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 3 — code and staging foundations
-- **Next:** 3.1 — implement hygienic quotation, splicing, and code patterns
+- **Next:** 3.2 — implement closed-code analysis and `run`
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
   pass from a clean `_build` with the hygienic desugarer, `open fn` groups, the
   Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
-  31-primitive registry (`list?`, `invoke`, and the `open_*` trio), the
+  36-primitive registry (including the five pure Code operations), the
   desugar/continuation/parser/lexer/Core/runtime suites, the open-recursion law
   suite including patching at depth, and three differential comparisons over the
   shared 91-program corpus (73 Core, 18 surface): oracle/CPS, CPS/layer 1, and
@@ -31,11 +31,11 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 Phase 2 is complete. `open fn` is a surface binding form that lowers to
 open-recursion cells; the CPS Core evaluator is written in Ash and agrees with
 the host evaluator; and it runs under itself, with every layer agreeing and each
-layer's `eval` cell governing exactly the evaluation that layer performs. Phase 3
-is what the self-interpreter has been waiting for: `Code`, quotation, and
-splicing, which is also what closes the two boundaries 2.2 declared — spans
-crossing into the interpreted level, and constructor patterns replacing the tag
-dispatch in `eval.ash`.
+layer's `eval` cell governing exactly the evaluation that layer performs. Task
+3.1 now supplies hygienic `Code`, quotation/splicing, and both constructor and
+quasiquote patterns. The self-interpreter deliberately retains its Phase 2 data
+encoding until task 3.5, after 3.2–3.4 complete the Code foundation; that task
+owns both declared boundaries rather than changing the layer tests during 3.1.
 
 ## Locked decisions
 
@@ -200,10 +200,15 @@ dispatch in `eval.ash`.
 
 ## Phase 3 — code and staging foundations
 
-- [ ] **3.1 Implement hygienic quotation, splicing, and code patterns.**
+- [x] **3.1 Implement hygienic quotation, splicing, and code patterns.**
   - Quoted lexical variables retain binder IDs; runtime string construction uses
     explicit `NamedVar`.
   - Accept: adversarial same-name splices cannot capture or be captured.
+  - Quotation lowers to a quoted Core template with fresh-identity markers and
+    pure `code_splice` calls. Constructor patterns use guarded `code_view`;
+    quasiquote patterns use alpha-aware `code_match`; Code equality is
+    alpha-equivalence. ADR 0018 records the semantics and the decision that a
+    structural pattern on the wrong value shape falls through.
 
 - [ ] **3.2 Implement closed-code analysis and `run`.**
   - Report all unresolved dependencies; never inherit caller lexical state.
@@ -217,6 +222,14 @@ dispatch in `eval.ash`.
 - [ ] **3.4 Add staged-power and simplifier regressions.**
   - Accept: `pow5(2) == 32`; generated code is closed/alpha-correct; quasiquote
     simplifier cases match the spec.
+
+- [ ] **3.5 Retire `Ash_self.Encode` in favour of `Code`.**
+  - Rewrite `lib/self/eval.ash` to dispatch on Core constructor patterns over
+    real Code, after 3.2–3.4 establish closed execution and the complete Code
+    regression surface. Delete the temporary encoding rather than growing it.
+  - Accept: the interpreter dispatches on constructor patterns, spans cross into
+    the interpreted level, the differential test compares failure location as
+    well as cause, and `Ash_self.Encode` is removed.
 
 ## Phase 4 — lazy tower (milestone 1)
 
@@ -380,6 +393,67 @@ dispatch in `eval.ash`.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 3.1
+
+- Completed 3.1: hygienic quotation, splicing, constructor patterns, and
+  quasiquote patterns.
+  - A quotation lowers to `Quote` of a Core template. Every `${...}` position is
+    a fresh free `Var` marker replaced by the pure `code_splice` primitive using
+    exact identifier identity. Quoted lexical binders remain visible to nested
+    quotations inside splice expressions; otherwise unbound quoted names get a
+    fresh identity so Code may be open while it is assembled.
+  - `Ash_core.Code` implements the identity substitution and alpha-aware
+    quasiquote template matcher. `Value.equal` now compares Code with
+    `Alpha.equal`, so allocation order and parameter spelling are not Code
+    observations.
+  - `code?` and `code_view` expose all eleven Core forms without enlarging the
+    value domain: syntactic fields are Code, identifiers are one-node `Var` Code,
+    and recursive bindings are pairs of identifier and lambda Code. Constructor
+    patterns lower to a guarded view; `code_match` supplies Code captures to the
+    full patterns inside quasiquote holes. `NamedVar(string)` is the explicit
+    runtime-string constructor required by D1.
+  - The registry grows from 31 to 36 primitives. All five Code operations are
+    Pure under D7 because they inspect or construct immutable values;
+    `Effect_class.Reflection` remains empty until evaluator-dependent execution
+    and tower operations arrive.
+- Acceptance: `test/unit/code_test.ml` and `test/unit/desugar_test.ml` exercise
+  both adversarial directions. A free `x` spliced under `fn(x)` remains free and
+  distinct from the binder; a binder `x` carried by a splice remains distinct
+  from same-named template code. They also cover nested quotation scope, open
+  quoted names, explicit `NamedVar`, alpha-aware Code equality, constructor
+  fields, quasiquote holes, and non-Code splice errors. `primitives_test.ml`
+  enumerates all eleven `code_view` tags and independently pins class, arity,
+  and type behavior.
+- Settled the pre-Phase-3 match question: a structural pattern on the wrong
+  value shape refutes and falls through. `match 5 { [] -> 'empty; _ -> 'other }`
+  now answers `'other`; `list?` and `code?` guard accessors. Directly calling an
+  accessor on a wrong value remains a type error. ADR 0018 records this semantic
+  change, the Code representation, and the primitive classification.
+- Parser/desugarer review: no grammar rewrite was needed. Added parser coverage
+  for a nested quotation inside a splice and a quoted named definition. Quote
+  bodies remain one statement-shaped expression; a multi-statement quoted body
+  is written as an explicit inner block, consistently with the existing surface
+  AST. Golden lowering now exposes quotation, constructor/quasiquote matches,
+  and the wrong-shape guards.
+- Scope decision: `lib/self/eval.ash`, `Ash_self.Encode`, and the layer tests are
+  semantically unchanged. Added task 3.5 to retire the encoding only after
+  3.2–3.4, accepting when constructor dispatch replaces tag dispatch, spans
+  cross into the interpreted level, failure locations join causes in the
+  differential comparison, and the encoding module is deleted.
+- Verified from a clean `_build` with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `git diff --check` all pass. The
+  suite reports 73 Core plus 18 surface differential programs; 99 programs at
+  self-interpreter layer 1; and 98 at layer 2, with only the 310019-step loop
+  above the unchanged 800-step budget.
+- Known issues: the two Phase 2 interpreter boundaries deliberately remain —
+  its temporary data encoding carries no spans, and failures detected in Ash do
+  not yet have the host cause/location pair. Task 3.5 owns both. Closed-code
+  checking and execution are not part of 3.1; open Code cannot be passed to
+  `run` until 3.2.
+- Next: 3.2 — implement closed-code analysis and `run`, reporting every
+  unresolved dependency and never inheriting caller lexical state.
 
 ### 2026-08-23 — task 2.3 (Phase 2 complete)
 

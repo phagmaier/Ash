@@ -123,3 +123,7 @@ and `eval_list` at depth, whose counts — four applications and twelve
 Spec §5.7's open-recursion law is now checked at arbitrary depth, as it asked to
 be in Phase 2, and its checkbox is ticked. §6 already records that the subject
 arrives as data; nothing about the tower's semantics changed.
+
+ADR 0018 later assigns retirement of that data transport to task 3.5 rather than
+3.1. Quotation and constructor patterns can therefore land while these layer
+tests continue to exercise exactly the Phase 2 interpreter and encoding.

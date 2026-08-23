@@ -33,6 +33,14 @@ let boolean ~span value =
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
       type_error ~span ~expected:"a boolean" value
 
+let string ~span value =
+  match value with
+  | Value.Str text -> text
+  | Value.Num _ | Value.Bool _ | Value.Sym _ | Value.Unit | Value.List _
+  | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
+  | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
+      type_error ~span ~expected:"a string" value
+
 let items ~span value =
   match value with
   | Value.List items -> items
@@ -64,6 +72,68 @@ let filled ~span value =
   | None ->
       fail ~span
         (Error.Unexpected { found = "an unfilled cell"; expected = "a filled cell" })
+
+let code ~span value =
+  match value with
+  | Value.Code node -> node
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+  | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+  | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
+      type_error ~span ~expected:"code" value
+
+let code_variable ~span value =
+  let node = code ~span value in
+  match Core.shape node with
+  | Core.Var ident -> ident
+  | Core.Lit _ | Core.NamedVar _ | Core.Lam _ | Core.App _ | Core.Let _
+  | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _ | Core.Reifier _ ->
+      fail ~span
+        (Error.Unexpected
+           {
+             found = Printf.sprintf "code containing %s" (Core.kind_name node);
+             expected = "code containing a variable";
+           })
+
+(* A destructured Core node uses ordinary Ash values for literals and strings,
+   and [Code] for every syntactic component. Binder identities are represented
+   as one-node [Var] code values; this keeps the value domain small while making
+   them comparable and reusable without exposing the host gensym counter. *)
+let code_view node =
+  let span = Core.span node in
+  let tagged name fields = Value.List (Value.Sym name :: fields) in
+  let code node = Value.Code node in
+  let ident_at span identity = code (Core.var ~span identity) in
+  let ident identity = ident_at span identity in
+  let idents identities = Value.List (List.map ident identities) in
+  let lambda ?(span = span) definition = code (Core.of_lambda ~span definition) in
+  match Core.shape node with
+  | Core.Lit constant -> tagged "Lit" [ Value.of_constant constant ]
+  | Core.Var identity -> tagged "Var" [ ident identity ]
+  | Core.NamedVar name -> tagged "NamedVar" [ Value.Str name ]
+  | Core.Lam definition ->
+      tagged "Lam" [ idents definition.Core.params; code definition.Core.lam_body ]
+  | Core.App { Core.func; args } ->
+      tagged "App" [ code func; Value.List (List.map code args) ]
+  | Core.Let { Core.let_binder; let_value; let_body } ->
+      tagged "Let" [ ident let_binder; code let_value; code let_body ]
+  | Core.LetRec { Core.rec_bindings; rec_body } ->
+      let binding definition =
+        Value.List
+          [
+            ident_at definition.Core.rec_span definition.Core.rec_name;
+            lambda ~span:definition.Core.rec_span definition.Core.rec_lambda;
+          ]
+      in
+      tagged "LetRec"
+        [ Value.List (List.map binding rec_bindings); code rec_body ]
+  | Core.If { Core.condition; consequent; alternative } ->
+      tagged "If" [ code condition; code consequent; code alternative ]
+  | Core.Set { Core.set_target; set_value } ->
+      tagged "Set" [ ident set_target; code set_value ]
+  | Core.Quote quoted -> tagged "Quote" [ code quoted ]
+  | Core.Reifier { Core.exp_param; env_param; cont_param; reifier_body } ->
+      tagged "Reifier"
+        [ idents [ exp_param; env_param; cont_param ]; code reifier_body ]
 
 (* Builders. Each takes the effect class explicitly, so no primitive can be
    written down without saying what the specializer may do with it (spec §D7).
@@ -161,6 +231,51 @@ let pure =
           | Value.Closure _ | Value.Reifier _ | Value.Continuation _
           | Value.Environment _ | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
               false));
+    (* Code construction and observation are pure: Core and [Code] are
+       immutable, and D7 explicitly puts Code constructors in the foldable
+       class. Reflection stays reserved for [run], [reflect], [up], and reifier
+       application, whose meaning depends on evaluator/tower state. *)
+    unary "code?" Effect_class.Pure (fun ~span:_ value ->
+        Value.Bool
+          (match value with
+          | Value.Code _ -> true
+          | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+          | Value.List _ | Value.Closure _ | Value.Reifier _
+          | Value.Continuation _ | Value.Environment _ | Value.Cell _
+          | Value.Primitive _ ->
+              false));
+    unary "code_view" Effect_class.Pure (fun ~span value ->
+        code_view (code ~span value));
+    make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
+      (fun ~call_site ~apply:_ args k ->
+        match args with
+        | [ template; marker; replacement ] ->
+            let template = code ~span:call_site template in
+            let marker = code_variable ~span:call_site marker in
+            let replacement = code ~span:call_site replacement in
+            k (Value.Code (Code.splice ~marker ~replacement template))
+        | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"code_splice"
+              ~arity:(Value.Exactly 3) args);
+    make ~name:"code_match" ~arity:(Value.At_least 2) ~cls:Effect_class.Pure
+      (fun ~call_site ~apply:_ args k ->
+        match args with
+        | template :: subject :: markers ->
+            let template = code ~span:call_site template in
+            let subject = code ~span:call_site subject in
+            let holes = List.map (code_variable ~span:call_site) markers in
+            let result =
+              match Code.match_template ~holes ~template subject with
+              | None -> Value.List []
+              | Some captures ->
+                  Value.List [ Value.List (List.map (fun node -> Value.Code node) captures) ]
+            in
+            k result
+        | [] | [ _ ] ->
+            wrong_arity ~span:call_site ~name:"code_match"
+              ~arity:(Value.At_least 2) args);
+    unary "NamedVar" Effect_class.Pure (fun ~span value ->
+        Value.Code (Core.named_var ~span (string ~span value)));
     (* What a desugared [match] falls through to. Core has no way to raise, and
        a match that runs out of clauses must not quietly answer unit, so the
        failure is a primitive like any other. Pure is the same judgement

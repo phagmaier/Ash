@@ -1,6 +1,7 @@
 # 0009 — The classified primitive registry and the observable-effect stream
 
-- **Status:** accepted
+- **Status:** accepted, clarified by
+  [0018](0018-hygienic-code-and-refutable-shapes.md)
 - **Date:** 2026-08-23
 - **Task:** 0.9
 
@@ -79,6 +80,10 @@ answer than one that is honestly absent: it would appear in the classification, 
 `globals`, and in a report, describing a capability Ash does not have. Nothing
 about the classification depends on a class being populated, and the test suite
 asserts the two are empty so that filling them is a deliberate, visible change.
+
+ADR 0018 later clarifies that immutable Code construction and observation are
+Pure under spec D7, so adding them does not populate Reflection. Closed-code
+execution and tower-dependent operations remain bespoke reflective work.
 
 **Arity is checked twice and reports identically.** Whatever applies a primitive
 checks arity first, so every arity error names the primitive, its arity, and what

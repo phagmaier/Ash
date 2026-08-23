@@ -216,6 +216,33 @@ let check_error name ~phase ~cause source =
         Printf.printf "FAIL %s\n  expected: %s error: %s\n  actual:   %s\n" name
           (Error.phase_name phase) (Error.cause_message cause) (Error.to_string error))
 
+let check_code name expected_core source =
+  let scope, read_scope, env = ground () in
+  match
+    attempt (fun () ->
+        let lowered = Desugar.program ~scope (Parser.program ~file source) in
+        let expected = Core_reader.read ~scope:read_scope ~file expected_core in
+        (Evaluator.eval ~env lowered, expected))
+  with
+  | Error error ->
+      incr failures;
+      Printf.printf "FAIL %s\n  unexpected error: %s\n" name
+        (Error.to_string error)
+  | Ok (Value.Code actual, expected) ->
+      if not (Alpha.equal expected actual) then (
+        incr failures;
+        Printf.printf "FAIL %s\n  expected: %s\n  actual:   %s\n" name
+          (Core_printer.to_string expected)
+          (Core_printer.to_string actual))
+  | Ok
+      ( ( Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+        | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+        | Value.Environment _ | Value.Cell _ | Value.Primitive _ ) as actual,
+        _ ) ->
+      incr failures;
+      Printf.printf "FAIL %s\n  expected code, got %s\n" name
+        (Value.to_string actual)
+
 let fact = "fn fact(n) =\n  if n == 0 then 1\n  else n * fact(n - 1)\n"
 
 let length_program =
@@ -275,11 +302,109 @@ let test_match () =
     "match [7] { [x] | x :: [] -> x\n_ -> 0 }";
   check_value "a nested pattern" (Value.Num 12)
     "match [1, 2] { a :: [b] -> a * 10 + b\n_ -> 0 }";
+  check_value "a list pattern on a non-list falls through" (Value.Sym "other")
+    "match 5 { [] -> 'empty\n_ -> 'other }";
   check_value "the scrutinee is evaluated once" (Value.Num 1)
     "var calls = 0\nfn bump() = { calls := calls + 1\n [1] }\nmatch bump() { _ -> calls }";
   check_error "a match with no matching clause fails" ~phase:Error.Evaluate
     ~cause:(Error.No_matching_clause "3")
     "match 3 { 1 -> 'one\n2 -> 'two }"
+
+let test_code () =
+  check_code "a static quotation produces Core"
+    "(app (var +) (lit 1) (app (var *) (lit 2) (lit 3)))"
+    "`{ 1 + 2 * 3 }";
+  check_code "splices insert code at expression positions"
+    "(app (var +) (lit 1) (lit 2))"
+    "let left = `{ 1 }\nlet right = `{ 2 }\n`{ ${left} + ${right} }";
+  check_code "NamedVar is explicit run-time name construction"
+    "(named-var \"x\")" "NamedVar(\"x\")";
+  check_value "alpha-equivalent code compares equal" (Value.Bool true)
+    "`{ fn(x) -> x } == `{ fn(y) -> y }";
+
+  (* A free fragment inserted under a same-named binder stays free. *)
+  (match evaluate "let fragment = `{ x }\n`{ fn(x) -> ${fragment} }" with
+  | Value.Code node -> (
+      match Core.shape node with
+      | Core.Lam { Core.params = [ parameter ]; lam_body } -> (
+          match Core.shape lam_body with
+          | Core.Var reference ->
+              check "a same-name template binder cannot capture a splice"
+                (Ident.same_name parameter reference
+                && not (Ident.equal parameter reference)
+                && Ident.Set.mem reference (Alpha.free_idents node))
+          | Core.Lit _ | Core.NamedVar _ | Core.Lam _ | Core.App _ | Core.Let _
+          | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _
+          | Core.Reifier _ ->
+              check "the spliced body remains a variable" false)
+      | Core.Lam _ | Core.Lit _ | Core.Var _ | Core.NamedVar _ | Core.App _
+      | Core.Let _ | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _
+      | Core.Reifier _ ->
+          check "the adversarial splice produces a unary lambda" false)
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+  | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+  | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
+      check "the adversarial splice produces code" false);
+
+  (* Conversely, a binder carried by a splice cannot capture a same-named free
+     variable already in the template. *)
+  (match evaluate "let fragment = `{ fn(x) -> x }\n`{ [${fragment}, x] }" with
+  | Value.Code node -> (
+      match Core.shape node with
+      | Core.App { Core.args = [ function_code; free_code ]; _ } -> (
+          match (Core.shape function_code, Core.shape free_code) with
+          | Core.Lam { Core.params = [ parameter ]; _ }, Core.Var reference ->
+              check "a spliced binder cannot capture template code"
+                (Ident.same_name parameter reference
+                && not (Ident.equal parameter reference))
+          | ( ( Core.Lit _ | Core.Var _ | Core.NamedVar _ | Core.Lam _
+              | Core.App _ | Core.Let _ | Core.LetRec _ | Core.If _ | Core.Set _
+              | Core.Quote _ | Core.Reifier _ ),
+              _ ) ->
+              check "the splice and template variable keep their shapes" false)
+      | Core.Lit _ | Core.Var _ | Core.NamedVar _ | Core.Lam _ | Core.App _
+      | Core.Let _ | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _
+      | Core.Reifier _ ->
+          check "the non-capture fixture produces a two-item list call" false)
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+  | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+  | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
+      check "the reverse adversarial splice produces code" false);
+
+  (* A nested quotation evaluated by a splice inherits the outer quotation's
+     lexical identities even though the binder is not a run-time Ash value. *)
+  (match evaluate "`{ fn(y) -> ${ `{ y } } }" with
+  | Value.Code node -> (
+      match Core.shape node with
+      | Core.Lam { Core.params = [ parameter ]; lam_body } -> (
+          match Core.shape lam_body with
+          | Core.Var reference ->
+              check "nested quotation retains the outer quoted binder"
+                (Ident.equal parameter reference)
+          | Core.Lit _ | Core.NamedVar _ | Core.Lam _ | Core.App _ | Core.Let _
+          | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _
+          | Core.Reifier _ ->
+              check "the nested quotation answers variable code" false)
+      | Core.Lam _ | Core.Lit _ | Core.Var _ | Core.NamedVar _ | Core.App _
+      | Core.Let _ | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _
+      | Core.Reifier _ ->
+          check "the nested quotation fixture produces a unary lambda" false)
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+  | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+  | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
+      check "the nested quotation fixture produces code" false);
+
+  check_value "a constructor pattern destructures code" (Value.Num 7)
+    "match `{ 7 } { Lit(n) -> n\n_ -> 0 }";
+  check_value "a constructor pattern on a non-code value falls through"
+    (Value.Sym "other") "match 5 { Lit(n) -> n\n_ -> 'other }";
+  check_value "constructor fields preserve binder identity" (Value.Bool true)
+    "match `{ fn(x) -> x } { Lam([parameter], Var(reference)) -> parameter == reference\n_ -> false }";
+  check_code "a quasiquote hole binds code" "(lit 2)"
+    "match `{ 2 + 0 } { `{ ${a} + 0 } -> a\n_ -> `{ 99 } }";
+  check_value "a closed quasiquote pattern matches modulo alpha-renaming"
+    (Value.Bool true)
+    "match `{ fn(y) -> y } { `{ fn(x) -> x } -> true\n_ -> false }"
 
 let test_errors () =
   check_error "an unbound name is a desugar error" ~phase:Error.Desugar
@@ -304,30 +429,9 @@ let test_errors () =
      cell an [open fn] binds may be written through. *)
   check_error "a plain named function cannot be replaced" ~phase:Error.Desugar
     ~cause:(Error.Immutable_binding "f") "fn f() = 1\nf := fn() -> 2";
-  check_error "quotation does not lower yet" ~phase:Error.Desugar
-    ~cause:
-      (Error.Unsupported
-         {
-           what = "a quotation";
-           by = "the desugarer, which lowers no code construction before Phase 3";
-         })
-    "`{ 1 + 2 }";
-  check_error "constructor patterns do not lower yet" ~phase:Error.Desugar
-    ~cause:
-      (Error.Unsupported
-         {
-           what = "the `Lit(<pattern>)` pattern";
-           by = "the desugarer, which lowers no code construction before Phase 3";
-         })
-    "match e { Lit(c) -> c }";
-  check_error "quasiquote patterns do not lower yet" ~phase:Error.Desugar
-    ~cause:
-      (Error.Unsupported
-         {
-           what = "a quasiquote pattern";
-           by = "the desugarer, which lowers no code construction before Phase 3";
-         })
-    "match e { `{ ${a} + 0 } -> a }"
+  check_error "a splice must produce code" ~phase:Error.Evaluate
+    ~cause:(Error.Unexpected { found = "a number"; expected = "code" })
+    "`{ ${1} }"
 
 let test_registry_agreement () =
   let registered = Primitives.names in
@@ -363,6 +467,7 @@ let () =
   test_provenance ();
   test_end_to_end ();
   test_match ();
+  test_code ();
   test_errors ();
   test_registry_agreement ();
   test_expression_entry ();

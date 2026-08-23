@@ -40,12 +40,12 @@ dividend**, as OCaml's `/` and `mod` do. Division by zero is an
 `Error.Division_by_zero`, not a trap or a wrapped value.
 
 **`Value.equal` — what `==` computes — is structural for scalars and lists and
-by identity for everything else.** Two closures with the same body are two
+by identity for stateful/opaque values.** Two closures with the same body are two
 closures; two cells with the same contents are two places. Primitives compare by
 name, so the same primitive drawn from two cloned global environments is one
-value. `Code` compares by identity for now; whether quoted code should compare by
-alpha-equivalence is a Phase 3 question, and nothing that can reach this equality
-has a `Code` value yet.
+value. At this task's boundary `Code` compared by identity; ADR 0018 resolves the
+Phase 3 question by making Code equality alpha-equivalence once surface programs
+can construct it.
 
 **The oracle's frozen boundary is drawn at reflection, staging, and control.**
 It supports `Lit`, `Var`, `Lam`, `App`, `Let`, `LetRec`, `If`, and `Set`, and

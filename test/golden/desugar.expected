@@ -25,6 +25,10 @@ Derived sugar, one construct at a time
   1 + 2 * 3                                => (app (var +) (lit 1) (app (var *) (lit 2) (lit 3)))
   open fn f(n) = f(n)                      => (let f (app (var open_cell) (lit unit)) (let _ (app (var open_set) (var f) (lam (n) (app (app (var open_deref) (var f)) (var n)))) (lit unit)))
   open fn f() = 1; f := fn() -> 2          => (let f (app (var open_cell) (lit unit)) (let _ (app (var open_set) (var f) (lam () (lit 1))) (app (var open_set) (var f) (lam () (lit 2)))))
+  `{ 1 + 2 }                               => (quote (app (var +) (lit 1) (lit 2)))
+  let a = `{ 1 }; `{ ${a} + 2 }            => (let a (quote (lit 1)) (app (var code_splice) (quote (app (var +) (var splice) (lit 2))) (quote (var splice)) (var a)))
+  match `{ 1 } { Lit(n) -> n; _ -> 0 }     => (let scrutinee (quote (lit 1)) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (lit 0))) (if (app (var code?) (var scrutinee)) (let code_view1 (app (var code_view) (var scrutinee)) (if (app (var list?) (var code_view1)) (if (app (var empty?) (var code_view1)) (app (var next_clause)) (let head1 (app (var head) (var code_view1)) (let tail1 (app (var tail) (var code_view1)) (if (app (var ==) (var head1) (lit 'Lit)) (if (app (var list?) (var tail1)) (if (app (var empty?) (var tail1)) (app (var next_clause)) (let head2 (app (var head) (var tail1)) (let tail2 (app (var tail) (var tail1)) (let n (var head2) (if (app (var list?) (var tail2)) (if (app (var empty?) (var tail2)) (var n) (app (var next_clause))) (app (var next_clause))))))) (app (var next_clause))) (app (var next_clause)))))) (app (var next_clause)))) (app (var next_clause)))))
+  match `{ 1 + 0 } { `{ ${a} + 0 } -> a; _ -> `{ 0 } } => (let scrutinee (quote (app (var +) (lit 1) (lit 0))) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (quote (lit 0)))) (let code_match1 (app (var code_match) (quote (app (var +) (var splice) (lit 0))) (var scrutinee) (quote (var splice))) (if (app (var list?) (var code_match1)) (if (app (var empty?) (var code_match1)) (app (var next_clause)) (let head1 (app (var head) (var code_match1)) (let tail1 (app (var tail) (var code_match1)) (if (app (var list?) (var head1)) (if (app (var empty?) (var head1)) (app (var next_clause)) (let head2 (app (var head) (var head1)) (let tail2 (app (var tail) (var head1)) (let a (var head2) (if (app (var list?) (var tail2)) (if (app (var empty?) (var tail2)) (if (app (var list?) (var tail1)) (if (app (var empty?) (var tail1)) (var a) (app (var next_clause))) (app (var next_clause))) (app (var next_clause))) (app (var next_clause))))))) (app (var next_clause)))))) (app (var next_clause))))))
 
 --------------------------------------------------------------------------
 Documented programs
@@ -53,7 +57,7 @@ Documented programs
   |     _ :: ys -> 1 + length(ys)
   |   }
   =>
-(letrec ((length (lam (xs) (let scrutinee (var xs) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (if (app (var empty?) (var scrutinee)) (app (var next_clause)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let ys (var tail1) (app (var +) (lit 1) (app (var length) (var ys))))))))) (if (app (var empty?) (var scrutinee)) (lit 0) (app (var next_clause)))))))) (lit unit))
+(letrec ((length (lam (xs) (let scrutinee (var xs) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (if (app (var list?) (var scrutinee)) (if (app (var empty?) (var scrutinee)) (app (var next_clause)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let ys (var tail1) (app (var +) (lit 1) (app (var length) (var ys))))))) (app (var next_clause))))) (if (app (var list?) (var scrutinee)) (if (app (var empty?) (var scrutinee)) (lit 0) (app (var next_clause))) (app (var next_clause)))))))) (lit unit))
 
 == mutual recursion in one group ==
   | fn even(n) = if n == 0 then true else odd(n - 1)
@@ -67,7 +71,7 @@ Documented programs
   |   _ -> 0
   | }
   =>
-(let scrutinee (app (var list) (lit 7)) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (lit 0))) (let clause_body (lam (x) (app (var +) (var x) (lit 1))) (let next_alternative (lam () (if (app (var empty?) (var scrutinee)) (app (var next_clause)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let x (var head1) (if (app (var empty?) (var tail1)) (app (var clause_body) (var x)) (app (var next_clause)))))))) (if (app (var empty?) (var scrutinee)) (app (var next_alternative)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let x (var head1) (if (app (var empty?) (var tail1)) (app (var clause_body) (var x)) (app (var next_alternative)))))))))))
+(let scrutinee (app (var list) (lit 7)) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (lit 0))) (let clause_body (lam (x) (app (var +) (var x) (lit 1))) (let next_alternative (lam () (if (app (var list?) (var scrutinee)) (if (app (var empty?) (var scrutinee)) (app (var next_clause)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let x (var head1) (if (app (var list?) (var tail1)) (if (app (var empty?) (var tail1)) (app (var clause_body) (var x)) (app (var next_clause))) (app (var next_clause))))))) (app (var next_clause)))) (if (app (var list?) (var scrutinee)) (if (app (var empty?) (var scrutinee)) (app (var next_alternative)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let x (var head1) (if (app (var list?) (var tail1)) (if (app (var empty?) (var tail1)) (app (var clause_body) (var x)) (app (var next_alternative))) (app (var next_alternative))))))) (app (var next_alternative)))))))
 
 == closure-visible mutation ==
   | var c = 0
@@ -88,6 +92,7 @@ Provenance: which rewrite invented which node
   [1]                                      desugar/list
   true && false                            desugar/and
   match 1 { _ -> 2 }                       desugar/match
+  `{ ${`{ 1 }} }                           desugar/quote
 
 --------------------------------------------------------------------------
 Diagnostics
@@ -97,6 +102,3 @@ Diagnostics
   head := 1                          golden.ash:1:1-5: desugar error: `head` is bound by `let`, so it cannot be assigned; bind it with `var`
   fn f() = 1; fn f() = 2             golden.ash:1:16-17: desugar error: `f` is bound twice in the same binder list
   fn f() = 1; f := fn() -> 2         golden.ash:1:13-14: desugar error: `f` is bound by `let`, so it cannot be assigned; bind it with `var`
-  `{ 1 + 2 }                         golden.ash:1:1-11: desugar error: `a quotation` is not supported by the desugarer, which lowers no code construction before Phase 3
-  match e { Lit(c) -> c }            golden.ash:1:11-17: desugar error: `the `Lit(<pattern>)` pattern` is not supported by the desugarer, which lowers no code construction before Phase 3
-  match e { `{ ${a} + 0 } -> a }     golden.ash:1:11-24: desugar error: `a quasiquote pattern` is not supported by the desugarer, which lowers no code construction before Phase 3

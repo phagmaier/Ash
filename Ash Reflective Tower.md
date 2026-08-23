@@ -358,6 +358,11 @@ fn length(xs) =
   }
 ```
 
+Ash is dynamically typed, so structural patterns are refutable when the value
+has the wrong shape. `match 5 { [] -> 'empty; _ -> 'other }` answers `'other`;
+list accessors still raise when called directly on a non-list. Constructor
+patterns use the same rule for non-Code subjects.
+
 ### 4.3 Quotation and splicing
 
 ```ash
@@ -382,6 +387,13 @@ run(pow5)(2)              # 32
 ```
 
 Under D1, `` `{ y } `` carries `y`'s binder ID from the enclosing quotation, so splicing it under an unrelated `fn(y) -> …` cannot capture. Under D5, `run(pow5)` succeeds only because `pow5` is closed.
+
+An otherwise unbound name inside a quotation receives a fresh hygienic identity,
+so open Code can be assembled without turning it into name-resolved reflection.
+Only explicit `NamedVar("x")` constructs a runtime string lookup. Splicing uses
+fresh `Var` markers and exact identity replacement; Code equality is
+alpha-equivalence. The immutable `code?`, `code_view`, `code_splice`,
+`code_match`, and `NamedVar` operations are Pure under D7, not Reflection.
 
 ### 4.4 Quasiquote patterns
 
@@ -417,6 +429,11 @@ match e {
 Alternative patterns must bind the same set of names in every arm. For example,
 `[x] | x :: []` is valid, while `Lit(c) | Var(x)` is not; separate match clauses
 express the latter case, as above.
+
+Quasiquote matching is alpha-aware. `${p}` marks one Core-node hole, captures
+that subject node as Code, and then applies the full pattern `p` to it. A closed
+template therefore matches alpha-renamed binders, while free hygienic variables
+still compare by identity.
 
 ---
 
@@ -586,8 +603,14 @@ Every line you add here gets multiplied by tower depth. Guard it jealously.
 > [!note] What Phase 2 actually built
 > `lib/self/eval.ash` has this shape — same eleven forms, same evaluation order, same CPS, same open group — with two things above deferred rather than implemented, because both are Phase 3.
 >
-> - The subject arrives as **tagged list data**, not as `Code`: quotation does not exist yet, so `Ash_self.Encode` writes each form as `['form, …]` and each identifier as `[name, id]`. When `Code` arrives it replaces the encoding, not the interpreter.
-> - Dispatch is an **`if` chain over the form tag**, not `match e { Lit(c) -> … }`: Core constructor patterns parse but do not lower until Phase 3. Rewriting the chain then is mechanical.
+> - The subject arrives as **tagged list data**, not as `Code`: quotation did not exist in Phase 2, so `Ash_self.Encode` writes each form as `['form, …]` and each identifier as `[name, id]`.
+> - Dispatch is an **`if` chain over the form tag**, not `match e { Lit(c) -> … }`: Core constructor patterns did not lower in Phase 2.
+>
+> Task 3.1 adds both capabilities without changing this interpreter, preserving
+> the Phase 2 layer tests as an independent check of Code construction. Task 3.5
+> explicitly owns replacing `Ash_self.Encode`, converting dispatch to constructor
+> patterns, carrying spans across the level boundary, and deleting the temporary
+> module after closed-code execution and the rest of the Code foundation land.
 >
 > `prim_apply` is the `invoke` primitive, which applies a callee to an argument list whose length is only known at run time — Core `App` has a fixed number of argument positions, so an evaluator that has built an argument list cannot spread it without one. See `docs/decisions/0016-the-ash-self-interpreter.md`, which also records the two places the interpreted level's diagnostics deliberately differ from level 0's.
 
@@ -723,6 +746,8 @@ One-shot first-class continuations (D4), `used` flag enforcement. Differential t
 ### Phase 3 — Code `[1]`
 Quotation, splicing, hygienic construction, closed-code `run` (D5), alpha-equivalence checker, `lift` with the D6 domain.
 - **Done when:** staged `power` produces alpha-correct closed code; `run` rejects open code with a useful message.
+- **Then:** retire the Phase 2 `Ash_self.Encode` transport in favour of real Code,
+  constructor dispatch, and cross-level spans (checklist task 3.5).
 
 > [!note] Two independent tracks from here
 > Phases 4/8/9/10 (tower) and 5/6/7 (collapse) are largely independent after Phase 3. The ordering below does the tower first because it stress-tests Core's reflective adequacy while Core is still cheap to change. If you'd rather de-risk the collapse result first, swap 4 and 5 — but don't interleave them.

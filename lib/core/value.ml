@@ -176,7 +176,7 @@ let rec equal a b =
   | Continuation x, Continuation y -> x == y
   | Environment x, Environment y -> x == y
   | Cell x, Cell y -> same_cell x y
-  | Code x, Code y -> x == y
+  | Code x, Code y -> Alpha.equal x y
   | Primitive x, Primitive y -> String.equal x.prim_name y.prim_name
   | ( ( Num _ | Bool _ | Str _ | Sym _ | Unit | List _ | Closure _ | Reifier _
       | Continuation _ | Environment _ | Cell _ | Code _ | Primitive _ ),

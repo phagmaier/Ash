@@ -100,7 +100,9 @@ let expected_classification =
     ("<", pure); ("<=", pure); (">", pure); (">=", pure);
     ("==", pure); ("!=", pure); ("not", pure);
     ("cons", pure); ("head", pure); ("tail", pure); ("empty?", pure);
-    ("length", pure); ("list", pure); ("list?", pure); ("match_error", pure);
+    ("length", pure); ("list", pure); ("list?", pure);
+    ("code?", pure); ("code_view", pure); ("code_splice", pure);
+    ("code_match", pure); ("NamedVar", pure); ("match_error", pure);
     ("cell_new", mutating); ("deref", mutating); ("cell_set", mutating);
     ("open_cell", mutating); ("open_deref", mutating); ("open_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
@@ -173,7 +175,7 @@ let test_classification () =
     (List.equal String.equal
        [ "callcc"; "invoke" ]
        (Primitives.by_class Effect_class.Control));
-  check "reflection is empty until staging and the tower exist"
+  check "reflection is empty until code execution and the tower exist"
     (Primitives.by_class Effect_class.Reflection = []);
 
   check "an unregistered name has no class" (Primitives.class_of "nope" = None);
@@ -254,6 +256,9 @@ type expectation =
 
 let type_expectations =
   let n = Value.Num 1 and s = Value.Str "x" and b = Value.Bool true in
+  let marker = Ident.fresh "marker" in
+  let code_lit = Value.Code (Core.lit ~span:sp (Constant.Num 1)) in
+  let code_var = Value.Code (Core.var ~span:sp marker) in
   let numeric name =
     ( name,
       Rejects
@@ -287,6 +292,25 @@ let type_expectations =
     ("length", Rejects [ ([ s ], "a string", "a list") ]);
     ("list", Total [ n; s; b ]);
     ("list?", Total [ n ]);
+    ("code?", Total [ n ]);
+    ("code_view", Rejects [ ([ n ], "a number", "code") ]);
+    ( "code_splice",
+      Rejects
+        [
+          ([ n; code_var; code_lit ], "a number", "code");
+          ( [ code_lit; code_lit; code_lit ],
+            "code containing lit",
+            "code containing a variable" );
+        ] );
+    ( "code_match",
+      Rejects
+        [
+          ([ n; code_lit ], "a number", "code");
+          ( [ code_lit; code_lit; code_lit ],
+            "code containing lit",
+            "code containing a variable" );
+        ] );
+    ("NamedVar", Rejects [ ([ n ], "a number", "a string") ]);
     ( "match_error",
       Always_fails
         [
@@ -373,6 +397,80 @@ let test_type_errors () =
                         (error.Error.phase = Error.Evaluate))
                 cases))
     type_expectations
+
+(* Immutable Code operations. [code_view] is the one representation constructor
+   patterns depend on, so enumerate all eleven forms here rather than letting a
+   new Core form fall through an old view. *)
+let test_code_primitives () =
+  let registry = Primitives.create () in
+  let primitive name =
+    match Primitives.find registry name with
+    | Some found -> found
+    | None -> invalid_arg (Printf.sprintf "missing primitive `%s`" name)
+  in
+  let x = Ident.fresh "x" in
+  let y = Ident.fresh "y" in
+  let z = Ident.fresh "z" in
+  let literal = Core.lit ~span:sp (Constant.Num 1) in
+  let variable = Core.var ~span:sp x in
+  let lambda = Core.lambda ~params:[ x ] ~body:variable in
+  let fixtures =
+    [
+      ("Lit", literal);
+      ("Var", variable);
+      ("NamedVar", Core.named_var ~span:sp "x");
+      ("Lam", Core.of_lambda ~span:sp lambda);
+      ("App", Core.app ~span:sp ~func:variable ~args:[ literal ]);
+      ("Let", Core.let_ ~span:sp ~binder:x ~value:literal ~body:variable);
+      ( "LetRec",
+        Core.letrec ~span:sp
+          ~bindings:[ Core.rec_binding ~span:sp ~name:x lambda ]
+          ~body:variable );
+      ( "If",
+        Core.if_ ~span:sp ~condition:(Core.lit ~span:sp (Constant.Bool true))
+          ~consequent:literal ~alternative:literal );
+      ("Set", Core.set ~span:sp ~target:x ~value:literal);
+      ("Quote", Core.quote ~span:sp literal);
+      ("Reifier", Core.reifier ~span:sp ~exp:x ~env:y ~cont:z ~body:variable);
+    ]
+  in
+  let tags =
+    List.map
+      (fun (_, node) ->
+        match apply (primitive "code_view") [ Value.Code node ] with
+        | Value.List (Value.Sym tag :: _) -> tag
+        | Value.List [] | Value.List (Value.Num _ :: _) | Value.List (Value.Bool _ :: _)
+        | Value.List (Value.Str _ :: _) | Value.List (Value.Unit :: _)
+        | Value.List (Value.List _ :: _) | Value.List (Value.Closure _ :: _)
+        | Value.List (Value.Reifier _ :: _) | Value.List (Value.Continuation _ :: _)
+        | Value.List (Value.Environment _ :: _) | Value.List (Value.Cell _ :: _)
+        | Value.List (Value.Code _ :: _) | Value.List (Value.Primitive _ :: _)
+        | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+        | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+        | Value.Environment _ | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
+            "<malformed>"
+      )
+      fixtures
+  in
+  check "code_view covers every Core form with its constructor tag"
+    (List.equal String.equal (List.map fst fixtures) tags);
+  check "code? recognizes Code"
+    (Value.equal (Value.Bool true)
+       (apply (primitive "code?") [ Value.Code literal ]));
+  check "code? rejects other shapes without raising"
+    (Value.equal (Value.Bool false) (apply (primitive "code?") [ Value.Num 1 ]));
+  (match apply (primitive "NamedVar") [ Value.Str "dynamic" ] with
+  | Value.Code node ->
+      check "NamedVar constructs the explicit reflective Core form"
+        (match Core.shape node with
+        | Core.NamedVar name -> String.equal name "dynamic"
+        | Core.Lit _ | Core.Var _ | Core.Lam _ | Core.App _ | Core.Let _
+        | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _ | Core.Reifier _ ->
+            false)
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+  | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+  | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
+      check "NamedVar returns Code" false)
 
 (* Allocation and mutation *)
 
@@ -547,6 +645,7 @@ let () =
   test_classification ();
   test_arity ();
   test_type_errors ();
+  test_code_primitives ();
   test_cells ();
   test_output ();
   test_input ();

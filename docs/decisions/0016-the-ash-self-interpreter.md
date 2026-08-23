@@ -19,6 +19,11 @@ Phase 3, and it reads its subject as code, which needs `Code` and quotation —
 also Phase 3. So the question this record answers is what the interpreter reads
 and what its values are, given that quotation has not arrived.
 
+As of task 3.1, ADR 0018 supplies both Code construction and constructor-pattern
+lowering, but deliberately does not rewrite this interpreter. Checklist task 3.5
+owns replacing `Ash_self.Encode` after the rest of the Code foundation lands, so
+the Phase 2 layer tests remain an independent check while 3.1 is introduced.
+
 ## Decision
 
 **The interpreter lives in `lib/self/eval.ash` and is ordinary Ash.** It is
@@ -137,8 +142,10 @@ somewhere untrue.
   difference is the same one `reveal` exists to name.
 - `Quote` answers the encoded term at the interpreted level and a `Code` value at
   the host. That divergence is asserted as a boundary, not smoothed over.
-- The registry is 31 primitives. `Effect_class.Control` is `callcc` and `invoke`;
-  `Effect_class.Reflection` is still honestly empty.
+- At task 2.2 the registry was 31 primitives. Task 3.1 adds five Pure Code
+  operations, bringing the current registry to 36; `Effect_class.Control` is
+  still `callcc` and `invoke`, and `Effect_class.Reflection` remains honestly
+  empty until closed-code execution and the tower.
 
 ## Test impact
 

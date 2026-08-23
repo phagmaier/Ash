@@ -11,8 +11,9 @@
     Registered so far:
 
     - {!Ash_core.Effect_class.Pure} — integer arithmetic, comparison, equality,
-      immutable lists, [list?], and [match_error], the failure a desugared
-      [match] falls through to. Foldable once every argument is static.
+      immutable lists, code construction/observation, [list?], and
+      [match_error], the failure a desugared [match] falls through to. Foldable
+      once every argument is static.
     - {!Ash_core.Effect_class.Allocation_or_mutation} — [cell_new], [deref],
       [cell_set], and the open-recursion trio [open_cell], [open_deref],
       [open_set]. Residualized until Phase 7's store splitting says otherwise.
@@ -37,8 +38,9 @@
     the ones a run actually performs. The surviving dereferences in a residual
     program are precisely the interpreter residue §9 classifies.
 
-    {!Ash_core.Effect_class.Reflection} has no members yet: [lift], [run],
-    [reflect], and [up] need staging and the tower. An empty class is not a gap
+    {!Ash_core.Effect_class.Reflection} has no members yet: [run], [reflect],
+    and [up] need execution or the tower; immutable Code operations are pure per
+    spec D7. An empty class is not a gap
     in the classification — the class is part of a primitive's definition, so the
     property "exactly one class per primitive" holds by construction and is
     checked over whatever is registered.

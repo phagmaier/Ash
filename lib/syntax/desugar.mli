@@ -23,7 +23,10 @@
     a <op> b               <primitive>(a, b)
     [a, b]                 list(a, b), and [] is the Nil literal
     x |> f(a)              f(x, a), and x |> f is f(x)
-    match s { ... }        nested If over empty?/head/tail/== tests
+    match s { ... }        nested If over shape/empty?/head/tail/== tests
+    `{ e }                  Quote template, plus pure code_splice calls for holes
+    Lit(p), App(p,p), ...   guarded code_view plus ordinary nested patterns
+    `{ ${p} ... }           alpha-aware code_match plus nested hole patterns
     v}
 
     Adjacent [fn] declarations in one statement list form a single [LetRec]
@@ -49,12 +52,20 @@
     rewrite, so a diagnostic still points at user text while
     {!Ash_core.Span.generators} says which rewrite produced the node.
 
-    {1 Not yet}
+    {1 Code and hygiene}
 
-    Quotation, splicing, Core constructor patterns, and quasiquote patterns parse
-    but do not lower: their meaning is hygienic code construction, which is
-    Phase 3. They are refused with {!Ash_core.Error.Unsupported} naming what is
-    missing rather than lowered to something that would have to be replaced. *)
+    A quotation template uses fresh free [Var] identities as splice markers.
+    [code_splice] replaces an exact marker identity, so inserting code beneath a
+    same-printed binder cannot capture it. Quoted binders are visible to nested
+    quotations inside splice expressions, which is what staged builders such as
+    [power] need. Unbound names are permitted inside a quotation and receive a
+    fresh hygienic identity; outside quotation, a free surface name remains a
+    desugar error rather than an implicit [NamedVar]. Runtime string lookup is
+    requested explicitly with the pure [NamedVar] Code constructor.
+
+    List, constructor, and quasiquote patterns are refutable on a wrong value
+    shape. Constructor patterns destructure immutable [Code] through [code_view];
+    quasiquotes use alpha-aware [code_match]. *)
 
 open Ash_core
 
@@ -83,7 +94,7 @@ val required_primitives : string list
     Both raise {!Ash_core.Error.Ash_error} with phase
     {!Ash_core.Error.Desugar} and a located cause: an unbound name, an
     assignment to an immutable binding, a repeated binder in one binder list,
-    inconsistent alternative arms, or an unsupported construct. *)
+    or inconsistent alternative arms. *)
 
 val expression : ?scope:scope -> Surface.t -> Core.t
 (** Lower one statement-shaped expression, as {!Parser.expression} produces. A

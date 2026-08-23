@@ -22,7 +22,7 @@
 
     - {b Locations.} An encoded term carries no spans, so a failure the
       interpreted level raises is reported wherever in [eval.ash] it was raised.
-      Spans cross when [Code] does, in Phase 3.
+      Task 3.5 crosses spans when it replaces the encoding with real [Code].
     - {b Failures this level detects itself.} Ash cannot construct a structured
       error, so an arity mismatch on an interpreted closure, a reused
       continuation, an unbound identifier, and reifier application are reported
