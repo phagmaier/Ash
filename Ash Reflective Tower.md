@@ -583,6 +583,14 @@ Every occurrence of `eval` / `apply` / `eval_list` inside this group is, per `op
 
 Every line you add here gets multiplied by tower depth. Guard it jealously.
 
+> [!note] What Phase 2 actually built
+> `lib/self/eval.ash` has this shape — same eleven forms, same evaluation order, same CPS, same open group — with two things above deferred rather than implemented, because both are Phase 3.
+>
+> - The subject arrives as **tagged list data**, not as `Code`: quotation does not exist yet, so `Ash_self.Encode` writes each form as `['form, …]` and each identifier as `[name, id]`. When `Code` arrives it replaces the encoding, not the interpreter.
+> - Dispatch is an **`if` chain over the form tag**, not `match e { Lit(c) -> … }`: Core constructor patterns parse but do not lower until Phase 3. Rewriting the chain then is mechanical.
+>
+> `prim_apply` is the `invoke` primitive, which applies a callee to an argument list whose length is only known at run time — Core `App` has a fixed number of argument positions, so an evaluator that has built an argument list cannot spread it without one. See `docs/decisions/0016-the-ash-self-interpreter.md`, which also records the two places the interpreted level's diagnostics deliberately differ from level 0's.
+
 ### 6.1 Lazy materialization
 
 ```

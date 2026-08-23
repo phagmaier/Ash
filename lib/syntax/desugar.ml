@@ -12,6 +12,11 @@ type binding = {
       (* [var] rather than [let]. Cells are mutable either way, so nothing after
          this pass could tell the two apart; the distinction has to be decided
          here or not at all. *)
+  open_cell : bool;
+      (* An [open fn] group member. The identity holds the group's cell rather
+         than the function, so reading the name is [open_deref] and assigning to
+         it is [open_set] (spec §D3). Assignable, and deliberately so: replacing
+         a group member is what a meta level does. *)
 }
 
 type scope = { lexical : binding Names.t; globals : Ident.t Names.t }
@@ -25,7 +30,9 @@ let scope_of_globals bindings =
         (Printf.sprintf "Desugar.scope_of_globals: `%s` is bound twice" name)
     else
       {
-        lexical = Names.add name { ident; assignable = false } scope.lexical;
+        lexical =
+          Names.add name { ident; assignable = false; open_cell = false }
+            scope.lexical;
         globals = Names.add name ident scope.globals;
       }
   in
@@ -34,7 +41,8 @@ let scope_of_globals bindings =
 let required_primitives =
   [
     "+"; "-"; "*"; "/"; "%"; "<"; "<="; ">"; ">="; "=="; "!="; "not"; "cons";
-    "list"; "empty?"; "head"; "tail"; "match_error";
+    "list"; "empty?"; "head"; "tail"; "match_error"; "open_cell"; "open_deref";
+    "open_set";
   ]
 
 let fail ~span cause = Error.raise_cause ~phase:Error.Desugar ~span cause
@@ -62,13 +70,14 @@ let by_and = "desugar/and"
 let by_or = "desugar/or"
 let by_list = "desugar/list"
 let by_match = "desugar/match"
+let by_open = "desugar/open"
 
-let bind_name scope ~assignable name ident =
-  { scope with lexical = Names.add name { ident; assignable } scope.lexical }
+let bind_name ?(open_cell = false) scope ~assignable name ident =
+  { scope with lexical = Names.add name { ident; assignable; open_cell } scope.lexical }
 
-let bind_names scope ~assignable pairs =
+let bind_names ?open_cell scope ~assignable pairs =
   List.fold_left
-    (fun scope (name, ident) -> bind_name scope ~assignable name ident)
+    (fun scope (name, ident) -> bind_name ?open_cell scope ~assignable name ident)
     scope pairs
 
 (* Generated calls resolve against the globals, never the lexical scope: a
@@ -217,7 +226,15 @@ let rec lower scope (node : Surface.t) =
   | Surface.Literal constant -> Core.lit ~span constant
   | Surface.Name name -> (
       match Names.find_opt name.Surface.text scope.lexical with
-      | Some binding -> Core.var ~span binding.ident
+      (* The dereference is the whole point of [open]: a reference to a group
+         member resolves at the moment it is evaluated, so replacing the cell
+         intercepts the next step rather than the next top-level call. It is the
+         same rewrite inside the group and after it, because a caller that held
+         the old function would be a direct reference no replacement reaches. *)
+      | Some { ident; open_cell = true; _ } ->
+          call_primitive scope ~by:by_open ~span "open_deref"
+            [ gen by_open (Core.var ~span ident) ]
+      | Some { ident; open_cell = false; _ } -> Core.var ~span ident
       | None -> fail ~span (Error.Unbound_name name.Surface.text))
   | Surface.Binding _ | Surface.Named_function _ ->
       (* The parser only produces these in statement positions, where
@@ -294,7 +311,13 @@ let rec lower scope (node : Surface.t) =
       | None -> fail ~span:assignment_target.Surface.span (Error.Unbound_name name)
       | Some { assignable = false; _ } ->
           fail ~span:assignment_target.Surface.span (Error.Immutable_binding name)
-      | Some { ident; assignable = true } ->
+      | Some { ident; assignable = true; open_cell = true } ->
+          (* Replacing a group member. [Set] would rebind the name that holds the
+             cell; what is wanted is to write through it, so that every
+             dereference already written sees the replacement. *)
+          call_primitive scope ~by:by_open ~span "open_set"
+            [ gen by_open (Core.var ~span ident); lower scope assignment_value ]
+      | Some { ident; assignable = true; open_cell = false } ->
           Core.set ~span ~target:ident ~value:(lower scope assignment_value))
   | Surface.Group inner -> lower scope inner
   | Surface.Match { Surface.scrutinee; clauses } ->
@@ -328,9 +351,10 @@ and lower_pipeline scope ~span ~left ~right =
 and lower_statements scope ~span statements =
   match statements with
   | [] -> unit_node ~by:by_unit ~span
-  | { Surface.shape = Surface.Named_function _; _ } :: _ ->
-      let group, rest = take_functions [] statements in
-      lower_function_group scope ~span ~group ~rest
+  | { Surface.shape = Surface.Named_function first; _ } :: _ ->
+      let open_group = first.Surface.function_open in
+      let group, rest = take_functions ~open_group [] statements in
+      lower_function_group scope ~span ~open_group ~group ~rest
   | { Surface.shape = Surface.Binding binding; span = statement_span } :: rest ->
       let name = binding.Surface.binder.Surface.text in
       let ident = Ident.fresh name in
@@ -358,16 +382,21 @@ and lower_rest scope ~span ~after statements =
   | [] -> unit_node ~by:by_unit ~span:after
   | _ :: _ -> lower_statements scope ~span statements
 
-and take_functions collected statements =
+(* A run of adjacent definitions of the same kind. An [open fn] and a plain [fn]
+   are different binding forms, so a run of one ends where the other begins
+   rather than the two silently sharing a group. *)
+and take_functions ~open_group collected statements =
   match statements with
-  | ({ Surface.shape = Surface.Named_function _; _ } as statement) :: rest ->
-      take_functions (statement :: collected) rest
+  | ({ Surface.shape = Surface.Named_function definition; _ } as statement) :: rest
+    when Bool.equal definition.Surface.function_open open_group ->
+      take_functions ~open_group (statement :: collected) rest
   | ([] | { Surface.shape = _; _ } :: _) as rest -> (List.rev collected, rest)
 
 (* Adjacent [fn] declarations are one recursive group, so mutual recursion needs
    no separate syntax. Their names are in scope in every body, including their
-   own. *)
-and lower_function_group scope ~span ~group ~rest =
+   own. Adjacent [open fn] declarations are one open-recursive group instead:
+   same scoping, but the names denote cells (spec §D3). *)
+and lower_function_group scope ~span ~open_group ~group ~rest =
   let definitions =
     List.map
       (fun (statement : Surface.t) ->
@@ -387,19 +416,6 @@ and lower_function_group scope ~span ~group ~rest =
       definitions
   in
   let binders = fresh_binders names in
-  let inner = bind_names scope ~assignable:false binders in
-  let bindings =
-    List.map2
-      (fun (definition_span, definition) (_, ident) ->
-        let params = fresh_binders definition.Surface.function_params in
-        let body_scope = bind_names inner ~assignable:false params in
-        let lambda =
-          Core.lambda ~params:(List.map snd params)
-            ~body:(lower body_scope definition.Surface.function_body)
-        in
-        Core.rec_binding ~span:definition_span ~name:ident lambda)
-      definitions binders
-  in
   let group_span =
     match definitions with
     | [] -> span
@@ -408,9 +424,61 @@ and lower_function_group scope ~span ~group ~rest =
           (fun accumulated (definition_span, _) -> Span.join accumulated definition_span)
           first definitions
   in
-  gen by_fn
-    (Core.letrec ~span:group_span ~bindings
-       ~body:(lower_rest inner ~span ~after:group_span rest))
+  if open_group then
+    lower_open_group scope ~span ~definitions ~binders ~group_span ~rest
+  else
+    let inner = bind_names scope ~assignable:false binders in
+    let bindings =
+      List.map2
+        (fun (definition_span, definition) (_, ident) ->
+          let params = fresh_binders definition.Surface.function_params in
+          let body_scope = bind_names inner ~assignable:false params in
+          let lambda =
+            Core.lambda ~params:(List.map snd params)
+              ~body:(lower body_scope definition.Surface.function_body)
+          in
+          Core.rec_binding ~span:definition_span ~name:ident lambda)
+        definitions binders
+    in
+    gen by_fn
+      (Core.letrec ~span:group_span ~bindings
+         ~body:(lower_rest inner ~span ~after:group_span rest))
+
+(* An open group is not a [LetRec]: the binder holds the group member's cell, not
+   the member. Allocate every cell, fill each with its lambda, then run the rest,
+   all of it under a scope in which the group's names read and write through
+   those cells. Evaluating a lambda calls nothing, so no cell is dereferenced
+   while it still holds the placeholder — the same argument that makes [LetRec]'s
+   preallocation total. *)
+and lower_open_group scope ~span ~definitions ~binders ~group_span ~rest =
+  let inner = bind_names ~open_cell:true scope ~assignable:true binders in
+  let after = lower_rest inner ~span ~after:group_span rest in
+  let filled =
+    List.fold_right2
+      (fun (definition_span, definition) (_, ident) body ->
+        let params = fresh_binders definition.Surface.function_params in
+        let body_scope = bind_names inner ~assignable:false params in
+        let lambda =
+          Core.lam ~span:definition_span ~params:(List.map snd params)
+            ~body:(lower body_scope definition.Surface.function_body)
+        in
+        gen by_open
+          (Core.let_ ~span:definition_span ~binder:(Ident.fresh "_")
+             ~value:
+               (call_primitive inner ~by:by_open ~span:definition_span "open_set"
+                  [ gen by_open (Core.var ~span:definition_span ident); lambda ])
+             ~body))
+      definitions binders after
+  in
+  List.fold_right2
+    (fun (definition_span, _) (_, ident) body ->
+      gen by_open
+        (Core.let_ ~span:definition_span ~binder:ident
+           ~value:
+             (call_primitive scope ~by:by_open ~span:definition_span "open_cell"
+                [ unit_node ~by:by_open ~span:definition_span ])
+           ~body))
+    definitions binders filled
 
 (* {1 Match}
 

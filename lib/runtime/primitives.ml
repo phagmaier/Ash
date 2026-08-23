@@ -147,6 +147,20 @@ let pure =
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
       (fun ~call_site:_ ~apply:_ args k -> k (Value.List args));
+    (* The one type test Ash has. The self-interpreter needs it because its
+       value domain distinguishes an interpreted closure — a list carrying a
+       private tag — from an interpreted scalar, and every other list operation
+       fails rather than answering when handed a non-list. A predicate that
+       answers is a different thing from an accessor that refuses, and only the
+       predicate can be used to choose a branch. *)
+    unary "list?" Effect_class.Pure (fun ~span:_ value ->
+        Value.Bool
+          (match value with
+          | Value.List _ -> true
+          | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+          | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+          | Value.Environment _ | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
+              false));
     (* What a desugared [match] falls through to. Core has no way to raise, and
        a match that runs out of clauses must not quietly answer unit, so the
        failure is a primitive like any other. Pure is the same judgement
@@ -161,7 +175,7 @@ let pure =
    would mutate the specializer's state instead of the program's. Phase 7's
    store splitting is what makes any of these static, and it needs an explicit
    discipline rather than an argument-is-known test. *)
-let mutating =
+let mutating dereferences =
   let cls = Effect_class.Allocation_or_mutation in
   [
     (* A fresh place each call. Two cells with equal contents are still two
@@ -169,6 +183,23 @@ let mutating =
     unary "cell_new" cls (fun ~span:_ initial -> Value.Cell (Value.cell initial));
     unary "deref" cls (fun ~span c -> filled ~span c);
     binary "cell_set" cls (fun ~span c value ->
+        Value.fill_cell (cell ~span c) value;
+        Value.Unit);
+    (* The open-recursion cells of spec §D3, spelled apart from the ordinary
+       ones. Same store, different meaning: these three are what an [open fn]
+       group lowers to, so an [open_deref] in a term is exactly one evaluator
+       group dereference, and the collapse report can count the ones that
+       survive specialization without having to guess which cells were an
+       interpreter's. Counting here rather than in the desugarer is what makes
+       the count dynamic — it is dereferences performed, not dereferences
+       written. *)
+    unary "open_cell" cls (fun ~span:_ initial -> Value.Cell (Value.cell initial));
+    unary "open_deref" cls (fun ~span c ->
+        let contents = filled ~span c in
+        (* After the read succeeds: a refused read is not a dereference. *)
+        incr dereferences;
+        contents);
+    binary "open_set" cls (fun ~span c value ->
         Value.fill_cell (cell ~span c) value;
         Value.Unit);
   ]
@@ -229,6 +260,27 @@ let control =
             apply ~call_site receiver [ Value.Continuation captured ] k
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"callcc" ~arity:(Value.Exactly 1) args);
+    (* Applying a callee to a list of arguments whose length is only known at
+       run time. Core [App] has a fixed number of argument positions, so a
+       program that has built an argument list — which is what any evaluator's
+       [apply] has — cannot spread it without this. The self-interpreter's
+       [prim_apply] is the reason it exists (spec §6), and having it means the
+       interpreted level inherits the host's arity, type, and division
+       diagnostics instead of restating them.
+
+       Control rather than Pure because its class is its callee's, and its
+       callee is a value: nothing about the arguments being static says whether
+       running it at specialization time is sound. A specializer that learns the
+       callee rewrites it to a direct application under a bespoke rule; one that
+       does not, residualizes it. That is the same treatment [callcc] gets, and
+       for the same reason. *)
+    make ~name:"invoke" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
+      (fun ~call_site ~apply args k ->
+        match args with
+        | [ callee; arguments ] ->
+            apply ~call_site callee (items ~span:call_site arguments) k
+        | [] | [ _ ] | _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"invoke" ~arity:(Value.Exactly 2) args);
   ]
 
 (* [Reflection] ([lift], [run], [reflect], [up]) waits for staging and the tower
@@ -238,8 +290,8 @@ let control =
    class is a field of the primitive, so a primitive without one cannot be
    written. *)
 
-let build io =
-  let primitives = pure @ mutating @ observable io @ control in
+let build io dereferences =
+  let primitives = pure @ mutating dereferences @ observable io @ control in
   (* Exactly one class per primitive is a property of the record type; what it
      cannot rule out is the same name registered twice with different classes,
      where a lookup would answer one and the environment bind the other. *)
@@ -253,13 +305,23 @@ let build io =
     primitives;
   primitives
 
-type t = { io : Io.t; primitives : Value.primitive list }
+type t = {
+  io : Io.t;
+  primitives : Value.primitive list;
+  dereferences : int ref;
+      (* Open-recursion cell reads, which the collapse report measures against
+         (§9.2). Observationally inert: no primitive reads it, so no Ash value,
+         diagnostic, or output can depend on it. *)
+}
 
 let create ?io () =
   let io = match io with Some io -> io | None -> Io.create () in
-  { io; primitives = build io }
+  let dereferences = ref 0 in
+  { io; primitives = build io dereferences; dereferences }
 
 let io t = t.io
+let open_dereferences t = !(t.dereferences)
+let reset_open_dereferences t = t.dereferences := 0
 let all t = t.primitives
 
 let find t name =
@@ -280,7 +342,7 @@ let globals t =
 let classification =
   List.map
     (fun primitive -> (primitive.Value.prim_name, primitive.Value.prim_class))
-    (build (Io.create ()))
+    (build (Io.create ()) (ref 0))
 
 let names = List.map fst classification
 let count = List.length classification

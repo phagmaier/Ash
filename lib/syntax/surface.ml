@@ -62,6 +62,7 @@ and binding = {
 }
 
 and named_function = {
+  function_open : bool;
   function_name : name;
   function_params : name list;
   function_body : t;

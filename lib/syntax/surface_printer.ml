@@ -17,7 +17,8 @@ let rec to_string expression =
         (match binding.binding_kind with Surface.Immutable -> "let" | Surface.Mutable -> "var")
         [ binding.binder.text; to_string binding.binding_value ]
   | Surface.Named_function function_ ->
-      parenthesized "fn"
+      parenthesized
+        (if function_.function_open then "open-fn" else "fn")
         [ function_.function_name.text; name_list function_.function_params;
           to_string function_.function_body ]
   | Surface.Function function_ ->

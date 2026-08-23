@@ -100,10 +100,11 @@ let expected_classification =
     ("<", pure); ("<=", pure); (">", pure); (">=", pure);
     ("==", pure); ("!=", pure); ("not", pure);
     ("cons", pure); ("head", pure); ("tail", pure); ("empty?", pure);
-    ("length", pure); ("list", pure); ("match_error", pure);
+    ("length", pure); ("list", pure); ("list?", pure); ("match_error", pure);
     ("cell_new", mutating); ("deref", mutating); ("cell_set", mutating);
+    ("open_cell", mutating); ("open_deref", mutating); ("open_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
-    ("callcc", control);
+    ("callcc", control); ("invoke", control);
   ]
 
 let sorted_names names = List.sort String.compare names
@@ -165,10 +166,13 @@ let test_classification () =
            (List.mem name (Primitives.by_class Effect_class.Observable_effect)))
        Primitives.classification);
 
-  (* Control is exactly [callcc]; reflection is honestly empty rather than
-     stubbed. When the tower fills it, this says so instead of quietly passing. *)
-  check "control is the capture primitive"
-    (List.equal String.equal [ "callcc" ] (Primitives.by_class Effect_class.Control));
+  (* Control is capture and run-time application, both of which the specializer
+     handles by bespoke rule; reflection is honestly empty rather than stubbed.
+     When the tower fills it, this says so instead of quietly passing. *)
+  check "control is capture and run-time application"
+    (List.equal String.equal
+       [ "callcc"; "invoke" ]
+       (Primitives.by_class Effect_class.Control));
   check "reflection is empty until staging and the tower exist"
     (Primitives.by_class Effect_class.Reflection = []);
 
@@ -282,6 +286,7 @@ let type_expectations =
     ("empty?", Rejects [ ([ n ], "a number", "a list") ]);
     ("length", Rejects [ ([ s ], "a string", "a list") ]);
     ("list", Total [ n; s; b ]);
+    ("list?", Total [ n ]);
     ( "match_error",
       Always_fails
         [
@@ -291,12 +296,20 @@ let type_expectations =
     ("cell_new", Total [ n ]);
     ("deref", Rejects [ ([ n ], "a number", "a cell") ]);
     ("cell_set", Rejects [ ([ n; n ], "a number", "a cell") ]);
+    ("open_cell", Total [ n ]);
+    ("open_deref", Rejects [ ([ n ], "a number", "a cell") ]);
+    ("open_set", Rejects [ ([ n; n ], "a number", "a cell") ]);
     ("print", Total [ s ]);
     ("println", Total [ n ]);
     ("read_line", Total []);
     (* [callcc] applies its argument, so what it accepts is what [apply]
        accepts; the applier the table supplies just reports the call. *)
     ("callcc", Total [ Value.Primitive identity_primitive ]);
+    (* [invoke] spreads its second argument, so the list is what it checks; the
+       callee is whatever [apply] accepts, and the table's applier just reports
+       the call. *)
+    ( "invoke",
+      Rejects [ ([ Value.Primitive identity_primitive; n ], "a number", "a list") ] );
   ]
 
 let test_type_errors () =

@@ -11,18 +11,31 @@
     Registered so far:
 
     - {!Ash_core.Effect_class.Pure} — integer arithmetic, comparison, equality,
-      immutable lists, and [match_error], the failure a desugared [match] falls
-      through to. Foldable once every argument is static.
+      immutable lists, [list?], and [match_error], the failure a desugared
+      [match] falls through to. Foldable once every argument is static.
     - {!Ash_core.Effect_class.Allocation_or_mutation} — [cell_new], [deref],
-      [cell_set]. Residualized until Phase 7's store splitting says otherwise.
+      [cell_set], and the open-recursion trio [open_cell], [open_deref],
+      [open_set]. Residualized until Phase 7's store splitting says otherwise.
     - {!Ash_core.Effect_class.Observable_effect} — [print], [println],
       [read_line], all of which go through an injectable {!Io.t} so that a trace
       is a value tests can compare.
 
     - {!Ash_core.Effect_class.Control} — [callcc], which reifies the current
-      continuation as a one-shot value and hands it to its argument. Never
-      folded: capturing during specialization would capture the specializer's
-      continuation.
+      continuation as a one-shot value and hands it to its argument, and
+      [invoke], which applies a callee to an argument list whose length is only
+      known at run time. Neither is ever folded automatically: capturing during
+      specialization would capture the specializer's continuation, and [invoke]'s
+      class is its callee's, which no amount of knowledge about its arguments
+      settles.
+
+    {1 Open recursion}
+
+    [open_cell], [open_deref], and [open_set] are the ordinary store operations
+    under different names, and the difference in name is the point. They are what
+    an [open fn] group lowers to (spec §D3), so an [open_deref] in a term is one
+    evaluator-group dereference and nothing else, and {!open_dereferences} counts
+    the ones a run actually performs. The surviving dereferences in a residual
+    program are precisely the interpreter residue §9 classifies.
 
     {!Ash_core.Effect_class.Reflection} has no members yet: [lift], [run],
     [reflect], and [up] need staging and the tower. An empty class is not a gap
@@ -54,6 +67,14 @@ val create : ?io:Io.t -> unit -> t
 
 val io : t -> Io.t
 (** The stream this registry's observable primitives write to and read from. *)
+
+val open_dereferences : t -> int
+(** How many times [open_deref] read an open-recursion cell, counted across this
+    registry's whole lifetime. Instrumentation is observationally inert: no
+    primitive reads this, so nothing an Ash program computes, prints, or fails
+    with can depend on it. *)
+
+val reset_open_dereferences : t -> unit
 
 val all : t -> Value.primitive list
 (** Every primitive, in registry order: pure, then allocation/mutation, then

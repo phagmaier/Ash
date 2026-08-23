@@ -81,6 +81,7 @@ lib/
   core/                  identifiers, AST, values, env, alpha-equivalence
   syntax/                lexer, parser, desugaring, printers
   runtime/               CPS evaluator, primitives, continuations, errors
+  self/                  the Ash self-interpreter and its encoding
   tower/                 levels, open-recursive cells, reifiers, overlays
   stage/                 static/dynamic values, emission, specialization
   collapse/              normalization, classification, reports, metrics

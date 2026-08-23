@@ -109,6 +109,11 @@ let rec parse_statement state =
   match (current state).kind with
   | Token.Let -> parse_binding state Surface.Immutable
   | Token.Var -> parse_binding state Surface.Mutable
+  (* `open` is only ever the head of a definition: `open fn f(...) = ...`. A bare
+     `open` is left to the grammar below, which reports it as an unexpected
+     keyword rather than as a definition missing its `fn`. *)
+  | Token.Open when Token.equal_kind (peek state 1).kind Token.Fn ->
+      parse_named_function state
   | Token.Fn -> (
       match (peek state 1).kind with
       | Token.Ident _ -> parse_named_function state
@@ -141,13 +146,16 @@ and parse_binding state binding_kind =
     (Surface.Binding { binding_kind; binder; binding_value })
 
 and parse_named_function state =
-  let opening = expect state Token.Fn in
+  let function_open = at state Token.Open in
+  let opening = if function_open then advance state else current state in
+  ignore (expect state Token.Fn);
   let function_name = expect_name state in
   let function_params, _ = parse_parameters state in
   ignore (expect state Token.Equals);
   let function_body = parse_expression state in
   Surface.make ~span:(Span.join opening.Token.span function_body.Surface.span)
-    (Surface.Named_function { function_name; function_params; function_body })
+    (Surface.Named_function
+       { function_open; function_name; function_params; function_body })
 
 and parse_expression state = parse_assignment state
 

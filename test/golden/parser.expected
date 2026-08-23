@@ -48,6 +48,13 @@ Required surface constructs
 (fn square (params x) (* x x))
 (let double (fn (params x) (* x 2)))
 
+== §D3 open-recursive group ==
+  | open fn eval(e, r, k) = apply(e, r, k)
+  | open fn apply(f, vs, k) = k(vs)
+  =>
+(open-fn eval (params e r k) (call apply e r k))
+(open-fn apply (params f vs k) (call k vs))
+
 == a multiline conditional ==
   | fn fact(n) =
   |   if n == 0 then 1

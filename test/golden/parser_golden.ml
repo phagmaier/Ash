@@ -75,6 +75,8 @@ let constructs =
       "let x = 42\nvar counter = 0\ncounter := counter + 1" );
     ( "named and anonymous functions",
       "fn square(x) = x * x\nlet double = fn(x) -> x * 2" );
+    ( "§D3 open-recursive group",
+      "open fn eval(e, r, k) = apply(e, r, k)\nopen fn apply(f, vs, k) = k(vs)" );
     ( "a multiline conditional",
       "fn fact(n) =\n  if n == 0 then 1\n  else n * fact(n - 1)" );
     ( "blocks, lists, and calls",

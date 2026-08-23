@@ -71,6 +71,10 @@ and binding = {
 }
 
 and named_function = {
+  function_open : bool;
+      (** [open fn]: the function is a member of an open-recursive group, so
+          every reference to it — inside the group and after it — is a cell
+          dereference rather than a direct call (spec §D3). *)
   function_name : name;
   function_params : name list;
   function_body : t;

@@ -82,6 +82,23 @@ let test_shapes () =
   check_shape "a binding between them starts a new group"
     "fn f() = 1\nlet x = 2\nfn g() = 3"
     "(letrec ((f (lam () (lit 1)))) (let x (lit 2) (letrec ((g (lam () (lit 3)))) (lit unit))))";
+  (* An open group is cells, not a [LetRec]: the binder holds the cell, every
+     reference to the name is a dereference of it, and an assignment writes
+     through it. That indirection is the whole of invariant OR (spec §D3). *)
+  check_shape "an open function is a cell that holds it" "open fn f(n) = f(n)"
+    "(let f (app (var open_cell) (lit unit))\n    \  (let _ (app (var open_set) (var f)\n    \                (lam (n) (app (app (var open_deref) (var f)) (var n))))\n    \    (lit unit)))";
+  check_shape "adjacent open functions share one group"
+    "open fn even(n) = odd(n)\nopen fn odd(n) = even(n)"
+    "(let even (app (var open_cell) (lit unit))\n    \  (let odd (app (var open_cell) (lit unit))\n    \    (let _ (app (var open_set) (var even)\n    \                  (lam (n) (app (app (var open_deref) (var odd)) (var n))))\n    \      (let _ (app (var open_set) (var odd)\n    \                    (lam (n) (app (app (var open_deref) (var even)) (var n))))\n    \        (lit unit)))))";
+  check_shape "a reference after the group is a dereference too"
+    "open fn f(n) = n\nf(1)"
+    "(let f (app (var open_cell) (lit unit))\n    \  (let _ (app (var open_set) (var f) (lam (n) (var n)))\n    \    (app (app (var open_deref) (var f)) (lit 1))))";
+  check_shape "replacing a group member writes through the cell"
+    "open fn f(n) = n\nf := fn(n) -> n"
+    "(let f (app (var open_cell) (lit unit))\n    \  (let _ (app (var open_set) (var f) (lam (n) (var n)))\n    \    (app (var open_set) (var f) (lam (n) (var n)))))";
+  check_shape "a plain group and an open group do not merge"
+    "fn f() = 1\nopen fn g() = 2"
+    "(letrec ((f (lam () (lit 1))))\n    \  (let g (app (var open_cell) (lit unit))\n    \    (let _ (app (var open_set) (var g) (lam () (lit 2))) (lit unit))))";
   check_shape "an anonymous function is a lambda" "fn(x) -> x" "(lam (x) (var x))";
   check_shape "a block is a statement list" "{ let x = 1\n x }"
     "(let x (lit 1) (var x))";
@@ -281,6 +298,12 @@ let test_errors () =
     ~cause:(Error.Duplicate_binder "x") "fn f(x, x) = x";
   check_error "duplicate functions in one group are refused" ~phase:Error.Desugar
     ~cause:(Error.Duplicate_binder "f") "fn f() = 1\nfn f() = 2";
+  check_error "duplicate open functions in one group are refused" ~phase:Error.Desugar
+    ~cause:(Error.Duplicate_binder "f") "open fn f() = 1\nopen fn f() = 2";
+  (* A plain function is not a group member, so it is not replaceable; only the
+     cell an [open fn] binds may be written through. *)
+  check_error "a plain named function cannot be replaced" ~phase:Error.Desugar
+    ~cause:(Error.Immutable_binding "f") "fn f() = 1\nf := fn() -> 2";
   check_error "quotation does not lower yet" ~phase:Error.Desugar
     ~cause:
       (Error.Unsupported

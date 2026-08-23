@@ -23,6 +23,8 @@ Derived sugar, one construct at a time
   if true then 1 else 2                    => (if (lit #t) (lit 1) (lit 2))
   1 == 2                                   => (app (var ==) (lit 1) (lit 2))
   1 + 2 * 3                                => (app (var +) (lit 1) (app (var *) (lit 2) (lit 3)))
+  open fn f(n) = f(n)                      => (let f (app (var open_cell) (lit unit)) (let _ (app (var open_set) (var f) (lam (n) (app (app (var open_deref) (var f)) (var n)))) (lit unit)))
+  open fn f() = 1; f := fn() -> 2          => (let f (app (var open_cell) (lit unit)) (let _ (app (var open_set) (var f) (lam () (lit 1))) (app (var open_set) (var f) (lam () (lit 2)))))
 
 --------------------------------------------------------------------------
 Documented programs
@@ -82,6 +84,7 @@ Provenance: which rewrite invented which node
   1; 2                                     desugar/seq
   let x = 1                                desugar/unit
   fn f() = 1                               desugar/fn desugar/unit
+  open fn f() = 1                          desugar/open desugar/unit
   [1]                                      desugar/list
   true && false                            desugar/and
   match 1 { _ -> 2 }                       desugar/match
@@ -93,6 +96,7 @@ Diagnostics
   let x = 1; x := 2                  golden.ash:1:12-13: desugar error: `x` is bound by `let`, so it cannot be assigned; bind it with `var`
   head := 1                          golden.ash:1:1-5: desugar error: `head` is bound by `let`, so it cannot be assigned; bind it with `var`
   fn f() = 1; fn f() = 2             golden.ash:1:16-17: desugar error: `f` is bound twice in the same binder list
+  fn f() = 1; f := fn() -> 2         golden.ash:1:13-14: desugar error: `f` is bound by `let`, so it cannot be assigned; bind it with `var`
   `{ 1 + 2 }                         golden.ash:1:1-11: desugar error: `a quotation` is not supported by the desugarer, which lowers no code construction before Phase 3
   match e { Lit(c) -> c }            golden.ash:1:11-17: desugar error: `the `Lit(<pattern>)` pattern` is not supported by the desugarer, which lowers no code construction before Phase 3
   match e { `{ ${a} + 0 } -> a }     golden.ash:1:11-24: desugar error: `a quasiquote pattern` is not supported by the desugarer, which lowers no code construction before Phase 3

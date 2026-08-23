@@ -36,9 +36,11 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
 | `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, precedence parser, and desugarer |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
+| `lib/self/` | `ash.self`: the self-interpreter written in Ash (`eval.ash`), its Core-to-data encoding, and the harness that runs it |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
-| `test/differential/` | oracle/CPS comparisons on a shared corpus |
+| `test/differential/` | oracle/CPS and CPS/self-interpreter comparisons on one shared corpus |
+| `test/laws/` | semantic invariants — currently open recursion at the Ash level |
 | `test/golden/` | pinned token streams, diagnostics, and reports |
 | `docs/decisions/` | numbered architecture decision records |
 | `docs/progress/` | experiment and reproducibility notes |
@@ -223,10 +225,10 @@ does not.
 
 | Class | Members | Specialization |
 |-------|---------|----------------|
-| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, `cons`, `head`, `tail`, `empty?`, `length`, `list`, `match_error` | fold when every argument is static |
-| allocation/mutation | `cell_new`, `deref`, `cell_set` | residualize until Phase 7's store splitting |
+| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, `cons`, `head`, `tail`, `empty?`, `length`, `list`, `list?`, `match_error` | fold when every argument is static |
+| allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
-| control | `callcc` | never folded: capturing at specialization time captures the specializer |
+| control | `callcc`, `invoke` | never folded: capturing at specialization time captures the specializer, and `invoke`'s class is its callee's |
 | reflection | — awaits staging and the tower | bespoke, and the classification target |
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
@@ -319,6 +321,7 @@ occurrence through it. Hygiene is therefore not a pass that runs afterwards — 
 | `let x = v` / `var x = v` | `Let x = v in <rest of the list>` |
 | `x := v` | `Set x v`, and only when `x` came from `var` |
 | `fn f(a) = b` | `LetRec ((f (Lam (a) b))) <rest of the list>` |
+| `open fn f(a) = b` | `Let f = open_cell(())` then `open_set(f, Lam (a) b)`; every `f` is `open_deref(f)` |
 | `a && b` / `a \|\| b` | `If a b false` / `If a true b` |
 | `-a` / `!a` | `0 - a` / `not(a)` |
 | `a <op> b`, `[a, b]` | primitive calls; `[]` is the `Nil` literal |
@@ -327,7 +330,9 @@ occurrence through it. Hygiene is therefore not a pass that runs afterwards — 
 
 Adjacent `fn` declarations in one statement list form a single `LetRec` group, so
 mutual recursion is written by writing it, and a statement list ending in a
-definition evaluates to unit so that a file of definitions is a program.
+definition evaluates to unit so that a file of definitions is a program. Adjacent
+`open fn` declarations form a single *open* group instead — same scoping, but the
+names denote cells; see below.
 
 A name with no binding is a desugar error, never a `NamedVar`: resolution by
 printed name is what reflective code does, not a fallback, and the collapse
@@ -388,6 +393,76 @@ it through the machine's open-recursion cell, and a meta level that replaces
 `apply` therefore intercepts a primitive's callback too. See
 [`docs/decisions/0014-one-shot-continuations-and-the-applier.md`](docs/decisions/0014-one-shot-continuations-and-the-applier.md).
 
+## Open-recursive groups
+
+`open fn` is the surface form of spec §D3. A run of adjacent `open fn`
+declarations is not a `LetRec`: the desugarer binds one cell per member with
+`open_cell`, fills each with `open_set`, and lowers **every** reference to a
+member — inside the group and after it — as `open_deref` of that cell, and every
+`member := …` as `open_set`. Core does not grow; an open group is ordinary `Let`,
+`Lam`, and primitive application.
+
+```ash
+open fn eval(e, r, k) = …          # every `eval`, `apply`, `eval_list` below
+open fn apply(f, vs, k) = …        # is a dereference of this level's cell
+open fn eval_list(es, r, k) = …
+
+let base = eval                    # the function the cell holds
+eval := fn(e, r, k) -> { hits := hits + 1; base(e, r, k) }
+```
+
+Members are assignable and plain `fn` bindings are not, because replacing a
+member is what a meta level does. Assignment writes *through* the cell rather
+than rebinding the name, so every dereference already written sees the
+replacement — including the ones inside `base`, which is why a wrapper installed
+this way observes every nested step rather than only the entry.
+
+`open_cell`, `open_deref`, and `open_set` do what `cell_new`, `deref`, and
+`cell_set` do, and are spelled apart from them on purpose: an `open_deref` in a
+term is one evaluator-group dereference and nothing else, so
+`Primitives.open_dereferences` counts steps the collapse report can measure
+against. The surviving dereferences in a residual program are precisely the
+interpreter residue. See
+[`docs/decisions/0015-open-recursive-groups-in-ash.md`](docs/decisions/0015-open-recursive-groups-in-ash.md).
+
+## The self-interpreter
+
+`lib/self/eval.ash` is a CPS evaluator for the eleven Core forms, written in Ash,
+open-recursive, and parallel to the host evaluator in `lib/runtime`. It is the
+centre of the project, and every line in it is paid for once per tower level.
+`ash.self` is the harness: `Encode` writes a Core term as data, and `Self` lowers
+the interpreter with the ordinary parser and desugarer, runs it on the ground
+evaluator, and applies what it exports.
+
+Quotation is Phase 3, so the interpreted program arrives as tagged lists —
+`['app, func, args]`, `['lam, params, body]`, and an identifier as `[name, id]`,
+printed name plus unique id, so hygiene survives the encoding. Dispatch is an
+`if` chain over the form tag rather than the constructor patterns spec §6 sketches,
+because those parse but do not lower until Phase 3.
+
+Interpreted scalars, lists, and cells represent themselves, so a primitive can be
+handed one directly. Everything the host distinguishes by identity — closures,
+reifiers, continuations, primitives — is a list headed by a private cell the
+interpreted program has no way to name or forge, and each closure carries a fresh
+cell as its identity so that `==` on two of them compares places rather than
+shapes.
+
+Nothing here is a host escape hatch. The interpreted level receives exactly the
+globals a level-0 run receives, and everything it cannot do itself it does by
+applying those same primitives through `invoke`, which is why its arity, type,
+and arithmetic diagnostics are the host's rather than a restatement of them. The
+one primitive it cannot delegate is `callcc`, since the host would capture the
+interpreter's continuation instead of the program's; the interpreted level builds
+its own one-shot continuation, marked used before transfer.
+
+Two boundaries are declared rather than smoothed over: an encoded term carries no
+spans, so a failure raised at the interpreted level is reported inside
+`eval.ash`, and a failure this level detects itself — an arity mismatch on an
+interpreted closure, a reused continuation, an unbound identifier, reifier
+application — reports as `No_matching_clause` naming the condition, because Ash
+cannot construct a structured error. See
+[`docs/decisions/0016-the-ash-self-interpreter.md`](docs/decisions/0016-the-ash-self-interpreter.md).
+
 ## The differential corpus
 
 `test/differential/` runs one program on both evaluators and compares four
@@ -398,15 +473,25 @@ everything would agree perfectly, so agreement alone proves nothing — and the
 comparison's own reporting is checked against outcomes known to differ.
 
 The corpus has two halves. The Core half is written in the canonical notation,
-which is what the self-interpreter will read. The surface half is written in Ash
-and lowered by the desugarer, which puts the parser and desugarer under the same
+which is what the self-interpreter reads. The surface half is written in Ash and
+lowered by the desugarer, which puts the parser and desugarer under the same
 comparison. Both halves cover recursion, closures, shadowing, lists, mutation,
 evaluation order, and failures.
+
+`corpus.ml` holds the programs and both comparisons read it: the oracle against
+the CPS evaluator, and the CPS evaluator against the self-interpreter. Sharing
+one list is what keeps the second comparison from being run against easier
+programs than the first. The self-interpreter comparison adds output and control
+programs, which are the two areas the oracle refuses and the shared corpus
+therefore cannot exercise; it compares value, cause, and trace but not location,
+for the reason given above.
 
 The oracle's refusals are checked too, as a boundary rather than as agreement:
 quotation, reifiers, `callcc`, observable effects, and cells are all outside the
 pure corpus by construction, and a change that quietly moved that line would fail
-here.
+here. The self-interpreter has a boundary of its own, checked the same way:
+applying a reifier needs the level above, and a quotation answers an encoded term
+where the host answers `Code`.
 
 ## Development workflow
 

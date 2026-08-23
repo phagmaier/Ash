@@ -16,19 +16,23 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 2 — self-interpreter and open recursion
-- **Next:** 2.1 — define and enforce open-recursive evaluator groups at the Ash
-  level (the host side is already done in 0.8; what remains is the Ash-level
-  evaluator group and the same law tested there)
+- **Next:** 2.3 — test iteration and invariant OR: self-interpreter layers 1 and
+  2 plus the spec's patch-depth fixture
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass from a clean `_build` with the hygienic desugarer, first-class one-shot
-  continuations, the 26-primitive registry (`match_error` and `callcc`), the
-  desugar/continuation/parser/lexer/Core/runtime suites, and the 91-program
-  oracle/CPS differential corpus (73 Core, 18 surface)
+  pass from a clean `_build` with the hygienic desugarer, `open fn` groups, the
+  Ash self-interpreter (`lib/self/eval.ash`), the 31-primitive registry (`list?`,
+  `invoke`, and the `open_*` trio), the
+  desugar/continuation/parser/lexer/Core/runtime suites, the open-recursion law
+  suite, and both differential comparisons over the shared 91-program corpus
+  (73 Core, 18 surface) — the self-interpreter one adding 4 output and 4 control
+  programs
 - **Blocker:** none
 
-Phase 1 is complete. Phase 2 needs the self-interpreter written in Ash, which is
-what the surface language and the desugarer were built for.
+Tasks 2.1 and 2.2 are done: `open fn` is a surface binding form that lowers to
+open-recursion cells, and the CPS Core evaluator is written in Ash and agrees
+with the host evaluator on the corpus. What 2.3 adds is depth — running the
+interpreter on itself, which needs the encoding to survive a second level.
 
 ## Locked decisions
 
@@ -160,19 +164,26 @@ what the surface language and the desugarer were built for.
 
 ## Phase 2 — self-interpreter and open recursion
 
-- [ ] **2.1 Define and enforce open-recursive evaluator groups.**
+- [x] **2.1 Define and enforce open-recursive evaluator groups.**
   - Store `eval`, `apply`, and `eval-list` in mutable per-level cells.
   - Every intra-group call must dynamically dereference its cell; instrument each
     dereference. Never capture direct group references in closures.
   - Accept: wrapping `eval` observes every nested AST node, not just entry.
-  - **Host side already done in 0.8** (`Ash_runtime.Machine`, ADR 0008), with the
-    acceptance test at host level. What remains is the Ash-level evaluator group
-    and the same law tested there.
+  - Host side was already done in 0.8 (`Ash_runtime.Machine`, ADR 0008). The Ash
+    side is `open fn`, a surface binding form that binds each member's name to a
+    cell and lowers every reference to it — inside the group and after it — as
+    `open_deref`, and every `member := …` as `open_set`. Core is untouched. ADR
+    0015 records it; `test/laws/open_recursion_test.ml` is the law.
 
-- [ ] **2.2 Write the CPS Core evaluator in Ash.**
+- [x] **2.2 Write the CPS Core evaluator in Ash.**
   - Keep it parallel to the host evaluator. Resolve missing language support as a
     Core form or desugaring, never a host escape hatch.
   - Accept: it matches the host evaluator on the ordinary corpus.
+  - `lib/self/eval.ash`, run by `ash.self`. Quotation is Phase 3, so a term
+    arrives as tagged list data; two primitives were added rather than worked
+    around (`invoke`, which is §6's `prim_apply`, and `list?`). ADR 0016 records
+    the encoding, the value domain, and the two declared boundaries — locations,
+    and failures the interpreted level detects itself.
 
 - [ ] **2.3 Test iteration and invariant OR.**
   - Test self-interpreter layers 1 and 2 plus the spec's patch-depth fixture.
@@ -360,6 +371,95 @@ what the surface language and the desugarer were built for.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — tasks 2.1 and 2.2
+
+- Completed 2.1: open-recursive evaluator groups at the Ash level.
+  - `open fn` is now a surface binding form. The lexer had reserved `open` since
+    1.1; the parser accepts it only as the head of a definition, `Surface`
+    records it as `function_open` on a named function, and adjacent declarations
+    of the *same* kind form one group — a `fn` run ends where an `open fn` run
+    begins.
+  - Lowering is cells, not `LetRec`: one `open_cell` per member, an `open_set`
+    filling each with its lambda, and every reference to a member — inside the
+    group and after it — as `open_deref` of that cell. `member := …` writes
+    through the cell with `open_set` rather than rebinding the name, so every
+    dereference already written sees the replacement. Members are assignable;
+    plain `fn` bindings still are not.
+  - References *after* the group are dereferences too. §D3's wording is about the
+    group's own recursion, but an external caller holding the function directly
+    would be a reference no replacement reaches, and the spec's own test is
+    written from outside the group.
+  - Three primitives were added, spelled apart from `cell_new`/`deref`/`cell_set`
+    so the collapse report can count evaluator dereferences without guessing
+    which cells were an interpreter's: `open_cell`, `open_deref`, `open_set`,
+    all allocation/mutation. `Primitives.open_dereferences` counts reads
+    performed (after the read succeeds — a refused read is not a dereference) and
+    is observationally inert.
+- Completed 2.2: the CPS Core evaluator written in Ash, `lib/self/eval.ash`,
+  loaded and run by the new `ash.self` library.
+  - It is parallel to the host evaluator: same eleven forms, same evaluation
+    order, same CPS, same open group. It reads a term as tagged list data because
+    quotation is Phase 3, and dispatches on the form tag with an `if` chain
+    because Core constructor patterns do not lower until Phase 3 either.
+  - Interpreted scalars, lists, and cells represent themselves; closures,
+    reifiers, continuations, and primitives are lists headed by a private cell
+    the interpreted program cannot name or forge. Each closure carries a fresh
+    cell as its identity, so `==` compares places rather than shapes.
+  - Two primitives were added rather than worked around: `invoke(f, args)`,
+    which is §6's `prim_apply` and applies a callee to a run-time-length argument
+    list (control class — its class is its callee's), and `list?`, the one type
+    test, needed to tell a tagged closure from a scalar without an accessor that
+    refuses. No host escape hatch: the interpreted level gets exactly the globals
+    a level-0 run gets, and delegates everything else to them, which is why its
+    arity, type, and arithmetic diagnostics are the host's.
+  - `callcc` is the one primitive it cannot delegate — the host would capture the
+    interpreter's continuation — so the interpreted level builds its own one-shot
+    continuation, marked used before transfer.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all passed. `git diff --check` passed.
+- Acceptance 2.1: `test/laws/open_recursion_test.ml` shows a wrapper on `eval`
+  observing every nested AST node — thirteen for §D3's `1 + (2 * (3 - (4 / 5)))`,
+  against the nine the spec asks for as a lower bound, and equal to
+  `Core.node_count` — plus `apply` and `eval_list` patchable on the same terms, a
+  replacement installed mid-evaluation taking effect at the next step (counted
+  exactly), restoration of the cell restoring the group, and the dereference
+  counter being inert.
+- Acceptance 2.2: `test/differential/self_host_test.ml` compares the host
+  evaluator and the self-interpreter on all 91 corpus programs plus 4 output and
+  4 control programs, on value, cause, and observable trace. The corpus moved to
+  `test/differential/corpus.ml` and both differential tests read it, so the
+  second comparison cannot be run against easier programs than the first. The
+  harness was checked by reversing `eval_list`'s order in `eval.ash`, which
+  produced a readable minimal difference on exactly the two evaluation-order
+  programs.
+- Decisions: ADR 0015 (`open fn`, why references outside the group dereference
+  too, why the `open_*` trio is spelled apart, why the counter is on the
+  registry) and ADR 0016 (the interpreter's encoding and value domain, `invoke`
+  and `list?`, delegation as the way to keep diagnostics honest, and the two
+  declared boundaries). Spec §6 gained a note saying which two things in its
+  sketch are deferred and pointing at ADR 0016; AGENTS gained `lib/self/` in the
+  layout. The registry is 31 primitives and `Effect_class.Control` is now
+  `callcc` and `invoke`.
+- Known issues: **locations do not cross the encoding.** A term encoded as data
+  carries no spans, so a failure raised at the interpreted level is reported
+  inside `eval.ash`; the differential test therefore compares cause and not
+  location. **Ash cannot construct a structured error**, so four corpus programs
+  — the three closure arity errors and the surface one — report as
+  `No_matching_clause` naming the condition instead of the host's
+  `Arity_error`. Both are listed in `self_host_test.ml`, and the exemption list
+  is asserted to be exactly the set that needs it, so a program that starts
+  agreeing fails rather than sitting under an exemption nobody rechecks. Both
+  are Phase 3 questions: they are about `Code` carrying spans, not about the
+  interpreter. Printing an interpreted closure would print its tagged list rather
+  than `#<closure>`; nothing in the corpus does.
+- Next: 2.3 — test iteration and invariant OR. Run the self-interpreter on
+  itself (layers 1 and 2) plus the spec's patch-depth fixture, and check that all
+  layers agree and that recursive evaluation stays patchable at depth. The
+  encoding is the thing to watch: layer 2 interprets layer 1's *encoded* text, so
+  `Ash_self.Encode` has to survive being applied to the lowering of `eval.ash`
+  itself.
 
 ### 2026-08-23 — tasks 1.5 and 1.6 (Phase 1 complete)
 
