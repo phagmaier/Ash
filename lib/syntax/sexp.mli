@@ -36,6 +36,12 @@ val to_string : t -> string
     alignment. Reading the result yields the same datum, so this is the
     round-trip partner of {!of_string}. *)
 
+val is_readable_atom : string -> bool
+(** Whether [text] would read back as [Atom text]: non-empty, free of delimiters
+    and control characters, not a decimal integer, and not starting with ['] or
+    [#]. The printer asks before using a name, so the lexical rules stay in one
+    place. *)
+
 val datum_name : datum -> string
 (** A noun phrase for diagnostics, e.g. ["an integer"], ["a list"]. *)
 

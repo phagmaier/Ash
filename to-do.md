@@ -16,11 +16,11 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 0 — Core
-- **Next:** 0.6 — implement the Core printer and alpha-equivalence
+- **Next:** 0.7 — implement the frozen direct-style oracle
 - **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
   and `dune exec ash -- --help` pass with the `ash.core` layer (identifiers,
-  Core, values, environments, errors) and `ash.syntax` (s-expressions and the
-  canonical Core reader)
+  Core, values, environments, errors, alpha-equivalence) and `ash.syntax`
+  (s-expressions, the canonical Core reader, and the printer)
 - **Blocker:** none
 
 ## Locked decisions
@@ -74,7 +74,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Validate shape/arity and retain source spans.
   - Accept: every Core form round-trips; malformed forms identify their location.
 
-- [ ] **0.6 Implement the Core printer and alpha-equivalence.**
+- [x] **0.6 Implement the Core printer and alpha-equivalence.**
   - Print deterministic readable binders and compare through canonical IDs.
   - Accept: `read(print(core))` is alpha-equivalent for every form, including
     shadowing, `LetRec`, quotation, and reifiers.
@@ -327,6 +327,48 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 0.6
+
+- Completed: added `Alpha` to `ash.core` and `Core_printer` to `ash.syntax`.
+  - `Alpha.equal` decides alpha-equivalence by walking both terms in step under a
+    correspondence between their bound identifiers; free identifiers must be
+    equal as identities. `Alpha.canonicalize` renumbers bound identifiers by
+    first occurrence so that `Core.equal_structure` on canonicalized terms *is*
+    alpha-equivalence. `Alpha.free_idents` supports both and the printer.
+  - `Core.equal_structure`: structural equality ignoring spans, documented as
+    explicitly not alpha-equivalence.
+  - `Core_printer`: prints the canonical notation with capture-avoiding renaming.
+    A printed binder never shadows a visible name, so within any scope one
+    printed name denotes exactly one binder. Terms whose free identifiers print
+    alike are refused rather than printed misleadingly.
+  - `Sexp.is_readable_atom` keeps the lexical rules in one place.
+  - `Ident.Canon` is now erase-only and numbers canonical slots negatively.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/alpha_test.ml` and `test/unit/printer_test.ml`, both checked to fail
+  loudly by perturbing an expected value before restoring it.
+- Acceptance: `read(print(core))` is alpha-equivalent for all twenty-two printer
+  fixtures, covering every Core form plus shadowing binders, same-name
+  parameters, same-name recursive binders, same-name reifier parameters,
+  quotation of a variable bound outside the quote, a binder adjacent to a free
+  name of the same spelling, and an unreadable binder name. Alpha-equivalence is
+  additionally checked pairwise against canonical structural equality over a
+  ten-term corpus.
+- Decisions: ADR 0006 records deciding alpha-equivalence by lockstep walk rather
+  than by canonicalizing both terms, the disjoint negative numbering for
+  canonical identities, the never-shadow printing discipline, and refusing to
+  print terms with indistinguishable free names. It also amends ADR 0002, whose
+  `Keep_names` policy was predicted to serve the printer and did not — the
+  printer must avoid capture, which renumbering does not do — so the policy was
+  removed unused.
+- Known issues: none. Note that printed-and-reread terms must never be compared
+  with `Core.equal_structure`; reading allocates fresh identities, so the
+  relationship is alpha-equivalence.
+- Next: 0.7 — the frozen direct-style oracle: pure ordinary Core only, explicitly
+  forbidding reflection, staging, and continuation extensions, with arithmetic,
+  functions, lexical scope, `If`, `Let`, `LetRec`, and immutable-list fixtures.
 
 ### 2026-08-23 — task 0.5
 

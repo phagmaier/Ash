@@ -137,3 +137,11 @@ val binders : t -> Ident.t list
 val node_count : t -> int
 (** Raw AST node count, including quoted subterms. This is a syntactic size, not
     one of the §9 report metrics. *)
+
+val equal_structure : t -> t -> bool
+(** Structural equality ignoring spans, comparing identifiers by identity.
+
+    This is {e not} alpha-equivalence: two terms that differ only by renaming are
+    structurally different. Use {!Alpha.equal} to compare meaning, or compare
+    {!Alpha.canonicalize}d terms with this. Spans are ignored because they are
+    metadata: where a term was written has nothing to do with what it is. *)

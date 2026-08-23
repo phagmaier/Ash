@@ -146,6 +146,15 @@ let is_decimal_integer text =
   String.length digits > 0
   && String.for_all (function '0' .. '9' -> true | _ -> false) digits
 
+let is_readable_atom text =
+  String.length text > 0
+  && (not (is_decimal_integer text))
+  && text.[0] <> '\''
+  && text.[0] <> '#'
+  && String.for_all
+       (fun c -> (not (is_delimiter c)) && Char.code c >= 0x20 && Char.code c <> 0x7f)
+       text
+
 let classify_token ~span text =
   if String.equal text "#t" then Bool true
   else if String.equal text "#f" then Bool false

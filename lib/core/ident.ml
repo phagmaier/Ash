@@ -38,10 +38,12 @@ module Set = Set.Make (Key)
 module Map = Map.Make (Key)
 
 module Canon = struct
-  type policy = Keep_names | Erase_names
-
+  (* Canonical identities are numbered downward from -1 while allocated ones
+     count upward from 1, so the two spaces cannot meet. Without that, a term
+     with a free identifier named "v" could have it collide with a renumbered
+     binder, and structural equality of canonicalized terms would silently stop
+     meaning alpha-equivalence. *)
   type t = {
-    policy : policy;
     table : (int, ident) Hashtbl.t;  (** keyed by original ID *)
     mutable next : int;  (** next canonical slot *)
   }
@@ -50,10 +52,7 @@ module Canon = struct
      slot, and a positional name keeps the erasure visible when printed. *)
   let erased_name = "v"
 
-  let create ?(policy = Erase_names) () =
-    { policy; table = Hashtbl.create 32; next = 0 }
-
-  let policy state = state.policy
+  let create () = { table = Hashtbl.create 32; next = 0 }
 
   let fix state ident =
     if Hashtbl.mem state.table ident.id then
@@ -68,18 +67,13 @@ module Canon = struct
     | None ->
         let slot = state.next in
         state.next <- slot + 1;
-        let name =
-          match state.policy with
-          | Keep_names -> ident.name
-          | Erase_names -> erased_name
-        in
-        let canonical = { name; id = slot } in
+        let canonical = { name = erased_name; id = -(slot + 1) } in
         Hashtbl.add state.table ident.id canonical;
         canonical
 
   let count state = state.next
 
-  let list ?policy idents =
-    let state = create ?policy () in
+  let list idents =
+    let state = create () in
     List.map (canonical state) idents
 end

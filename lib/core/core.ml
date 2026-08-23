@@ -133,3 +133,44 @@ let binders node =
 
 let rec node_count node =
   List.fold_left (fun total child -> total + node_count child) 1 (children node)
+
+(* Structural equality. Spans and the per-binding span of a recursive group are
+   metadata and take no part in it. *)
+
+let rec equal_structure a b =
+  match (a.shape, b.shape) with
+  | Lit x, Lit y -> Constant.equal x y
+  | Var x, Var y -> Ident.equal x y
+  | NamedVar x, NamedVar y -> String.equal x y
+  | Lam x, Lam y -> equal_lambda x y
+  | App x, App y ->
+      equal_structure x.func y.func && List.equal equal_structure x.args y.args
+  | Let x, Let y ->
+      Ident.equal x.let_binder y.let_binder
+      && equal_structure x.let_value y.let_value
+      && equal_structure x.let_body y.let_body
+  | LetRec x, LetRec y ->
+      List.equal equal_rec_binding x.rec_bindings y.rec_bindings
+      && equal_structure x.rec_body y.rec_body
+  | If x, If y ->
+      equal_structure x.condition y.condition
+      && equal_structure x.consequent y.consequent
+      && equal_structure x.alternative y.alternative
+  | Set x, Set y ->
+      Ident.equal x.set_target y.set_target && equal_structure x.set_value y.set_value
+  | Quote x, Quote y -> equal_structure x y
+  | Reifier x, Reifier y ->
+      Ident.equal x.exp_param y.exp_param
+      && Ident.equal x.env_param y.env_param
+      && Ident.equal x.cont_param y.cont_param
+      && equal_structure x.reifier_body y.reifier_body
+  | ( ( Lit _ | Var _ | NamedVar _ | Lam _ | App _ | Let _ | LetRec _ | If _ | Set _
+      | Quote _ | Reifier _ ),
+      _ ) ->
+      false
+
+and equal_lambda x y =
+  List.equal Ident.equal x.params y.params && equal_structure x.lam_body y.lam_body
+
+and equal_rec_binding x y =
+  Ident.equal x.rec_name y.rec_name && equal_lambda x.rec_lambda y.rec_lambda

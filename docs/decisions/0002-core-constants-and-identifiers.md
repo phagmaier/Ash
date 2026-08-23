@@ -1,6 +1,7 @@
 # 0002 — Core constants, spans, and the hygienic identifier representation
 
-- **Status:** accepted
+- **Status:** accepted; the canonicalization section is amended by
+  [ADR 0006](0006-core-printing-and-alpha-equivalence.md)
 - **Date:** 2026-08-23
 - **Task:** 0.2
 
@@ -29,14 +30,20 @@ so a future multi-domain driver cannot hand out a duplicate ID, and it starts at
 allocated one during debugging.
 
 **Alpha-equivalence is renumbering by first occurrence, with explicit fixing of
-free identifiers.** `Ident.Canon` assigns canonical slots in traversal order,
-under one of two policies: `Erase_names` replaces every printed name with the
-positional `v`, so alpha-renamed terms become structurally equal; `Keep_names`
-renumbers but keeps the printed name, which is what the Phase 0.6 printer needs.
-Identifiers that are *free* in the term under comparison must be registered with
-`Canon.fix` before traversal — a free `x#4` and a free `y#9` denote different
-variables and must not both land in slot 0. Binding-aware traversal is the Core
-layer's job (task 0.6); this module only supplies the renumbering.
+free identifiers.** `Ident.Canon` assigns canonical slots in traversal order and
+replaces every printed name with the positional `v`, so alpha-renamed terms
+become structurally equal. Identifiers that are *free* in the term under
+comparison must be registered with `Canon.fix` before traversal — a free `x#4`
+and a free `y#9` denote different variables and must not both land in slot 0.
+Binding-aware traversal is the Core layer's job (task 0.6); this module only
+supplies the renumbering.
+
+> **Amended by ADR 0006.** This record originally also offered a `Keep_names`
+> policy, on the expectation that the Phase 0.6 printer would want renumbering
+> with names preserved. It does not — a printer must rename to *avoid capture*,
+> which renumbering does not do — so the policy was removed unused. ADR 0006 also
+> moves canonical identities into a disjoint negative numbering, closing a
+> collision this record did not consider.
 
 **Generated nodes keep the span they came from plus a marker.**
 `Span.origin` is either `Source` or `Generated { by; from }`, where `from` is

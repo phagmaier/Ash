@@ -34,7 +34,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 |------|----------|
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
-| `lib/syntax/` | `ash.syntax`: s-expression data and the canonical Core reader |
+| `lib/syntax/` | `ash.syntax`: s-expression data, and the canonical Core reader and printer |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `docs/decisions/` | numbered architecture decision records |
@@ -136,6 +136,33 @@ quoted variable keeps the binder ID of the binding it was written under, and one
 binder list may not bind a printed name twice. Comments start with `;`, since
 `#t` and `#f` need the hash. See
 [`docs/decisions/0005-canonical-core-notation.md`](docs/decisions/0005-canonical-core-notation.md).
+
+`Ash_syntax.Core_printer` prints that notation back. Because several binders can
+print alike, it renames as it goes, and further than capture-avoidance strictly
+requires: **a printed binder never shadows a name already visible**, so within
+any scope one printed name denotes exactly one binder. A term whose *free*
+identifiers print alike has no faithful written form and is refused rather than
+printed misleadingly.
+
+## Comparing terms
+
+Binder identities come from a global counter, so terms that mean the same thing
+are almost never structurally equal. Every equivalence claim Ash makes is up to
+alpha-equivalence, and `Ash_core.Alpha` is where that lives:
+
+- `Alpha.equal` decides alpha-equivalence directly, walking both terms in step.
+  It is the comparison to reach for by default.
+- `Alpha.canonicalize` rewrites a term so that `Core.equal_structure` on
+  canonicalized terms *is* alpha-equivalence — for normalizers and for report
+  keys. Canonical identities are numbered negatively so they can never collide
+  with an allocated one.
+- `Core.equal_structure` is plain structural equality ignoring spans. It is
+  deliberately *not* alpha-equivalence.
+
+`read (print t)` is alpha-equivalent to `t`, never equal to it: reading allocates
+fresh identities. `Core_printer.to_string (Alpha.canonicalize t)` is the stable
+textual key for a term. See
+[`docs/decisions/0006-core-printing-and-alpha-equivalence.md`](docs/decisions/0006-core-printing-and-alpha-equivalence.md).
 
 ## Development workflow
 

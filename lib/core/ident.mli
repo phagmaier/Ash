@@ -64,32 +64,26 @@ module Map : Map.S with type key = t
     identifiers by order of first occurrence in a traversal, so two terms that
     differ only by renaming become structurally equal.
 
+    Canonical identities live in their own numbering: slot [n] becomes
+    [-(n + 1)], and every printed name becomes the positional [v]. Allocated
+    identities are always positive, so a canonical identifier can never collide
+    with one that {!fresh} handed out — which is what makes structural equality
+    of canonicalized terms exactly alpha-equivalence even when a term has free
+    identifiers.
+
     Soundness note: renumbering by first occurrence identifies alpha-equivalent
     terms only when the traversal visits both terms in the same order and every
     identifier that is {e free} in the term is registered with {!fix} first.
     A free [x#4] and a free [y#9] denote different variables and must not both
-    canonicalize to the first slot. Binding-aware traversal belongs to the Core
-    layer; this module supplies the renumbering it uses. *)
+    canonicalize to the first slot. Binding-aware traversal belongs to
+    {!Alpha}; this module supplies the renumbering it uses. *)
 
 module Canon : sig
   type ident := t
-
-  (** What to do with printed names while renumbering. *)
-  type policy =
-    | Keep_names
-        (** Keep each identifier's printed name and only renumber. Deterministic
-            and readable, so printers use it; it does {e not} identify terms that
-            differ by renaming. *)
-    | Erase_names
-        (** Replace every printed name with a positional one. Two
-            alpha-equivalent terms canonicalize to structurally equal terms. *)
-
   type t
 
-  val create : ?policy:policy -> unit -> t
-  (** A fresh, empty renumbering state. Defaults to [Erase_names]. *)
-
-  val policy : t -> policy
+  val create : unit -> t
+  (** A fresh, empty renumbering state. *)
 
   val fix : t -> ident -> unit
   (** Map [ident] to itself, reserving it from renumbering. Use it for free and
@@ -104,6 +98,6 @@ module Canon : sig
   (** How many distinct identifiers have been renumbered so far, excluding fixed
       ones. *)
 
-  val list : ?policy:policy -> ident list -> ident list
+  val list : ident list -> ident list
   (** Canonicalize a whole sequence with a private state, left to right. *)
 end

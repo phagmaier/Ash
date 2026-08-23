@@ -253,23 +253,16 @@ let test_canonicalization () =
   check_int "count tracks distinct identifiers" 1 (Ident.Canon.count state);
   ignore (Ident.Canon.canonical state z);
   check_int "count grows per distinct identifier" 2 (Ident.Canon.count state);
-  check_int "canonical slots are numbered from zero" 0 (Ident.id first);
+  (* Canonical identities occupy their own numbering, counting down from -1
+     while allocated ones count up from 1, so a canonical binder can never
+     collide with a free identifier that happens to print the same. *)
+  check_int "canonical slots are numbered from minus one" (-1) (Ident.id first);
   check_string "erased names are positional" "v" (Ident.name first);
-
-  (* Keep_names is the printer's policy: readable and deterministic, but it does
-     not identify terms that differ by renaming. *)
-  let kept = Ident.Canon.list ~policy:Ident.Canon.Keep_names [ x; z; x ] in
-  check_string "keep_names preserves printed names" "x; z; x"
-    (String.concat "; " (List.map Ident.name kept));
-  check "keep_names renumbers deterministically"
-    (List.map Ident.id kept = [ 0; 1; 0 ]);
-  check "keep_names does not identify renamings"
-    (not
-       (List.equal Ident.equal kept
-          (Ident.Canon.list ~policy:Ident.Canon.Keep_names [ a; b; a ])));
-  check "policy accessor"
-    (Ident.Canon.policy (Ident.Canon.create ~policy:Ident.Canon.Keep_names ())
-    = Ident.Canon.Keep_names);
+  check "canonical identities never collide with allocated ones"
+    (List.for_all
+       (fun ident -> Ident.id ident < 0)
+       (Ident.Canon.list [ x; z; Ident.fresh "v" ]));
+  check "an allocated identity is never negative" (Ident.id (Ident.fresh "v") > 0);
 
   (* Free identifiers must be reserved before traversal, or two different free
      variables would both canonicalize to the first slot. *)
@@ -289,7 +282,7 @@ let test_canonicalization () =
   let mixed_state = Ident.Canon.create () in
   Ident.Canon.fix mixed_state free_x;
   let bound = Ident.Canon.canonical mixed_state x in
-  check "fixing does not consume a canonical slot" (Ident.id bound = 0);
+  check "fixing does not consume a canonical slot" (Ident.id bound = -1);
   check_int "fixed identifiers are excluded from the count" 1
     (Ident.Canon.count mixed_state);
   check_raises_invalid_argument "fix rejects an already canonicalized identifier"
