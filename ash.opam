@@ -1,0 +1,13 @@
+opam-version: "2.0"
+synopsis: "A reflective tower that collapses"
+description: "A hygienic language, reflective interpreter tower, and staged collapser."
+maintainer: "Ash contributors"
+authors: "Ash contributors"
+depends: [
+  "ocaml" {>= "5.2"}
+  "dune" {>= "3.16"}
+]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+]
