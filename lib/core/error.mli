@@ -54,6 +54,13 @@ type cause =
       (** One binder list binds a printed name twice. The reader works in names,
           so allowing it would make resolution depend on the order bindings were
           entered, and it would build a frame no name lookup could resolve. *)
+  | Inconsistent_pattern_binders of {
+      expected : string list;
+      actual : string list;
+    }
+      (** Two arms of an alternative pattern bind different name sets. Both
+          lists are sorted so diagnostics and structural comparisons are
+          independent of traversal order. *)
   | End_of_input
       (** An observable input primitive was called with nothing left to read.
           A program-level condition rather than a host failure: input is

@@ -5,6 +5,6 @@
     golden tests. *)
 
 val to_string : Surface.t -> string
+val pattern_to_string : Surface.pattern -> string
 val program_to_string : Surface.program -> string
 val pp : Format.formatter -> Surface.t -> unit
-

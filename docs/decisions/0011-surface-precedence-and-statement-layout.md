@@ -62,10 +62,12 @@ therefore produces a located `Unsupported field access` parse error rather than
 being silently ignored or misread as application.
 
 **This slice stops at the task boundary.** Pattern matching and patterns land in
-1.3, quotation and splicing acquire their hygienic meaning in Phase 3, and the
-tower forms land with their semantic phases. Their tokens are already reserved,
-but accepting a placeholder AST node now would falsely claim that the surface
-construct is implemented.
+1.3. Because quasiquote patterns contain the same quotation and splice grammar
+as expressions, 1.3 also adds their syntax-only AST representation; quotation
+and splicing acquire their hygienic meaning in Phase 3. Tower forms land with
+their semantic phases. Their tokens are already reserved, but accepting a
+placeholder AST node early would falsely claim that the surface construct is
+implemented.
 
 ## Alternatives
 
@@ -112,4 +114,3 @@ associativity rule, the complete precedence ladder, the required §4.1 examples,
 and representative parser diagnostics. It uses the same Dune `diff` workflow as
 the lexer golden: regenerate with `dune runtest --auto-promote` and review the
 language change in the diff.
-

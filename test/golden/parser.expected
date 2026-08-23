@@ -68,6 +68,56 @@ Required surface constructs
   =>
 (|> (|> xs (call map double)) sum)
 
+== §4.2 documented length ==
+  | fn length(xs) =
+  |   match xs {
+  |     []      -> 0
+  |     _ :: ys -> 1 + length(ys)
+  |   }
+  =>
+(fn length (params xs) (match xs (clause (list-pattern) 0) (clause (:: _ ys) (+ 1 (call length ys)))))
+
+== §4.4 documented simplify ==
+  | fn simplify(e) =
+  |   match e {
+  |     `{ ${a} + 0 }   -> simplify(a)
+  |     `{ ${a} * 1 }   -> simplify(a)
+  |     `{ ${a} * 0 }   -> `{ 0 }
+  |     `{ ${f}(${x}) } -> `{ ${simplify(f)}(${simplify(x)}) }
+  |     _               -> e
+  |   }
+  =>
+(fn simplify (params e) (match e (clause (quasiquote-pattern (+ (pattern-splice a) 0)) (call simplify a)) (clause (quasiquote-pattern (* (pattern-splice a) 1)) (call simplify a)) (clause (quasiquote-pattern (* (pattern-splice a) 0)) (quote 0)) (clause (quasiquote-pattern (call (pattern-splice f) (pattern-splice x))) (quote (call (splice (call simplify f)) (splice (call simplify x))))) (clause _ e)))
+
+== all Core constructor patterns ==
+  | match e {
+  |   Lit(c) -> 0
+  |   Var(x) -> 0
+  |   NamedVar(s) -> 0
+  |   Lam(ps,b) -> 0
+  |   App(f,args) -> 0
+  |   Let(x,v,b) -> 0
+  |   LetRec(bs,b) -> 0
+  |   If(c,t,f) -> 0
+  |   Set(x,v) -> 0
+  |   Quote(q) -> 0
+  |   Reifier(ps,b) -> 0
+  | }
+  =>
+(match e (clause (Lit c) 0) (clause (Var x) 0) (clause (NamedVar s) 0) (clause (Lam ps b) 0) (clause (App f args) 0) (clause (Let x v b) 0) (clause (LetRec bs b) 0) (clause (If c t f) 0) (clause (Set x v) 0) (clause (Quote q) 0) (clause (Reifier ps b) 0))
+
+--------------------------------------------------------------------------
+Patterns, alternatives, constructors, and quasiquotation
+--------------------------------------------------------------------------
+  _                                                      => _
+  -1 | "x" | 'ok | true | false | ()                     => (| -1 "x" 'ok true false ())
+  [x, _, 3]                                              => (list-pattern x _ 3)
+  x :: y :: ys                                           => (:: x (:: y ys))
+  [x] | x :: []                                          => (| (list-pattern x) (:: x (list-pattern)))
+  App(f, [x, xs])                                        => (App f (list-pattern x xs))
+  `{ ${a} + 0 }                                          => (quasiquote-pattern (+ (pattern-splice a) 0))
+  `{ ${f}(${x}) }                                        => (quasiquote-pattern (call (pattern-splice f) (pattern-splice x)))
+
 --------------------------------------------------------------------------
 Parser diagnostics
 --------------------------------------------------------------------------
@@ -79,3 +129,11 @@ Parser diagnostics
   f(x) := 1                    golden.ash:1:1-5: parse error: expected a name on the left of `:=`, found an expression that is not a name
   x.y                          golden.ash:1:2-3: parse error: `field access` is not supported by the Ash surface language
   x y                          golden.ash:1:3-4: parse error: expected end of input, found the name `y`
+  ${x}                         golden.ash:1:1-3: parse error: expected a splice inside a quotation, found the start of a splice `${`
+  match x {}                   golden.ash:1:10-11: parse error: expected a match clause, found `}`
+  x :: x                       golden.ash:1:6-7: parse error: `x` is bound twice in the same binder list
+  x | y                        golden.ash:1:5-6: parse error: pattern alternatives must bind the same names: expected {x}, found {y}
+  Foo(x)                       golden.ash:1:1-4: parse error: `Foo` is not a Core form
+  Lit(x, y)                    golden.ash:1:1-10: parse error: malformed `Lit`: expected Lit(<pattern>)
+  [x,]                         golden.ash:1:4-5: parse error: expected a pattern after `,`, found `]`
+  `{ ${x} + ${x} }             golden.ash:1:13-14: parse error: `x` is bound twice in the same binder list

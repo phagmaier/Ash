@@ -1,4 +1,4 @@
-(** Handwritten parser for the non-pattern surface language in spec §4.1.
+(** Handwritten parser for the Ash surface language in spec §4.
 
     Infix precedence follows the spec from pipelines (loosest) through calls
     (tightest). All binary levels associate left except [::], which associates
@@ -19,3 +19,7 @@ val program : ?file:string -> string -> Surface.program
 (** Parse zero or more statements separated by a newline or semicolon.
     @raise Ash_core.Error.Ash_error with phase [Parse] on malformed syntax. *)
 
+val pattern : ?file:string -> string -> Surface.pattern
+(** Parse exactly one pattern, including alternatives and quasiquote patterns,
+    and require end of input. Alternatives must bind identical name sets.
+    @raise Ash_core.Error.Ash_error with phase [Parse] on malformed syntax. *)

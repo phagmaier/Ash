@@ -148,10 +148,11 @@ let test_frozen_boundary () =
           | Error.Unsupported { by; _ } -> String.equal by "the direct-style oracle"
           | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Ambiguous_name _
           | Error.Unfilled_binding _ | Error.Unexpected_character _
-          | Error.Unterminated _ | Error.Unexpected _ | Error.Unknown_form _
-          | Error.Malformed_form _ | Error.Arity_error _ | Error.Division_by_zero
-          | Error.Duplicate_binder _ | Error.End_of_input ->
-              false)
+           | Error.Unterminated _ | Error.Unexpected _ | Error.Unknown_form _
+           | Error.Malformed_form _ | Error.Arity_error _ | Error.Division_by_zero
+           | Error.Duplicate_binder _ | Error.Inconsistent_pattern_binders _
+           | Error.End_of_input ->
+               false)
       | Ok _ -> false
     in
     check ("the oracle refuses " ^ text) refused;

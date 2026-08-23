@@ -16,12 +16,13 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 1 — surface language and continuations
-- **Next:** 1.3 — implement patterns and pattern parsing
+- **Next:** 1.4 — hygienically desugar surface syntax to Core
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest`, and `opam exec -- dune exec ash -- --help` pass
-  with the source-located surface AST and precedence parser, parser unit and
-  golden tests, the existing lexer/Core/runtime suites, and the 46-program
-  oracle/CPS differential corpus
+  with match expressions, the complete source-located pattern AST and parser,
+  expression/pattern quotation contexts, updated parser unit and golden tests,
+  the existing lexer/Core/runtime suites, and the 46-program oracle/CPS
+  differential corpus
 - **Blocker:** none
 
 ## Locked decisions
@@ -117,7 +118,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
     pipelines, and the exact precedence/associativity table from the spec.
   - Accept: parser golden tests include every precedence boundary.
 
-- [ ] **1.3 Implement patterns and pattern parsing.**
+- [x] **1.3 Implement patterns and pattern parsing.**
   - Cover wildcard, literals, variables, list patterns, alternatives, Core
     constructors, and quasiquote patterns; reject inconsistent binders.
   - Accept: the documented `length` and `simplify` examples parse.
@@ -339,6 +340,51 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 1.3
+
+- Completed: the complete source-located pattern grammar and the match,
+  quotation, and splice syntax needed to represent it.
+  - `Surface.pattern` covers wildcard, integer/string/symbol/boolean/unit
+    literals, variables, list patterns, right-associative cons, alternatives,
+    all eleven Core constructors, quasiquote patterns, and grouping.
+    `Surface.pattern_binders` retains source order for hygienic lowering.
+  - `Parser.pattern` and match-clause parsing share the same implementation.
+    Match clauses use newline/semicolon layout and cannot be empty. Core
+    constructor spellings form a closed vocabulary with exact arity checks.
+  - Quotation is syntax-only at this phase. A splice is tagged as either
+    `Expression_splice` or `Pattern_splice`, so quasiquote holes can contain full
+    patterns and participate in binder validation without being reinterpreted
+    after parsing.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/parser_test.exe`,
+  `opam exec -- dune exec test/unit/error_test.exe`,
+  `opam exec -- dune runtest`, `opam exec -- dune build @all`, and
+  `opam exec -- dune exec ash -- --help` all passed. The full suite retained the
+  46-program oracle/CPS differential corpus. `git diff --check` passed.
+- Acceptance: the exact documented `length` and `simplify` programs parse and
+  are pinned structurally in `test/golden/parser.expected`. The same golden also
+  shows every Core constructor pattern, both pattern precedence rows, expression
+  versus pattern splices, and located failures for duplicate binders,
+  inconsistent alternatives, unknown/wrong-arity constructors, stray splices,
+  and malformed lists. Unit tests traverse expression and pattern trees to
+  verify their source spans.
+- Decisions: ADR 0012 records unique binders per match path; identical binder
+  sets across alternative arms; right-associative pattern cons; the closed,
+  arity-checked Core constructor vocabulary; context-tagged splices; and
+  newline/semicolon match-clause layout. Added the structured
+  `Inconsistent_pattern_binders` error cause. The spec's contradictory
+  constructor illustration now uses separate clauses instead of one
+  differently-binding alternative; ADR 0011 was clarified to place syntax-only
+  quote/splice parsing here while retaining all hygiene and execution semantics
+  for Phase 3.
+- Known issues: none within 1.3. Quote/splice nodes deliberately have no dynamic
+  or hygienic meaning yet; 1.4 only needs to preserve them, while Phase 3 defines
+  code construction, hygiene, lifting, and execution.
+- Next: 1.4 — hygienically desugar sequencing, `var`, named functions, match,
+  Boolean sugar, lists, and pipelines to Core while preserving spans and
+  generated-node provenance; prove `fact`, `length`, pipelines, shadowing, and
+  mutation end to end.
 
 ### 2026-08-23 — task 1.2
 

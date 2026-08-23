@@ -29,6 +29,19 @@ let show_error source =
   | exception Error.Ash_error error ->
       Printf.printf "  %-28s %s\n" source (Error.to_string error)
 
+let show_pattern source =
+  let parsed = Parser.pattern ~file source in
+  Printf.printf "  %-54s => %s\n" source
+    (Surface_printer.pattern_to_string parsed)
+
+let show_pattern_error source =
+  match Parser.pattern ~file source with
+  | pattern ->
+      Printf.printf "  %-28s parsed as %s\n" source
+        (Surface_printer.pattern_to_string pattern)
+  | exception Error.Ash_error error ->
+      Printf.printf "  %-28s %s\n" source (Error.to_string error)
+
 let boundaries =
   [
     "a |> b || c";
@@ -68,6 +81,47 @@ let constructs =
       "fn classify(n) = {\n  let values = [n, n + 1]\n  choose(values)(0)\n}" );
     ( "pipelines",
       "xs |> map(double) |> sum" );
+    ( "§4.2 documented length",
+      "fn length(xs) =\n\
+      \  match xs {\n\
+      \    []      -> 0\n\
+      \    _ :: ys -> 1 + length(ys)\n\
+      \  }" );
+    ( "§4.4 documented simplify",
+      "fn simplify(e) =\n\
+      \  match e {\n\
+      \    `{ ${a} + 0 }   -> simplify(a)\n\
+      \    `{ ${a} * 1 }   -> simplify(a)\n\
+      \    `{ ${a} * 0 }   -> `{ 0 }\n\
+      \    `{ ${f}(${x}) } -> `{ ${simplify(f)}(${simplify(x)}) }\n\
+      \    _               -> e\n\
+      \  }" );
+    ( "all Core constructor patterns",
+      "match e {\n\
+      \  Lit(c) -> 0\n\
+      \  Var(x) -> 0\n\
+      \  NamedVar(s) -> 0\n\
+      \  Lam(ps,b) -> 0\n\
+      \  App(f,args) -> 0\n\
+      \  Let(x,v,b) -> 0\n\
+      \  LetRec(bs,b) -> 0\n\
+      \  If(c,t,f) -> 0\n\
+      \  Set(x,v) -> 0\n\
+      \  Quote(q) -> 0\n\
+      \  Reifier(ps,b) -> 0\n\
+       }" );
+  ]
+
+let patterns =
+  [
+    "_";
+    "-1 | \"x\" | 'ok | true | false | ()";
+    "[x, _, 3]";
+    "x :: y :: ys";
+    "[x] | x :: []";
+    "App(f, [x, xs])";
+    "`{ ${a} + 0 }";
+    "`{ ${f}(${x}) }";
   ]
 
 let malformed =
@@ -80,7 +134,12 @@ let malformed =
     "f(x) := 1";
     "x.y";
     "x y";
+    "${x}";
+    "match x {}";
   ]
+
+let malformed_patterns =
+  [ "x :: x"; "x | y"; "Foo(x)"; "Lit(x, y)"; "[x,]"; "`{ ${x} + ${x} }" ]
 
 let () =
   print_endline "Ash surface precedence parser — golden output";
@@ -95,6 +154,9 @@ let () =
   heading "Required surface constructs";
   List.iter (fun (title, source) -> show_program title source) constructs;
 
-  heading "Parser diagnostics";
-  List.iter show_error malformed
+  heading "Patterns, alternatives, constructors, and quasiquotation";
+  List.iter show_pattern patterns;
 
+  heading "Parser diagnostics";
+  List.iter show_error malformed;
+  List.iter show_pattern_error malformed_patterns

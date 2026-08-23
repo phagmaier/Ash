@@ -291,9 +291,18 @@ pipelines and requires a name on its left.
 The structural `Surface_printer` makes grouping explicit rather than trying to
 reproduce source formatting. `test/golden/parser.expected` uses it to pin every
 adjacent precedence boundary and associativity rule. Field access remains an
-explicit parse error because Ash has no field-bearing values. Pattern matching
-is the next parser slice. The layout and AST decisions are recorded in
+explicit parse error because Ash has no field-bearing values. The layout and AST
+decisions are recorded in
 [`docs/decisions/0011-surface-precedence-and-statement-layout.md`](docs/decisions/0011-surface-precedence-and-statement-layout.md).
+
+Pattern parsing covers wildcard, literal, variable, list, right-associative cons,
+alternatives, and every Core constructor. Alternative arms must bind the same
+set of names, and a single path may not bind one name twice. Match clauses are
+separated by newline or `;`. Quasiquote pattern holes carry `Pattern_splice`,
+distinct from the `Expression_splice` in an ordinary quotation, so binder checks
+remain structural and source-located. Parsing these quote nodes does not assign
+their Phase 3 hygiene or execution semantics. See
+[`docs/decisions/0012-patterns-binders-and-quasiquotation.md`](docs/decisions/0012-patterns-binders-and-quasiquotation.md).
 
 ## Development workflow
 

@@ -31,6 +31,19 @@ type binary_operator =
   | Divide
   | Remainder
 
+type core_constructor =
+  | Core_lit
+  | Core_var
+  | Core_named_var
+  | Core_lam
+  | Core_app
+  | Core_let
+  | Core_letrec
+  | Core_if
+  | Core_set
+  | Core_quote
+  | Core_reifier
+
 type t = { shape : shape; span : Span.t }
 
 and shape =
@@ -47,6 +60,9 @@ and shape =
   | Binary of binary
   | Assignment of assignment
   | Group of t
+  | Match of match_expression
+  | Quote of t
+  | Splice of splice
 
 and binding = {
   binding_kind : binding_kind;
@@ -88,12 +104,58 @@ and assignment = {
   assignment_value : t;
 }
 
+and match_expression = { scrutinee : t; clauses : match_clause list }
+
+and match_clause = {
+  clause_pattern : pattern;
+  clause_body : t;
+  clause_span : Span.t;
+}
+
+and splice = Expression_splice of t | Pattern_splice of pattern
+
+and pattern = { pattern_shape : pattern_shape; pattern_span : Span.t }
+
+and pattern_shape =
+  | Wildcard_pattern
+  | Literal_pattern of Constant.t
+  | Variable_pattern of name
+  | List_pattern of pattern list
+  | Cons_pattern of pattern_cons
+  | Alternative_pattern of pattern list
+  | Constructor_pattern of constructor_pattern
+  | Quasiquote_pattern of t
+  | Group_pattern of pattern
+
+and pattern_cons = {
+  pattern_head : pattern;
+  pattern_cons_span : Span.t;
+  pattern_tail : pattern;
+}
+
+and constructor_pattern = {
+  constructor : core_constructor;
+  constructor_name_span : Span.t;
+  constructor_arguments : pattern list;
+}
+
 type program = t list
 
 val make : span:Span.t -> shape -> t
 val name : span:Span.t -> string -> name
 val with_span : Span.t -> t -> t
+val make_pattern : span:Span.t -> pattern_shape -> pattern
+val with_pattern_span : Span.t -> pattern -> pattern
+
+val pattern_binders : pattern -> name list
+(** The unique binders in source order. Parser-produced patterns satisfy this
+    contract; alternatives return the first arm's binder order after the parser
+    has checked that every arm binds the same set. *)
+
+val core_constructor_of_string : string -> core_constructor option
+val core_constructor_name : core_constructor -> string
+val core_constructor_arity : core_constructor -> int
+val core_constructor_pattern_spelling : core_constructor -> string
 
 val unary_operator_spelling : unary_operator -> string
 val binary_operator_spelling : binary_operator -> string
-

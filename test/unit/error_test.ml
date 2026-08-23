@@ -48,6 +48,7 @@ let causes =
     Error.Unsupported { what = "quote"; by = "the direct-style oracle" };
     Error.Division_by_zero;
     Error.Duplicate_binder "x";
+    Error.Inconsistent_pattern_binders { expected = [ "x" ]; actual = [ "y" ] };
     Error.End_of_input;
   ]
 
@@ -57,7 +58,7 @@ let test_phases () =
   check_string "the evaluate phase is named" "evaluate" (Error.phase_name Error.Evaluate)
 
 let test_causes () =
-  check_int "every cause is enumerated" 14 (List.length causes);
+  check_int "every cause is enumerated" 15 (List.length causes);
   check "cause messages are distinct" (distinct (List.map Error.cause_message causes));
   List.iter
     (fun cause ->
