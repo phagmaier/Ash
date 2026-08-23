@@ -1,6 +1,6 @@
 (tests
  (names core_test data_model_test env_test error_test reader_test alpha_test
-   printer_test oracle_test evaluator_test primitives_test lexer_test parser_test)
+   printer_test oracle_test evaluator_test primitives_test lexer_test parser_test desugar_test continuation_test)
  (libraries ash.core ash.syntax ash.runtime)
  (flags
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))

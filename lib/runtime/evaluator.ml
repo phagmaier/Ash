@@ -1,7 +1,7 @@
 open Ash_core
 
 let by = "the ground evaluator"
-let fail ~span cause = Error.raise_cause ~phase:Error.Evaluate ~span cause
+let fail ~span ?level cause = Error.raise_cause ~phase:Error.Evaluate ~span ?level cause
 let unsupported ~span what = fail ~span (Error.Unsupported { what; by })
 
 let type_error ~span ~expected value =
@@ -102,13 +102,41 @@ let apply_default machine ~call_site callee arguments k =
           ~expected:(Value.arity_to_string primitive.Value.prim_arity)
       else
         (* The real continuation, not the identity one: that is what lets a
-           control primitive do something other than return. *)
-        primitive.Value.prim_impl ~call_site arguments k
+           control primitive do something other than return. [apply] goes back
+           through the machine cell, so a primitive calling an Ash function is
+           as interceptable as any other call (§D3). *)
+        primitive.Value.prim_impl ~call_site
+          ~apply:(fun ~call_site callee arguments k ->
+            Machine.apply machine ~call_site callee arguments k)
+          arguments k
   | Value.Reifier _ ->
       (* Applying a reifier runs one level up with the caller's expression,
          environment, and continuation. There is no level above yet. *)
       unsupported ~span:call_site "reifier application"
-  | Value.Continuation _ -> unsupported ~span:call_site "continuation application"
+  | Value.Continuation continuation -> (
+      match arguments with
+      | [ value ] ->
+          if Value.continuation_used continuation then
+            (* One-shot is enforced dynamically (§D4), and the report names both
+               sites: where the continuation came from and where it already
+               went. Neither alone explains the mistake. *)
+            fail ~span:call_site
+              ~level:(Value.continuation_level continuation)
+              (Error.Continuation_reuse
+                 {
+                   captured = Value.continuation_capture_site continuation;
+                   first_used =
+                     (match Value.continuation_first_use continuation with
+                     | Some site -> site
+                     | None -> Value.continuation_capture_site continuation);
+                 })
+          else (
+            (* Marked before the transfer, so a continuation that invokes itself
+               is caught by the same check rather than looping. *)
+            Value.mark_continuation_used continuation ~at:call_site;
+            continuation.Value.cont_invoke value)
+      | [] | _ :: _ :: _ ->
+          arity_error ~callee_name:(Some "continuation") ~expected:"1")
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Environment _ | Value.Cell _ | Value.Code _ ->
       type_error ~span:call_site ~expected:"a function" callee

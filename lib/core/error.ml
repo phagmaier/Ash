@@ -13,6 +13,9 @@ type cause =
   | Arity_error of { callee : string option; expected : string; actual : int }
   | Unsupported of { what : string; by : string }
   | Division_by_zero
+  | Continuation_reuse of { captured : Span.t; first_used : Span.t }
+  | Immutable_binding of string
+  | No_matching_clause of string
   | Duplicate_binder of string
   | Inconsistent_pattern_binders of { expected : string list; actual : string list }
   | End_of_input
@@ -66,6 +69,14 @@ let message ~show_ids cause =
         expected actual
   | Unsupported { what; by } -> Printf.sprintf "`%s` is not supported by %s" what by
   | Division_by_zero -> "division by zero"
+  | Continuation_reuse { captured; first_used } ->
+      Printf.sprintf
+        "this continuation is one-shot: captured at %s, it was already invoked at %s"
+        (Span.to_string captured) (Span.to_string first_used)
+  | Immutable_binding name ->
+      Printf.sprintf "`%s` is bound by `let`, so it cannot be assigned; bind it with `var`"
+        name
+  | No_matching_clause value -> Printf.sprintf "no clause matches the value %s" value
   | Duplicate_binder name ->
       Printf.sprintf "`%s` is bound twice in the same binder list" name
   | Inconsistent_pattern_binders { expected; actual } ->
@@ -97,6 +108,10 @@ let cause_equal a b =
   | Unsupported x, Unsupported y ->
       String.equal x.what y.what && String.equal x.by y.by
   | Division_by_zero, Division_by_zero -> true
+  | Continuation_reuse x, Continuation_reuse y ->
+      Span.equal x.captured y.captured && Span.equal x.first_used y.first_used
+  | Immutable_binding x, Immutable_binding y -> String.equal x y
+  | No_matching_clause x, No_matching_clause y -> String.equal x y
   | Duplicate_binder x, Duplicate_binder y -> String.equal x y
   | Inconsistent_pattern_binders x, Inconsistent_pattern_binders y ->
       List.equal String.equal x.expected y.expected
@@ -105,7 +120,9 @@ let cause_equal a b =
   | ( ( Unbound_ident _ | Unbound_name _ | Ambiguous_name _ | Unfilled_binding _
       | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
       | Malformed_form _ | Arity_error _ | Unsupported _ | Division_by_zero
-      | Duplicate_binder _ | Inconsistent_pattern_binders _ | End_of_input ),
+      | Continuation_reuse _ | Immutable_binding _ | No_matching_clause _
+      | Duplicate_binder _
+      | Inconsistent_pattern_binders _ | End_of_input ),
       _ ) ->
       false
 

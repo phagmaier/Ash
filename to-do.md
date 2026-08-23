@@ -15,15 +15,20 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 1 — surface language and continuations
-- **Next:** 1.4 — hygienically desugar surface syntax to Core
+- **Phase:** 2 — self-interpreter and open recursion
+- **Next:** 2.1 — define and enforce open-recursive evaluator groups at the Ash
+  level (the host side is already done in 0.8; what remains is the Ash-level
+  evaluator group and the same law tested there)
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
-  `opam exec -- dune runtest`, and `opam exec -- dune exec ash -- --help` pass
-  with match expressions, the complete source-located pattern AST and parser,
-  expression/pattern quotation contexts, updated parser unit and golden tests,
-  the existing lexer/Core/runtime suites, and the 46-program oracle/CPS
-  differential corpus
+  `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
+  pass from a clean `_build` with the hygienic desugarer, first-class one-shot
+  continuations, the 26-primitive registry (`match_error` and `callcc`), the
+  desugar/continuation/parser/lexer/Core/runtime suites, and the 91-program
+  oracle/CPS differential corpus (73 Core, 18 surface)
 - **Blocker:** none
+
+Phase 1 is complete. Phase 2 needs the self-interpreter written in Ash, which is
+what the surface language and the desugarer were built for.
 
 ## Locked decisions
 
@@ -123,20 +128,35 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
     constructors, and quasiquote patterns; reject inconsistent binders.
   - Accept: the documented `length` and `simplify` examples parse.
 
-- [ ] **1.4 Hygienically desugar surface syntax to Core.**
+- [x] **1.4 Hygienically desugar surface syntax to Core.**
   - Lower sequencing, `var`, named functions, match, Boolean sugar, lists, and
     pipelines; preserve spans and generated-node provenance.
   - Accept: end-to-end tests cover `fact`, `length`, pipelines, shadowing, and set.
+  - Quotation, splicing, Core constructor patterns, and quasiquote patterns parse
+    but do not lower: they are refused by name until 3.1 gives them hygienic code
+    construction, which also needs reflection-class primitives ADR 0009 left
+    unregistered. ADR 0013 records that and the rest of the lowering.
 
-- [ ] **1.5 Implement first-class one-shot continuations.**
+- [x] **1.5 Implement first-class one-shot continuations.**
   - Retain continuation procedure, used flag, capture site, and meta-context.
   - Mark used before transfer; report capture and first-use sites on reuse.
   - Accept: storage, delayed/cross-function invocation, and second-use error pass.
+  - `callcc` is the whole control class and is a primitive, not syntax, so Core
+    is untouched. Capturing needed a primitive to be able to call an Ash
+    function, so `prim_impl` gained an `~apply` argument routed through the
+    machine's open-recursion cell. The meta-context retained is the tower level;
+    only level 0 exists before Phase 4. ADR 0014 records all of it.
 
-- [ ] **1.6 Build the oracle/CPS differential corpus.**
+- [x] **1.6 Build the oracle/CPS differential corpus.**
   - Compare values, errors, mutations, and buffered output across recursion,
     closures, shadowing, lists, and failures.
   - Accept: all pure cases agree with readable minimal differences on failure.
+  - 91 programs: 73 in Core notation and 18 in Ash lowered by the desugarer, so
+    the front end is compared against two evaluators rather than one. Each entry
+    declares whether it produces a value or a diagnostic, because two evaluators
+    that both refused everything would agree perfectly. The oracle's refusals —
+    quotation, reifiers, `callcc`, observable effects, cells — are checked as a
+    boundary, not as agreement.
 
 ## Phase 2 — self-interpreter and open recursion
 
@@ -340,6 +360,136 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — tasks 1.5 and 1.6 (Phase 1 complete)
+
+- Completed 1.5: first-class one-shot continuations.
+  - `callcc` is registered in the previously empty `Control` class. It reifies
+    the continuation of its own call and applies its receiver to it. Nothing
+    about control reaches Core: a surface `callcc(f)` lowers to an ordinary
+    application, so the eleven forms and the future self-interpreter are
+    untouched. Spelled without a slash because `/` is division and a control
+    operator a program cannot write is not much of one.
+  - Capturing exposed a real gap: `Value.primitive` claimed control primitives
+    could be ordinary registry members, but `prim_impl` had no way to call an Ash
+    function. It now takes `~apply`, supplied by the caller — the ground
+    evaluator routes it through the machine's open-recursion cell, so a replaced
+    `apply` intercepts a primitive's callback too (§D3), and the oracle passes
+    its own direct-style apply read as CPS. A test asserts the interception.
+  - Applying a continuation is handled in `Evaluator.apply`: exactly one
+    argument, the `used` flag set **before** the transfer, and a second
+    invocation raising `Error.Continuation_reuse` with both the capture site and
+    the first-use site, reported at the second invocation and at the
+    continuation's level.
+  - The meta-context retained is the tower level: `Value.continuation` takes
+    `~level` and `Value.continuation_level` reads it. Only level 0 exists before
+    Phase 4; the field is there now because retrofitting it means revisiting
+    every capture site.
+- Completed 1.6: the oracle/CPS differential corpus, extended from 46 to 91
+  programs and from one comparison to four.
+  - Each program is compared on value, failure cause, failure location, and
+    observable trace, and only the **first** difference is reported: a report
+    that lists everything two runs disagree about buries the one fact that
+    explains the rest.
+  - The corpus has a Core half (73 programs in canonical notation, which is what
+    the self-interpreter will read) and a surface half (18 Ash programs lowered
+    by the desugarer, which puts the parser and desugarer under the same
+    comparison). Both cover recursion, closures, shadowing, lists, mutation,
+    evaluation order, and failures.
+  - Every entry declares `Succeeds` or `Fails`. Agreement alone proves nothing —
+    two evaluators that both refused everything would agree perfectly — and the
+    check immediately caught one entry that had been filed under errors while
+    succeeding by design.
+  - The harness's own reporting is tested against outcomes known to differ, and
+    the frozen boundary now also covers `callcc`, observable effects, and cells.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all passed. `git diff --check` passed.
+- Acceptance 1.5: `test/unit/continuation_test.ml` covers storage in a mutable
+  binding and in a list, capture in one function with invocation from another
+  after that function returned, escape from a recursion, abandonment of the rest
+  of the receiver, the second-use error with all three sites distinct and the
+  level recorded, reuse reached through the continuation's own resumption, both
+  arities, and the oracle's refusal of `callcc` and of applying a continuation.
+- Acceptance 1.6: all 91 programs agree; the failure path reports one readable
+  difference, checked directly.
+- Decisions: ADR 0014 records `callcc` as a primitive rather than syntax, its
+  spelling, the `~apply` widening of `prim_impl` and why the applier is the
+  caller's, before-transfer marking, the three-site reuse diagnostic, the level
+  field as the retained meta-context, and why multi-shot waits. Added the
+  `Continuation_reuse` error cause. The registry is 26 primitives and
+  `Effect_class.Control` is no longer empty; the test that asserted it was empty
+  now asserts it is exactly `callcc`, so filling it stayed deliberate.
+- Known issues: none within Phase 1. Multi-shot continuations, and therefore
+  backtracking reifiers, `amb`, generator re-entry, and re-entrant `meta_with`,
+  are deferred by §D4. `Effect_class.Reflection` is still honestly empty. The
+  differential corpus compares traces but every pure program leaves an empty one,
+  because the oracle refuses observable primitives by design; trace comparison
+  becomes load-bearing when residual programs arrive.
+- Next: 2.1 — the Ash-level open-recursive evaluator group. The host side is
+  done (`Ash_runtime.Machine`, ADR 0008) with its acceptance test at host level;
+  what remains is storing `eval`, `apply`, and `eval-list` in per-level cells in
+  Ash, instrumenting every dereference, and testing the same law there: wrapping
+  `eval` must observe every nested AST node, not just entry.
+
+### 2026-08-23 — task 1.4
+
+- Completed: `Ash_syntax.Desugar`, the hygienic lowering from the surface tree to
+  the eleven Core forms.
+  - Names become identities here and nowhere else: one `Ident.fresh` per binder,
+    every occurrence resolved through a scope. A free name is a located desugar
+    error rather than a `NamedVar`, so resolution by printed name stays a
+    property of reflective code and of the collapse report's count.
+  - Globals are a parameter (`Desugar.scope_of_globals`), so `ash.syntax` still
+    does not depend on `ash.runtime` and task 4.1's per-level cloned globals will
+    drop straight in. Generated calls resolve against the globals rather than the
+    lexical scope, which is what makes the documented `fn length(xs)` work while
+    it shadows the `length` primitive.
+  - Sugar lowered: statement sequencing, `let`/`var` with static mutability,
+    `:=`, named functions as `LetRec` groups over adjacent declarations, lambdas,
+    blocks, conditionals, `&&`/`||` as `If`, `!`/unary `-`, list literals, cons,
+    comparison and arithmetic operators, pipelines, and `match`.
+  - `match` binds its scrutinee once and thunks each clause's failure
+    continuation, so a pattern can mention failure repeatedly without copying the
+    remaining clauses; alternative clauses bind their shared body as a function of
+    the clause's binders. Falling off the end calls the new `match_error`
+    primitive.
+  - Provenance: a Core node produced by a surface node of the same shape keeps
+    its span; every invented node keeps the same positions and records its
+    rewrite (`desugar/seq`, `desugar/unit`, `desugar/fn`, `desugar/operator`,
+    `desugar/negate`, `desugar/pipe`, `desugar/and`, `desugar/or`,
+    `desugar/list`, `desugar/match`).
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all passed from a clean build. The full
+  suite includes the new `test/unit/desugar_test.ml` and
+  `test/golden/desugar.expected`, the updated `primitives_test`, and the retained
+  46-program oracle/CPS differential corpus.
+- Acceptance: `test/unit/desugar_test.ml` parses, lowers, and runs `fact(5)` and
+  `fact(20)`, the documented §4.2 `length` over `[1,2,3]` and `[]`, pipeline
+  chains into both a user function and a primitive, shadowing (`let x = 1; let x
+  = x + 1; x` is 2, and a shadowed `list` does not change what `[…]` means), and
+  `set` through a closure (`var c = 0; fn bump() = c := c + 1` is visible after
+  two calls). Shape tests compare each sugar row against expected Core up to
+  alpha-equivalence, and `test/golden/desugar.expected` pins the documented
+  programs, the provenance table, and every diagnostic.
+- Decisions: ADR 0013 records identity allocation here, free names as errors,
+  globals as a parameter with generated calls bypassing the lexical scope,
+  adjacent `fn` declarations as one `LetRec` group, a trailing definition
+  evaluating to unit, static `var`/`let` mutability, the thunked `match`
+  lowering, `match_error` as a pure primitive, the Elixir-style pipeline rule,
+  and the shape-correspondence provenance rule. Added the `Immutable_binding` and
+  `No_matching_clause` error causes and the `match_error` primitive (registry now
+  25).
+- Known issues: none within 1.4. Quotation, splicing, Core constructor patterns,
+  and quasiquote patterns are refused with `Unsupported` naming the missing
+  phase; 3.1 removes those refusals. Match compilation is intentionally
+  unoptimized — an irrefutable last clause still allocates its failure thunk —
+  because residualization, not the desugarer, is where size is meant to be won.
+- Next: 1.5 — first-class one-shot continuations: retain the continuation
+  procedure, used flag, capture site, and meta-context; mark used before
+  transfer; report both capture and first-use sites on reuse; and cover storage,
+  delayed and cross-function invocation, and the second-use error.
 
 ### 2026-08-23 — task 1.3
 

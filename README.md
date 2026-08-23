@@ -34,7 +34,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 |------|----------|
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
-| `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, and precedence parser |
+| `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, precedence parser, and desugarer |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
@@ -208,8 +208,8 @@ metrics and the collapse report, and they are observationally inert: nothing in
 the evaluator reads them and no Ash value can depend on them.
 
 The oracle and the CPS evaluator are compared on a shared corpus in
-`test/differential/`, agreeing on values, on mutation and evaluation order, and
-on failures by both cause and location. See
+`test/differential/`, agreeing on values, on mutation and evaluation order, on
+failures by both cause and location, and on the observable trace. See
 [`docs/decisions/0008-cps-evaluator-and-open-recursion.md`](docs/decisions/0008-cps-evaluator-and-open-recursion.md).
 
 ## Primitives and effects
@@ -223,10 +223,10 @@ does not.
 
 | Class | Members | Specialization |
 |-------|---------|----------------|
-| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, `cons`, `head`, `tail`, `empty?`, `length`, `list` | fold when every argument is static |
+| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, `cons`, `head`, `tail`, `empty?`, `length`, `list`, `match_error` | fold when every argument is static |
 | allocation/mutation | `cell_new`, `deref`, `cell_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
-| control | — awaits one-shot continuations (task 1.5) | bespoke |
+| control | `callcc` | never folded: capturing at specialization time captures the specializer |
 | reflection | — awaits staging and the tower | bespoke, and the classification target |
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
@@ -303,6 +303,110 @@ distinct from the `Expression_splice` in an ordinary quotation, so binder checks
 remain structural and source-located. Parsing these quote nodes does not assign
 their Phase 3 hygiene or execution semantics. See
 [`docs/decisions/0012-patterns-binders-and-quasiquotation.md`](docs/decisions/0012-patterns-binders-and-quasiquotation.md).
+
+## Desugaring to Core
+
+`Ash_syntax.Desugar` is where names become identities. The parser works in
+printed strings because that is all source text has; the desugarer walks the
+binding structure once, allocates one `Ident.t` per binder, and resolves every
+occurrence through it. Hygiene is therefore not a pass that runs afterwards — the
+`head` and `scrutinee` binders a `match` lowering invents cannot capture a user's
+`head`, because they were never the same identity.
+
+| Surface | Core |
+|---------|------|
+| `e1` newline or `;` `e2` | `Let _ = e1 in e2` |
+| `let x = v` / `var x = v` | `Let x = v in <rest of the list>` |
+| `x := v` | `Set x v`, and only when `x` came from `var` |
+| `fn f(a) = b` | `LetRec ((f (Lam (a) b))) <rest of the list>` |
+| `a && b` / `a \|\| b` | `If a b false` / `If a true b` |
+| `-a` / `!a` | `0 - a` / `not(a)` |
+| `a <op> b`, `[a, b]` | primitive calls; `[]` is the `Nil` literal |
+| `x \|> f(a)` | `f(x, a)`, and `x \|> f` is `f(x)` |
+| `match s { … }` | nested `If` over `empty?`, `head`, `tail`, and `==` |
+
+Adjacent `fn` declarations in one statement list form a single `LetRec` group, so
+mutual recursion is written by writing it, and a statement list ending in a
+definition evaluates to unit so that a file of definitions is a program.
+
+A name with no binding is a desugar error, never a `NamedVar`: resolution by
+printed name is what reflective code does, not a fallback, and the collapse
+report counts the ones that survive. The globals are a parameter —
+`Desugar.scope_of_globals` takes the identities a registry produced, so
+`ash.syntax` still knows nothing about `ash.runtime` and a materialized tower
+level can lower under its own cloned globals. Generated calls resolve against
+those globals rather than the lexical scope, so the documented `fn length(xs)`
+gets its own `length` where it wrote one and the primitive `empty?`, `head`, and
+`tail` in the code the desugarer wrote.
+
+`match` binds its scrutinee once and gives each clause a nullary thunk holding
+the clauses after it, so a pattern can mention failure repeatedly without copying
+what follows; a clause with an alternative pattern binds its body as a function
+of the clause's binders and every arm calls it. Running out of clauses calls
+`match_error`, because Core has no way to raise and answering unit would be a
+silently wrong answer.
+
+A Core node produced by a surface node of the same shape keeps its span. Anything
+invented — the `Let` behind a statement separator, the `If` behind `&&`,
+everything behind `match` — keeps the same positions and records the rewrite, so
+`Span.source_span` still points diagnostics at user text while `Span.generators`
+says which rewrite produced the node. Quotation, splicing, Core constructor
+patterns, and quasiquote patterns parse but do not lower: they are refused by
+name until Phase 3 gives them hygienic code construction. See
+[`docs/decisions/0013-hygienic-desugaring-to-core.md`](docs/decisions/0013-hygienic-desugaring-to-core.md).
+
+## Continuations
+
+`callcc` reifies the continuation of its own call as a value and hands it to its
+argument. It is a primitive in the control class, not syntax: a surface
+`callcc(f)` lowers to an ordinary application, so the eleven Core forms are
+untouched and the self-interpreter has nothing new to handle. It is spelled
+without a slash because `/` is division and a control operator a program cannot
+write is not much of a control operator.
+
+Continuations are **first class and one-shot** (spec §D4). First class means
+storable in a binding or a list, passable across function boundaries, and
+invocable after the call that captured them has already returned — not
+escape-only, because a reifier receives the continuation of the level below and
+resumes it after doing work at its own level. One-shot means a second invocation
+is an error, enforced dynamically: the `used` flag is set *before* the transfer,
+so a continuation reached again through its own resumption is caught rather than
+looping. The diagnostic names three places — where the continuation was captured,
+where it already went, and where the second invocation was written — because none
+of them alone explains the mistake. A continuation also records the tower level it
+would resume, so Phase 4 cannot resume one on the wrong machine.
+
+Multi-shot continuations wait: backtracking reifiers, `amb`, generator re-entry,
+and re-entrant `meta_with` all need them, and none is needed for the headline
+result. The `used` flag is what makes lifting that restriction a decision rather
+than a discovery.
+
+A primitive receives an `~apply` alongside its call site, arguments, and
+continuation — that is how `callcc` calls its argument. The caller supplies it, so
+the callback runs on whatever evaluator is executing: the ground evaluator routes
+it through the machine's open-recursion cell, and a meta level that replaces
+`apply` therefore intercepts a primitive's callback too. See
+[`docs/decisions/0014-one-shot-continuations-and-the-applier.md`](docs/decisions/0014-one-shot-continuations-and-the-applier.md).
+
+## The differential corpus
+
+`test/differential/` runs one program on both evaluators and compares four
+things, reporting only the first difference: the value, the failure's cause, the
+failure's location, and the observable trace. Each entry also declares whether it
+is meant to produce a value or a diagnostic — two evaluators that both refused
+everything would agree perfectly, so agreement alone proves nothing — and the
+comparison's own reporting is checked against outcomes known to differ.
+
+The corpus has two halves. The Core half is written in the canonical notation,
+which is what the self-interpreter will read. The surface half is written in Ash
+and lowered by the desugarer, which puts the parser and desugarer under the same
+comparison. Both halves cover recursion, closures, shadowing, lists, mutation,
+evaluation order, and failures.
+
+The oracle's refusals are checked too, as a boundary rather than as agreement:
+quotation, reifiers, `callcc`, observable effects, and cells are all outside the
+pure corpus by construction, and a change that quietly moved that line would fail
+here.
 
 ## Development workflow
 

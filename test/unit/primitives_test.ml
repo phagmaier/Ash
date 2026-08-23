@@ -66,6 +66,23 @@ let apply primitive args =
   let machine = Evaluator.machine () in
   Machine.apply machine ~call_site:sp (Value.Primitive primitive) args (fun v -> v)
 
+(* The applier a primitive is handed when its implementation is called directly
+   rather than through the evaluator. *)
+let test_apply ~call_site callee arguments k =
+  Machine.apply (Evaluator.machine ()) ~call_site callee arguments k
+
+(* A callee for the primitives that take one: it hands back what it was given,
+   so [callcc(identity)] answers the continuation it captured. *)
+let identity_primitive =
+  {
+    Value.prim_name = "identity";
+    prim_arity = Value.Exactly 1;
+    prim_class = Effect_class.Pure;
+    prim_impl =
+      (fun ~call_site:_ ~apply:_ args k ->
+        match args with [ a ] -> k a | [] | _ :: _ :: _ -> k Value.Unit);
+  }
+
 let attempt f = match f () with value -> Ok value | exception Error.Ash_error e -> Error e
 
 (* The classification itself *)
@@ -76,15 +93,17 @@ let attempt f = match f () with value -> Ok value | exception Error.Ash_error e 
 let expected_classification =
   let pure = Effect_class.Pure
   and mutating = Effect_class.Allocation_or_mutation
-  and observable = Effect_class.Observable_effect in
+  and observable = Effect_class.Observable_effect
+  and control = Effect_class.Control in
   [
     ("+", pure); ("-", pure); ("*", pure); ("/", pure); ("%", pure);
     ("<", pure); ("<=", pure); (">", pure); (">=", pure);
     ("==", pure); ("!=", pure); ("not", pure);
     ("cons", pure); ("head", pure); ("tail", pure); ("empty?", pure);
-    ("length", pure); ("list", pure);
+    ("length", pure); ("list", pure); ("match_error", pure);
     ("cell_new", mutating); ("deref", mutating); ("cell_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
+    ("callcc", control);
   ]
 
 let sorted_names names = List.sort String.compare names
@@ -146,10 +165,10 @@ let test_classification () =
            (List.mem name (Primitives.by_class Effect_class.Observable_effect)))
        Primitives.classification);
 
-  (* Control and reflection are honestly empty rather than stubbed. When 1.5 and
-     the tower fill them, this says so instead of quietly passing. *)
-  check "control is empty until one-shot continuations exist"
-    (Primitives.by_class Effect_class.Control = []);
+  (* Control is exactly [callcc]; reflection is honestly empty rather than
+     stubbed. When the tower fills it, this says so instead of quietly passing. *)
+  check "control is the capture primitive"
+    (List.equal String.equal [ "callcc" ] (Primitives.by_class Effect_class.Control));
   check "reflection is empty until staging and the tower exist"
     (Primitives.by_class Effect_class.Reflection = []);
 
@@ -196,7 +215,9 @@ let test_arity () =
             (* And directly: an implementation is a total function, so it checks
                again, and the two checks must not disagree. *)
             match
-              attempt (fun () -> primitive.Value.prim_impl ~call_site:sp args (fun v -> v))
+              attempt (fun () ->
+                  primitive.Value.prim_impl ~call_site:sp ~apply:test_apply args
+                    (fun v -> v))
             with
             | Ok _ ->
                 incr failures;
@@ -224,6 +245,8 @@ type expectation =
       (** Arguments, the phrase for what was found, the phrase expected. *)
   | Total of Value.value list
       (** A primitive that accepts every value: a call that must succeed. *)
+  | Always_fails of (Value.value list * Error.cause) list
+      (** A primitive whose job is to fail, whatever it is given. *)
 
 let type_expectations =
   let n = Value.Num 1 and s = Value.Str "x" and b = Value.Bool true in
@@ -259,12 +282,21 @@ let type_expectations =
     ("empty?", Rejects [ ([ n ], "a number", "a list") ]);
     ("length", Rejects [ ([ s ], "a string", "a list") ]);
     ("list", Total [ n; s; b ]);
+    ( "match_error",
+      Always_fails
+        [
+          ([ n ], Error.No_matching_clause "1");
+          ([ Value.List [] ], Error.No_matching_clause "[]");
+        ] );
     ("cell_new", Total [ n ]);
     ("deref", Rejects [ ([ n ], "a number", "a cell") ]);
     ("cell_set", Rejects [ ([ n; n ], "a number", "a cell") ]);
     ("print", Total [ s ]);
     ("println", Total [ n ]);
     ("read_line", Total []);
+    (* [callcc] applies its argument, so what it accepts is what [apply]
+       accepts; the applier the table supplies just reports the call. *)
+    ("callcc", Total [ Value.Primitive identity_primitive ]);
   ]
 
 let test_type_errors () =
@@ -290,6 +322,22 @@ let test_type_errors () =
                   incr failures;
                   Printf.printf "FAIL `%s` rejected a value it accepts: %s\n" name
                     (Error.to_string error))
+          | Always_fails cases ->
+              List.iter
+                (fun (args, cause) ->
+                  match attempt (fun () -> apply primitive args) with
+                  | Ok value ->
+                      incr failures;
+                      Printf.printf "FAIL `%s` returned %s instead of failing\n" name
+                        (Value.to_string value)
+                  | Error error ->
+                      check
+                        (Printf.sprintf "`%s` fails with its own cause" name)
+                        (Error.cause_equal error.Error.cause cause);
+                      check
+                        (Printf.sprintf "`%s` reports the failure at the call site" name)
+                        (Span.equal error.Error.span sp))
+                cases
           | Rejects cases ->
               List.iter
                 (fun (args, found, expected) ->

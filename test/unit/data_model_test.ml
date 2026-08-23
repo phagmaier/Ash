@@ -213,7 +213,7 @@ let reifier_value =
   Value.Reifier
     { Value.reif_def = reifier_definition; reif_env = Value.empty_env; reif_name = None }
 
-let continuation_fixture = Value.continuation ~capture:sp (fun v -> v)
+let continuation_fixture = Value.continuation ~capture:sp ~level:0 (fun v -> v)
 
 let cell_fixture = Value.cell (Value.Num 1)
 
@@ -223,7 +223,7 @@ let primitive_fixture =
     prim_arity = Value.Exactly 2;
     prim_class = Effect_class.Pure;
     prim_impl =
-      (fun ~call_site:_ args k ->
+      (fun ~call_site:_ ~apply:_ args k ->
         match args with
         | [ Value.Num a; Value.Num b ] -> k (Value.Num (a + b))
         | _ -> k Value.Unit);
@@ -351,7 +351,7 @@ let test_cells () =
     | Some _ | None -> false)
 
 let test_continuations () =
-  let k = Value.continuation ~capture:sp (fun v -> v) in
+  let k = Value.continuation ~capture:sp ~level:0 (fun v -> v) in
   check "a fresh continuation is unused" (not (Value.continuation_used k));
   check "a fresh continuation has no first use" (Value.continuation_first_use k = None);
   check "the capture site is retained" (Span.equal sp (Value.continuation_capture_site k));
@@ -404,7 +404,9 @@ let test_primitives () =
   (* A primitive is CPS so that control primitives need no evaluator special
      case: applying one delivers its result to the continuation. *)
   let result =
-    primitive_fixture.Value.prim_impl ~call_site:sp [ Value.Num 2; Value.Num 3 ]
+    primitive_fixture.Value.prim_impl ~call_site:sp
+      ~apply:(fun ~call_site:_ _ _ _ -> Value.Unit)
+      [ Value.Num 2; Value.Num 3 ]
       (fun v -> v)
   in
   check "a primitive delivers its result to the continuation"

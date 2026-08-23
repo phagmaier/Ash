@@ -75,23 +75,27 @@ let filled ~span value =
 let make ~name ~arity ~cls impl =
   { Value.prim_name = name; prim_arity = arity; prim_class = cls; prim_impl = impl }
 
+(* The three wrappers cover every primitive that returns a value to its caller
+   and never calls back into Ash, which is all of them but [callcc]: they drop
+   the applier and invoke the continuation once, in tail position. *)
+
 let nullary name cls impl =
   let arity = Value.Exactly 0 in
-  make ~name ~arity ~cls (fun ~call_site args k ->
+  make ~name ~arity ~cls (fun ~call_site ~apply:_ args k ->
       match args with
       | [] -> k (impl ~span:call_site)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let unary name cls impl =
   let arity = Value.Exactly 1 in
-  make ~name ~arity ~cls (fun ~call_site args k ->
+  make ~name ~arity ~cls (fun ~call_site ~apply:_ args k ->
       match args with
       | [ a ] -> k (impl ~span:call_site a)
       | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let binary name cls impl =
   let arity = Value.Exactly 2 in
-  make ~name ~arity ~cls (fun ~call_site args k ->
+  make ~name ~arity ~cls (fun ~call_site ~apply:_ args k ->
       match args with
       | [ a; b ] -> k (impl ~span:call_site a b)
       | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
@@ -142,7 +146,15 @@ let pure =
     unary "length" Effect_class.Pure (fun ~span a ->
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
-      (fun ~call_site:_ args k -> k (Value.List args));
+      (fun ~call_site:_ ~apply:_ args k -> k (Value.List args));
+    (* What a desugared [match] falls through to. Core has no way to raise, and
+       a match that runs out of clauses must not quietly answer unit, so the
+       failure is a primitive like any other. Pure is the same judgement
+       division by zero already gets: the result depends on nothing but the
+       argument, so a specializer that folds it reports at specialization time a
+       failure the program would certainly have reached. *)
+    unary "match_error" Effect_class.Pure (fun ~span value ->
+        fail ~span (Error.No_matching_clause (Value.to_string value)));
   ]
 
 (* The store. Residualized by default: running [cell_set] during specialization
@@ -191,16 +203,43 @@ let observable io =
         | None -> fail ~span Error.End_of_input);
   ]
 
-(* [Control] ([call/cc], [resume], [abort]) waits for one-shot continuations in
-   task 1.5, and [Reflection] ([lift], [run], [reflect], [up]) for staging and
-   the tower in Phases 3 and 4. They are empty rather than stubbed: a primitive
-   that exists but refuses to run is a worse answer than one that is honestly
-   not there yet, and nothing about the classification depends on a class being
-   populated — the class is a field of the primitive, so a primitive without
-   one cannot be written. *)
+(* Control. [callcc] is the whole class: it is what makes a continuation a value,
+   and every other control operator this project needs so far is written in Ash
+   from it. It is spelled without a slash because a surface program has to be
+   able to name it, and `/` is division.
+
+   Capturing is not itself an effect — nothing observable happens, and the
+   argument decides what does — but the class is about what a specializer may
+   do, and folding a capture at specialization time would capture the
+   specializer's continuation rather than the program's. That is the same
+   mistake D7 names for [print], so it gets the same treatment: bespoke rules,
+   never automatic folding. *)
+let control =
+  [
+    make ~name:"callcc" ~arity:(Value.Exactly 1) ~cls:Effect_class.Control
+      (fun ~call_site ~apply args k ->
+        match args with
+        | [ receiver ] ->
+            (* [k] is the continuation of the [callcc] call itself, so invoking
+               the reified continuation later resumes exactly what the call
+               would have returned into. Level 0 is the only level before Phase
+               4; a captured continuation records it so that a reifier holding
+               one cannot resume it on the wrong machine. *)
+            let captured = Value.continuation ~capture:call_site ~level:0 k in
+            apply ~call_site receiver [ Value.Continuation captured ] k
+        | [] | _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"callcc" ~arity:(Value.Exactly 1) args);
+  ]
+
+(* [Reflection] ([lift], [run], [reflect], [up]) waits for staging and the tower
+   in Phases 3 and 4. It is empty rather than stubbed: a primitive that exists
+   but refuses to run is a worse answer than one that is honestly not there yet,
+   and nothing about the classification depends on a class being populated — the
+   class is a field of the primitive, so a primitive without one cannot be
+   written. *)
 
 let build io =
-  let primitives = pure @ mutating @ observable io in
+  let primitives = pure @ mutating @ observable io @ control in
   (* Exactly one class per primitive is a property of the record type; what it
      cannot rule out is the same name registered twice with different classes,
      where a lookup would answer one and the environment bind the other. *)

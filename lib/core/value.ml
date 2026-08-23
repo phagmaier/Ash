@@ -27,6 +27,7 @@ and continuation = {
   cont_invoke : value -> answer;
   mutable cont_used : bool;
   cont_capture : Span.t;
+  cont_level : int;
   mutable cont_first_use : Span.t option;
 }
 
@@ -38,9 +39,10 @@ and primitive = {
   prim_name : string;
   prim_arity : arity;
   prim_class : Effect_class.t;
-  prim_impl : call_site:Span.t -> value list -> (value -> answer) -> answer;
+  prim_impl : call_site:Span.t -> apply:applier -> value list -> (value -> answer) -> answer;
 }
 
+and applier = call_site:Span.t -> value -> value list -> (value -> answer) -> answer
 and arity = Exactly of int | At_least of int
 
 (* Constants *)
@@ -75,11 +77,18 @@ let same_cell a b = a == b
 
 (* Continuations *)
 
-let continuation ~capture invoke =
-  { cont_invoke = invoke; cont_used = false; cont_capture = capture; cont_first_use = None }
+let continuation ~capture ~level invoke =
+  {
+    cont_invoke = invoke;
+    cont_used = false;
+    cont_capture = capture;
+    cont_level = level;
+    cont_first_use = None;
+  }
 
 let continuation_used k = k.cont_used
 let continuation_capture_site k = k.cont_capture
+let continuation_level k = k.cont_level
 let continuation_first_use k = k.cont_first_use
 
 let mark_continuation_used k ~at =

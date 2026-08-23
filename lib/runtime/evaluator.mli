@@ -9,9 +9,14 @@
 
     All eleven Core forms are dispatched. [Quote] yields the code as a value and
     [Reifier] yields a reifier value; {e applying} a reifier needs the level above
-    and is task 4.2, and applying a continuation is task 1.5. Both are refused
-    with {!Ash_core.Error.Unsupported} until then, naming what is missing rather
-    than pretending it does not exist.
+    and is task 4.2, refused until then with {!Ash_core.Error.Unsupported} naming
+    what is missing rather than pretending it does not exist.
+
+    Applying a continuation transfers to it. It takes exactly one value, and it
+    is one-shot: the used flag is set {e before} the transfer, so a continuation
+    reached again through its own resumption is caught rather than looping, and a
+    second invocation raises {!Ash_core.Error.Continuation_reuse} naming where the
+    continuation was captured and where it already went (spec §D4).
 
     The dynamic semantics are the ones ADR 0007 fixed for the oracle: the function
     position is evaluated first, then arguments left to right; [If] requires a

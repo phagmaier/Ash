@@ -11,19 +11,24 @@
     Registered so far:
 
     - {!Ash_core.Effect_class.Pure} — integer arithmetic, comparison, equality,
-      and immutable lists. Foldable once every argument is static.
+      immutable lists, and [match_error], the failure a desugared [match] falls
+      through to. Foldable once every argument is static.
     - {!Ash_core.Effect_class.Allocation_or_mutation} — [cell_new], [deref],
       [cell_set]. Residualized until Phase 7's store splitting says otherwise.
     - {!Ash_core.Effect_class.Observable_effect} — [print], [println],
       [read_line], all of which go through an injectable {!Io.t} so that a trace
       is a value tests can compare.
 
-    {!Ash_core.Effect_class.Control} and {!Ash_core.Effect_class.Reflection} have
-    no members yet: [call/cc] and friends need the one-shot continuations of task
-    1.5, and [lift], [run], [reflect], and [up] need staging and the tower. An
-    empty class is not a gap in the classification — the class is part of a
-    primitive's definition, so the property "exactly one class per primitive"
-    holds by construction and is checked over whatever is registered.
+    - {!Ash_core.Effect_class.Control} — [callcc], which reifies the current
+      continuation as a one-shot value and hands it to its argument. Never
+      folded: capturing during specialization would capture the specializer's
+      continuation.
+
+    {!Ash_core.Effect_class.Reflection} has no members yet: [lift], [run],
+    [reflect], and [up] need staging and the tower. An empty class is not a gap
+    in the classification — the class is part of a primitive's definition, so the
+    property "exactly one class per primitive" holds by construction and is
+    checked over whatever is registered.
 
     {1 Errors}
 
@@ -52,7 +57,7 @@ val io : t -> Io.t
 
 val all : t -> Value.primitive list
 (** Every primitive, in registry order: pure, then allocation/mutation, then
-    observable. *)
+    observable, then control. *)
 
 val find : t -> string -> Value.primitive option
 

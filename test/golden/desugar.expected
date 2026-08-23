@@ -1,0 +1,98 @@
+Ash surface-to-Core desugaring — golden output
+Binder names are chosen by the Core printer, not by the desugarer.
+
+--------------------------------------------------------------------------
+Derived sugar, one construct at a time
+--------------------------------------------------------------------------
+  1; 2                                     => (let _ (lit 1) (lit 2))
+  let x = 1; x                             => (let x (lit 1) (var x))
+  var x = 1; x := 2                        => (let x (lit 1) (set x (lit 2)))
+  fn f(n) = n                              => (letrec ((f (lam (n) (var n)))) (lit unit))
+  fn(x) -> x                               => (lam (x) (var x))
+  true && false                            => (if (lit #t) (lit #f) (lit #f))
+  true || false                            => (if (lit #t) (lit #t) (lit #f))
+  !true                                    => (app (var not) (lit #t))
+  0 - 1                                    => (app (var -) (lit 0) (lit 1))
+  let x = 1; -x                            => (let x (lit 1) (app (var -) (lit 0) (var x)))
+  []                                       => (lit nil)
+  [1, 2]                                   => (app (var list) (lit 1) (lit 2))
+  1 :: [2]                                 => (app (var cons) (lit 1) (app (var list) (lit 2)))
+  [1] |> length                            => (app (var length) (app (var list) (lit 1)))
+  1 |> cons([])                            => (app (var cons) (lit 1) (lit nil))
+  { let x = 1; x + 1 }                     => (let x (lit 1) (app (var +) (var x) (lit 1)))
+  if true then 1 else 2                    => (if (lit #t) (lit 1) (lit 2))
+  1 == 2                                   => (app (var ==) (lit 1) (lit 2))
+  1 + 2 * 3                                => (app (var +) (lit 1) (app (var *) (lit 2) (lit 3)))
+
+--------------------------------------------------------------------------
+Documented programs
+--------------------------------------------------------------------------
+
+== §4.1 fact ==
+  | fn fact(n) =
+  |   if n == 0 then 1
+  |   else n * fact(n - 1)
+  | fact(5)
+  =>
+(letrec ((fact (lam (n) (if (app (var ==) (var n) (lit 0)) (lit 1) (app (var *) (var n) (app (var fact) (app (var -) (var n) (lit 1)))))))) (app (var fact) (lit 5)))
+
+== §4.1 classify ==
+  | fn classify(n) = {
+  |   let m = n % 3
+  |   if m == 0 then 'zero else if m == 1 then 'one else 'two
+  | }
+  =>
+(letrec ((classify (lam (n) (let m (app (var %) (var n) (lit 3)) (if (app (var ==) (var m) (lit 0)) (lit 'zero) (if (app (var ==) (var m) (lit 1)) (lit 'one) (lit 'two))))))) (lit unit))
+
+== §4.2 length ==
+  | fn length(xs) =
+  |   match xs {
+  |     []      -> 0
+  |     _ :: ys -> 1 + length(ys)
+  |   }
+  =>
+(letrec ((length (lam (xs) (let scrutinee (var xs) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (if (app (var empty?) (var scrutinee)) (app (var next_clause)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let ys (var tail1) (app (var +) (lit 1) (app (var length) (var ys))))))))) (if (app (var empty?) (var scrutinee)) (lit 0) (app (var next_clause)))))))) (lit unit))
+
+== mutual recursion in one group ==
+  | fn even(n) = if n == 0 then true else odd(n - 1)
+  | fn odd(n) = if n == 0 then false else even(n - 1)
+  =>
+(letrec ((even (lam (n) (if (app (var ==) (var n) (lit 0)) (lit #t) (app (var odd) (app (var -) (var n) (lit 1)))))) (odd (lam (n) (if (app (var ==) (var n) (lit 0)) (lit #f) (app (var even) (app (var -) (var n) (lit 1))))))) (lit unit))
+
+== alternatives share one body ==
+  | match [7] {
+  |   [x] | x :: [] -> x + 1
+  |   _ -> 0
+  | }
+  =>
+(let scrutinee (app (var list) (lit 7)) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (lit 0))) (let clause_body (lam (x) (app (var +) (var x) (lit 1))) (let next_alternative (lam () (if (app (var empty?) (var scrutinee)) (app (var next_clause)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let x (var head1) (if (app (var empty?) (var tail1)) (app (var clause_body) (var x)) (app (var next_clause)))))))) (if (app (var empty?) (var scrutinee)) (app (var next_alternative)) (let head1 (app (var head) (var scrutinee)) (let tail1 (app (var tail) (var scrutinee)) (let x (var head1) (if (app (var empty?) (var tail1)) (app (var clause_body) (var x)) (app (var next_alternative)))))))))))
+
+== closure-visible mutation ==
+  | var c = 0
+  | fn bump() = c := c + 1
+  | bump()
+  | c
+  =>
+(let c (lit 0) (letrec ((bump (lam () (set c (app (var +) (var c) (lit 1)))))) (let _ (app (var bump)) (var c))))
+
+--------------------------------------------------------------------------
+Provenance: which rewrite invented which node
+--------------------------------------------------------------------------
+  1 + 2                                    desugar/operator
+  1; 2                                     desugar/seq
+  let x = 1                                desugar/unit
+  fn f() = 1                               desugar/fn desugar/unit
+  [1]                                      desugar/list
+  true && false                            desugar/and
+  match 1 { _ -> 2 }                       desugar/match
+
+--------------------------------------------------------------------------
+Diagnostics
+--------------------------------------------------------------------------
+  nope                               golden.ash:1:1-5: desugar error: no binding named `nope` in this environment
+  let x = 1; x := 2                  golden.ash:1:12-13: desugar error: `x` is bound by `let`, so it cannot be assigned; bind it with `var`
+  head := 1                          golden.ash:1:1-5: desugar error: `head` is bound by `let`, so it cannot be assigned; bind it with `var`
+  fn f() = 1; fn f() = 2             golden.ash:1:16-17: desugar error: `f` is bound twice in the same binder list
+  `{ 1 + 2 }                         golden.ash:1:1-11: desugar error: `a quotation` is not supported by the desugarer, which lowers no code construction before Phase 3
+  match e { Lit(c) -> c }            golden.ash:1:11-17: desugar error: `the `Lit(<pattern>)` pattern` is not supported by the desugarer, which lowers no code construction before Phase 3
+  match e { `{ ${a} + 0 } -> a }     golden.ash:1:11-24: desugar error: `a quasiquote pattern` is not supported by the desugarer, which lowers no code construction before Phase 3

@@ -237,20 +237,28 @@ let test_reflective_forms () =
   check_error "applying a reifier awaits the level above"
     ~cause:(refused "reifier application")
     "(app (reifier (e r k) (var e)) (lit 1))";
+  (* Applying a continuation is task 1.5's job and has its own suite; what
+     belongs here is that the evaluator routes an applied continuation to its
+     procedure rather than treating it as an ordinary value. *)
   let kont = Ident.fresh "kont" in
   let env =
     Env.extend
-      [ (kont, Value.Continuation (Value.continuation ~capture:sp (fun v -> v))) ]
+      [
+        ( kont,
+          Value.Continuation
+            (Value.continuation ~capture:sp ~level:0 (fun v ->
+                 match v with Value.Num n -> Value.Num (n * 10) | other -> other)) );
+      ]
       Value.empty_env
   in
   let scope = Core_reader.scope_of_list [ ("kont", kont) ] in
-  match Evaluator.eval ~env (read_with scope "(app (var kont) (lit 1))") with
-  | (_ : Value.value) ->
-      incr failures;
-      Printf.printf "FAIL applying a continuation awaits one-shot enforcement\n"
+  match Evaluator.eval ~env (read_with scope "(app (var kont) (lit 4))") with
+  | value ->
+      check "applying a continuation transfers to it" (Value.equal (Value.Num 40) value)
   | exception Error.Ash_error error ->
-      check "applying a continuation awaits one-shot enforcement"
-        (Error.cause_equal error.Error.cause (refused "continuation application"))
+      incr failures;
+      Printf.printf "FAIL applying a continuation transferred nowhere: %s\n"
+        (Error.to_string error)
 
 let () =
   test_factorial ();

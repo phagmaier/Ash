@@ -56,6 +56,14 @@ and continuation = private {
       (** One-shot enforcement (spec §D4) is dynamic: the flag is set {e before}
           transfer, so a continuation that re-invokes itself is caught too. *)
   cont_capture : Span.t;  (** Where the continuation was captured. *)
+  cont_level : int;
+      (** The meta-context: the tower level whose evaluation this continuation
+          resumes, counted relative to the base program (spec §D9). A reifier
+          runs at level [n + 1] holding the continuation of level [n], so a
+          continuation that did not know its own level could be resumed on the
+          wrong machine. Only level 0 exists before Phase 4; the field is here
+          from the start because retrofitting it means revisiting every capture
+          site. *)
   mutable cont_first_use : Span.t option;
       (** Where it was first invoked, so a second invocation can name both
           sites. *)
@@ -77,15 +85,26 @@ and primitive = {
   prim_arity : arity;
   prim_class : Effect_class.t;
       (** Exactly one class per primitive; see {!Effect_class} and spec §D7. *)
-  prim_impl : call_site:Span.t -> value list -> (value -> answer) -> answer;
+  prim_impl :
+    call_site:Span.t -> apply:applier -> value list -> (value -> answer) -> answer;
       (** In CPS so that control primitives are ordinary members of the registry
           rather than evaluator special cases. [call_site] is where the
           application was written: a primitive that rejects an argument has no
           other location to report, and a diagnostic without one is not much of a
           diagnostic. Arity is checked by the applying evaluator, so every
           primitive reports arity the same way; a primitive still checks its own
-          argument types. *)
+          argument types.
+
+          [apply] is how a primitive calls an Ash function — what [callcc] needs
+          to hand a captured continuation to its argument. The caller supplies
+          it, so the call goes through whatever evaluator is running: the ground
+          evaluator routes it through the machine's open-recursion cell (spec
+          §D3), and a replaced [apply] therefore intercepts a primitive's call
+          too. A primitive that never calls back ignores it. *)
 }
+
+and applier = call_site:Span.t -> value -> value list -> (value -> answer) -> answer
+(** Applying an Ash callee to arguments, in CPS. *)
 
 and arity = Exactly of int | At_least of int
 
@@ -121,9 +140,10 @@ val same_cell : cell -> cell -> bool
 
 (** {1 Continuations} *)
 
-val continuation : capture:Span.t -> (value -> answer) -> continuation
+val continuation : capture:Span.t -> level:int -> (value -> answer) -> continuation
 val continuation_used : continuation -> bool
 val continuation_capture_site : continuation -> Span.t
+val continuation_level : continuation -> int
 val continuation_first_use : continuation -> Span.t option
 
 val mark_continuation_used : continuation -> at:Span.t -> unit

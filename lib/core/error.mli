@@ -50,6 +50,22 @@ type cause =
           frozen direct-style oracle meeting a reifier. Not a program error in
           general — only in that component. *)
   | Division_by_zero
+  | Continuation_reuse of { captured : Span.t; first_used : Span.t }
+      (** A one-shot continuation was invoked a second time (spec §D4). Both
+          sites are carried because neither alone explains the mistake: the
+          error is reported where the second invocation was written, and what a
+          reader needs is where the continuation came from and where it already
+          went. *)
+  | Immutable_binding of string
+      (** A surface assignment named a binding introduced by [let] rather than
+          [var]. Mutability is a property of the binder, not of the cell, so the
+          desugarer decides this statically: Core [Set] assigns to whatever cell
+          a binder is bound to, and nothing later in the pipeline could tell the
+          two kinds of binding apart. *)
+  | No_matching_clause of string
+      (** A [match] ran out of clauses. The payload is the printed scrutinee, so
+          the diagnostic can say what failed to match without the error type
+          depending on the value domain. *)
   | Duplicate_binder of string
       (** One binder list binds a printed name twice. The reader works in names,
           so allowing it would make resolution depend on the order bindings were

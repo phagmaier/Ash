@@ -101,8 +101,15 @@ and apply ~span callee arguments =
           ~actual:given
       else
         (* A pure primitive invokes its continuation exactly once in tail
-           position, so the identity continuation returns its result. *)
-        primitive.Value.prim_impl ~call_site:span arguments (fun value -> value)
+           position, so the identity continuation returns its result. The
+           applier is the direct-style [apply] read as CPS; no pure primitive
+           calls it, and passing one that raised would be a lie about what this
+           evaluator does rather than a restriction it enforces. *)
+        primitive.Value.prim_impl ~call_site:span
+          ~apply:(fun ~call_site callee arguments k ->
+            k (apply ~span:call_site callee arguments))
+          arguments
+          (fun value -> value)
   | Value.Reifier _ -> unsupported ~span "reifier"
   | Value.Continuation _ -> unsupported ~span "continuation"
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
