@@ -15,13 +15,15 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 0 — Core
-- **Next:** 0.9 — implement the classified primitive registry
+- **Phase:** 1 — surface language and continuations
+- **Next:** 1.2 — implement the precedence parser
 - **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
   and `dune exec ash -- --help` pass with `ash.core` (identifiers, Core, values,
-  environments, errors, alpha-equivalence), `ash.syntax` (s-expressions, reader,
-  printer), and `ash.runtime` (pure primitives, direct-style oracle, CPS
-  evaluator), plus a 46-program oracle/CPS differential corpus
+  environments, errors, alpha-equivalence), `ash.syntax` (cursor, s-expressions,
+  Core reader and printer, surface lexer), and `ash.runtime` (the classified
+  primitive registry, the observable-effect stream, the direct-style oracle, and
+  the CPS evaluator), plus a 46-program oracle/CPS differential corpus and the
+  first golden file
 - **Blocker:** none
 
 ## Locked decisions
@@ -92,17 +94,25 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Count evaluator steps and constructor dispatches from the start.
   - Accept: `fact(20)` works and agrees with the oracle on the initial corpus.
 
-- [ ] **0.9 Implement the classified primitive registry.**
+- [x] **0.9 Implement the classified primitive registry.**
   - Classify every primitive as pure, allocation/mutation, observable effect,
     control, or reflection. Buffer observable output for deterministic tests.
   - Accept: every primitive has exactly one class and consistent arity/type errors.
+  - The control and reflection classes are registered empty: their members need
+    one-shot continuations (1.5) and staging/the tower (Phases 3–4), and ADR 0009
+    records why a stub is worse than an honest absence. Filling them is a
+    deliberate change that a test currently asserts against.
 
 ## Phase 1 — surface language and continuations
 
-- [ ] **1.1 Implement the lexer with source spans.**
+- [x] **1.1 Implement the lexer with source spans.**
   - Cover comments, literals, symbols, names, keywords, operators,
     quotation/splice tokens, and punctuation.
   - Accept: golden tests cover ambiguous operators and malformed literals.
+  - Tokens also carry whether a line break precedes them. The spec's blocks
+    separate statements by newline as well as by `;`, and 1.2 decides what to do
+    with that; ADR 0010 records why the lexer records layout rather than
+    consuming it.
 
 - [ ] **1.2 Implement the precedence parser.**
   - Cover bindings, mutation, functions, calls, blocks, conditionals, lists,
@@ -331,6 +341,94 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 1.1
+
+- Completed: the surface lexer, its token vocabulary, and the first golden tests.
+  - `Ash_syntax.Token`: the 50-kind lexicon of spec §4, with three renderings —
+    `spelling` (write it back as source), `describe` (the noun phrase after
+    "expected" or "found"), and `name` (the tag reports print). Every token
+    carries a span and whether a line break precedes it.
+  - `Ash_syntax.Lexer`: `#` comments, integer/string/symbol/boolean literals,
+    names and the thirteen reserved words, operators by maximal munch, `` `{ ``
+    and `${` as single tokens, and punctuation. `is_name` is the single place
+    that knows what a name looks like.
+  - `Ash_syntax.Cursor`: extracted from the s-expression reader and now shared
+    with it, so the two notations cannot disagree about where a character is.
+    `Sexp` is unchanged apart from using it.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are
+  `test/unit/lexer_test.ml` and `test/golden/`; both were validated by
+  perturbing the lexer — dropping `|>` from the two-character table and letting
+  a number run into a name — and confirming each produced a readable failure and
+  a reviewable golden diff before being restored.
+- Acceptance: `test/golden/lexer.expected` pins the maximal-munch table for
+  every ambiguous operator prefix (`| || |>`, `= ==`, `! !=`, `< <=`, `> >=`,
+  `: :: :=`, `- ->`, `&&`, `` ` ``/`$` plus brace) and the rendered diagnostic
+  for every malformed literal and stray character, alongside the token stream
+  for each §4–§6 sample in the spec. The unit test ends by checking the corpus
+  produced every token kind, so a kind nobody lexes fails naming itself.
+- Decisions: ADR 0010 records the surface lexicon and layout — `#` comments here
+  and `;` there, a `starts_line` flag rather than newline tokens or mandatory
+  semicolons, malformed literals refused rather than split, `?` allowed at the
+  end of a name and `!` never in one, reserving a word only when the parser must
+  recognize it before parsing what follows (which is why `meta_with` is reserved
+  and `run`/`lift`/`reflect`/`eval` are not), maximal munch with `:` and `&`
+  deliberately absent from the one-character table, and golden files compared by
+  dune's `diff` action so the diff is the review.
+- Known issues: none. `.` is lexed although no parser consumes it yet — Ash
+  values have no fields, so 1.2 will reject it in the grammar, which gives a
+  better message than rejecting it in the scanner.
+- Next: 1.2 — the precedence parser: bindings, mutation, functions, calls,
+  blocks, conditionals, lists, pipelines, and the spec's exact
+  precedence/associativity table, with golden tests at every precedence
+  boundary.
+
+### 2026-08-23 — task 0.9 (Phase 0 complete)
+
+- Completed: the classified primitive registry and the observable-effect stream.
+  - `Ash_runtime.Io`: an injectable stream recording `Wrote` and `Read` events in
+    order, with scripted input, an optional echo channel, and `trace`/`text`
+    renderings. Observable effects are values a test can compare rather than
+    characters that have left the process.
+  - `Ash_runtime.Primitives` is now a registry instance over a stream, not a
+    constant list. Added `cell_new`, `deref`, `cell_set` (allocation/mutation)
+    and `print`, `println`, `read_line` (observable effect) to the existing
+    eighteen pure primitives. `classification`, `class_of`, `by_class`, `names`,
+    and `count` are derived from the registry rather than written twice;
+    construction refuses a duplicate name, which is the only way two classes
+    could attach to one name.
+  - Control and reflection are registered empty. `call/cc` needs 1.5 and `lift`,
+    `run`, `reflect`, `up` need staging and the tower; a primitive that exists
+    but refuses to run would claim a capability Ash does not have.
+  - `Error.End_of_input` is a new cause, for `read_line` past the last line.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/primitives_test.ml`; the harness was validated by perturbing the
+  registry four ways — reclassifying `print` as pure, dropping `println`'s
+  newline, making `cell_set` write a constant, and giving `not` the wrong arity —
+  and confirming each produced a readable failure before being restored.
+- Acceptance: every primitive has exactly one class (the classes partition the
+  registry, checked over `Effect_class.all`, and the test carries its own
+  classification table so an unclassified addition fails), and arity and type
+  errors are consistent registry-wide — every primitive is applied at every wrong
+  count, through the evaluator and directly, and both paths must report the same
+  cause at the call site; each primitive's rejections are listed in a table whose
+  keys must equal the registry's names.
+- Decisions: ADR 0009 records the registry-as-instance shape, buffered and
+  scripted IO, `print` writing a string's characters while a diagnostic writes its
+  literal, `cell_set` rather than the spec's `set` (Core already has a `Set`
+  form), immutable list operations staying pure because the allocation class is
+  about cells, and empty control/reflection classes over stubs.
+- Known issues: none. `test/unit/oracle_test.ml` now checks the frozen boundary
+  against the registry — it refuses every non-pure primitive by class, so a
+  primitive added to any other class is outside the oracle the day it is
+  registered.
+- Next: 1.1 — the lexer with source spans. Phase 0 is complete: Core, the
+  reader/printer, the oracle, the CPS evaluator, and the primitive registry all
+  pass their acceptance criteria from a clean process.
 
 ### 2026-08-23 — task 0.8
 

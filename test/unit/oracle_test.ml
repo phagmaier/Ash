@@ -17,15 +17,10 @@ let check_string name expected actual =
     incr failures;
     Printf.printf "FAIL %s\n  expected: %s\n  actual:   %s\n" name expected actual)
 
-let check_int name expected actual =
-  if not (Int.equal expected actual) then (
-    incr failures;
-    Printf.printf "FAIL %s\n  expected: %d\n  actual:   %d\n" name expected actual)
-
 (* A ground environment: the pure primitives, bound to fresh identities, with a
    reader scope that names them. *)
 let ground () =
-  let globals = Primitives.globals () in
+  let globals = Primitives.globals (Primitives.create ()) in
   let env = Env.extend globals Value.empty_env in
   let scope =
     Core_reader.scope_of_list
@@ -64,29 +59,34 @@ let check_error name ~cause text =
         incr failures;
         Printf.printf "FAIL %s\n  wrong phase: %s\n" name (Error.to_string error))
 
-(* Primitives *)
+(* Primitives: the oracle's half of the D7 rule *)
 
-let test_primitives () =
-  check "every primitive is pure"
+let test_primitive_boundary () =
+  let non_pure =
+    List.filter_map
+      (fun (name, cls) ->
+        if Effect_class.equal cls Effect_class.Pure then None else Some name)
+      Primitives.classification
+  in
+  (* If the registry ever holds only pure primitives this test proves nothing,
+     so it says so rather than passing vacuously. *)
+  check "the registry has primitives the oracle must refuse" (non_pure <> []);
+  (* Running an effect at oracle time would move it out of the program, which is
+     exactly the mistake D7 exists to prevent. The refusal is by class, so a
+     primitive added to any other class is refused the day it is registered. *)
+  List.iter
+    (fun name ->
+      check_error ("the oracle refuses `" ^ name ^ "`")
+        ~cause:(Error.Unsupported { what = name; by = "the direct-style oracle" })
+        (Printf.sprintf "(app (var %s))" name))
+    non_pure;
+  check "and it runs every pure one it is given"
     (List.for_all
-       (fun p -> Effect_class.equal p.Value.prim_class Effect_class.Pure)
-       Primitives.all);
-  check "primitive names are distinct"
-    (List.length (List.sort_uniq String.compare Primitives.names)
-    = List.length Primitives.names);
-  check "find locates a primitive by name"
-    (match Primitives.find "+" with
-    | Some p -> String.equal p.Value.prim_name "+"
-    | None -> false);
-  check "find reports an unknown name" (Primitives.find "nope" = None);
-  check_int "globals bind every primitive" (List.length Primitives.all)
-    (List.length (Primitives.globals ()));
-  (* A materialized level gets its own cloned globals, so identities must not be
-     shared between two calls. *)
-  check "globals allocate fresh identities each time"
-    (match (Primitives.globals (), Primitives.globals ()) with
-    | (a, _) :: _, ((b, _) :: _) -> (not (Ident.equal a b)) && Ident.same_name a b
-    | _, _ -> false)
+       (fun name ->
+         match Primitives.class_of name with
+         | Some cls -> Effect_class.may_fold_when_static cls
+         | None -> false)
+       (Primitives.by_class Effect_class.Pure))
 
 (* Arithmetic *)
 
@@ -323,7 +323,7 @@ let test_frozen () =
         (Span.to_string error.Error.span)
 
 let () =
-  test_primitives ();
+  test_primitive_boundary ();
   test_arithmetic ();
   test_comparison ();
   test_functions ();

@@ -1,0 +1,209 @@
+Ash surface lexer — golden output
+Regenerate with `dune runtest --auto-promote`.
+
+--------------------------------------------------------------------------
+Spec samples: source and the tokens each line produced
+--------------------------------------------------------------------------
+
+== §4.1 bindings and mutation ==
+   1 | let x = 42
+     : let x = 42
+   2 | var counter = 0
+     : var counter = 0
+   3 | counter := counter + 1
+     : counter := counter + 1 <eof>
+
+== §4.1 functions ==
+   1 | fn square(x) = x * x
+     : fn square ( x ) = x * x
+   2 | let double = fn(x) -> x * 2
+     : let double = fn ( x ) -> x * 2 <eof>
+
+== §4.1 fact ==
+   1 | fn fact(n) =
+     : fn fact ( n ) =
+   2 |   if n == 0 then 1
+     : if n == 0 then 1
+   3 |   else n * fact(n - 1)
+     : else n * fact ( n - 1 ) <eof>
+
+== §4.1 a block with symbols ==
+   1 | fn classify(n) = {
+     : fn classify ( n ) = {
+   2 |   let m = n % 3
+     : let m = n % 3
+   3 |   if m == 0 then 'zero else if m == 1 then 'one else 'two
+     : if m == 0 then 'zero else if m == 1 then 'one else 'two
+   4 | }
+     : } <eof>
+
+== §4.1 lists and pipelines ==
+   1 | [1, 2, 3]
+     : [ 1 , 2 , 3 ]
+   2 | 1 :: [2, 3]
+     : 1 :: [ 2 , 3 ]
+   3 | xs |> map(double) |> sum
+     : xs |> map ( double ) |> sum <eof>
+
+== §4.2 match ==
+   1 | fn length(xs) =
+     : fn length ( xs ) =
+   2 |   match xs {
+     : match xs {
+   3 |     []      -> 0
+     : [ ] -> 0
+   4 |     _ :: ys -> 1 + length(ys)
+     : _ :: ys -> 1 + length ( ys )
+   5 |   }
+     : } <eof>
+
+== §4.3 quotation and splicing ==
+   1 | let e = `{ 1 + 2 * 3 }
+     : let e = `{ 1 + 2 * 3 }
+   2 | run(e)                    # 7
+     : run ( e )
+   3 | let b = `{ ${a} + ${a} }
+     : let b = `{ ${ a } + ${ a } }
+   4 | lift(42)
+     : lift ( 42 ) <eof>
+
+== §4.3 staged power ==
+   1 | fn power(n, x) =
+     : fn power ( n , x ) =
+   2 |   if n == 0 then `{ 1 }
+     : if n == 0 then `{ 1 }
+   3 |   else `{ ${x} * ${power(n - 1, x)} }
+     : else `{ ${ x } * ${ power ( n - 1 , x ) } } <eof>
+
+== §4.4 quasiquote patterns ==
+   1 | match e {
+     : match e {
+   2 |   `{ ${a} + 0 }   -> simplify(a)
+     : `{ ${ a } + 0 } -> simplify ( a )
+   3 |   `{ ${f}(${x}) } -> `{ ${simplify(f)}(${simplify(x)}) }
+     : `{ ${ f } ( ${ x } ) } -> `{ ${ simplify ( f ) } ( ${ simplify ( x ) } ) }
+   4 |   _               -> e
+     : _ -> e
+   5 | }
+     : } <eof>
+
+== §5.3 the money demo ==
+   1 | up {
+     : up {
+   2 |   let base = eval
+     : let base = eval
+   3 |   eval := fn(e, r, k) -> {
+     : eval := fn ( e , r , k ) -> {
+   4 |     print(indent(depth), show(e))
+     : print ( indent ( depth ) , show ( e ) )
+   5 |     base(e, r, k)
+     : base ( e , r , k )
+   6 |   }
+     : }
+   7 | }
+     : } <eof>
+
+== §5.4 a reifier ==
+   1 | let my_quote = reifier(exp, env, k) -> k(arg(exp, 0))
+     : let my_quote = reifier ( exp , env , k ) -> k ( arg ( exp , 0 ) )
+   2 | my_quote(1 + 2)     # the code, not 3
+     : my_quote ( 1 + 2 ) <eof>
+
+== §5.5 meta_with ==
+   1 | meta_with(eval = tracing(eval)) {
+     : meta_with ( eval = tracing ( eval ) ) {
+   2 |   fib(3)
+     : fib ( 3 )
+   3 | }
+     : } <eof>
+
+== §6 the self-interpreter ==
+   1 | open fn eval(e, r, k) =
+     : open fn eval ( e , r , k ) =
+   2 |   match e {
+     : match e {
+   3 |     Lit(c)         -> k(c)
+     : Lit ( c ) -> k ( c )
+   4 |     If(c, t, f)    -> eval(c, r, fn(b) ->
+     : If ( c , t , f ) -> eval ( c , r , fn ( b ) ->
+   5 |                         if truthy(b) then eval(t, r, k) else eval(f, r, k))
+     : if truthy ( b ) then eval ( t , r , k ) else eval ( f , r , k ) )
+   6 |   }
+     : } <eof>
+
+--------------------------------------------------------------------------
+Spans and layout (`>` marks a token that starts a line)
+--------------------------------------------------------------------------
+
+== a two-line block ==
+  | let x = 1
+  | { x + 2 }
+  > keyword     let            golden.ash:1:1-4
+    ident       x              golden.ash:1:5-6
+    operator    =              golden.ash:1:7-8
+    int         1              golden.ash:1:9-10
+  > punctuation {              golden.ash:2:1-2
+    ident       x              golden.ash:2:3-4
+    operator    +              golden.ash:2:5-6
+    int         2              golden.ash:2:7-8
+    punctuation }              golden.ash:2:9-10
+    eof                        golden.ash:2:10
+
+== comments and blank lines ==
+  | # leading comment
+  | 
+  | let x = 1  # trailing comment
+  | # only a comment
+  | x
+  > keyword     let            golden.ash:3:1-4
+    ident       x              golden.ash:3:5-6
+    operator    =              golden.ash:3:7-8
+    int         1              golden.ash:3:9-10
+  > ident       x              golden.ash:5:1-2
+    eof                        golden.ash:5:2
+
+== string escapes ==
+  | "a\nb" "\x41" "quote: \""
+  > string      "a\nb"         golden.ash:1:1-7
+    string      "A"            golden.ash:1:8-14
+    string      "quote: \""    golden.ash:1:15-26
+    eof                        golden.ash:1:26
+
+== an empty file ==
+  | 
+  > eof                        golden.ash:1:1
+
+--------------------------------------------------------------------------
+Ambiguous operator prefixes, resolved by maximal munch
+--------------------------------------------------------------------------
+  a | b || c |> d      [ident a] [operator |] [ident b] [operator ||] [ident c] [operator |>] [ident d]
+  x = y == z           [ident x] [operator =] [ident y] [operator ==] [ident z]
+  x != y !z            [ident x] [operator !=] [ident y] [operator !] [ident z]
+  a < b <= c > d >= e  [ident a] [operator <] [ident b] [operator <=] [ident c] [operator >] [ident d] [operator >=] [ident e]
+  1 :: xs              [int 1] [operator ::] [ident xs]
+  x := 1               [ident x] [operator :=] [int 1]
+  n - 1 -> x           [ident n] [operator -] [int 1] [operator ->] [ident x]
+  -x                   [operator -] [ident x]
+  a && b               [ident a] [operator &&] [ident b]
+  `{ ${x} }            [quotation `{] [quotation ${] [ident x] [punctuation }] [punctuation }]
+  empty?(xs)           [ident empty?] [punctuation (] [ident xs] [punctuation )]
+  _ _x let letter      [punctuation _] [ident _x] [keyword let] [ident letter]
+  f(x); g(y)           [ident f] [punctuation (] [ident x] [punctuation )] [punctuation ;] [ident g] [punctuation (] [ident y] [punctuation )]
+
+--------------------------------------------------------------------------
+Malformed literals and characters that begin no token
+--------------------------------------------------------------------------
+  12abc                    golden.ash:1:1-6: lex error: expected an integer literal, found `12abc`
+  1.5                      golden.ash:1:1-4: lex error: expected an integer literal (Ash has no floating-point numbers), found `1.5`
+  99999999999999999999     golden.ash:1:1-21: lex error: expected an integer that fits in a machine word, found `99999999999999999999`
+  \"unterminated           golden.ash:1:1-14: lex error: unterminated string literal
+  \"broken\nstring\"       golden.ash:1:1-8: lex error: unterminated string literal
+  \"bad \\q escape\"       golden.ash:1:6-8: lex error: expected a string escape, found `\q`
+  \"\\x2                   golden.ash:1:1-5: lex error: unterminated string literal
+  '                        golden.ash:1:1-2: lex error: expected a symbol name, found `'`
+  `x                       golden.ash:1:1-2: lex error: expected `{` after a backtick, found `x`
+  $x                       golden.ash:1:1-2: lex error: expected `{` after `$`, found `x`
+  a & b                    golden.ash:1:3-4: lex error: unexpected character `&`
+  a : b                    golden.ash:1:3-4: lex error: unexpected character `:`
+  x @ y                    golden.ash:1:3-4: lex error: unexpected character `@`
+  empty??                  golden.ash:1:7-8: lex error: unexpected character `?`

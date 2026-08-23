@@ -18,32 +18,13 @@ let datum_name = function
   | Atom _ -> "an identifier"
   | List _ -> "a list"
 
-(* Reading.
+(* Reading. Scanning position, line and column counting, and span construction
+   are {!Cursor}'s, shared with the surface lexer so that the two notations
+   cannot disagree about where a character is. *)
 
-   The cursor is the one piece of mutable state in this module. It is scoped to a
-   single read and observable nowhere else, so it is a local counter rather than
-   part of any Ash value. *)
-
-type cursor = {
-  source : string;
-  file : string;
-  mutable offset : int;
-  mutable line : int;
-  mutable column : int;
-}
-
-let cursor ~file source = { source; file; offset = 0; line = 1; column = 1 }
-let position c = Span.position ~file:c.file ~line:c.line ~column:c.column ~offset:c.offset
-let at_end c = c.offset >= String.length c.source
-let peek c = if at_end c then None else Some c.source.[c.offset]
-
-let advance c =
-  (match c.source.[c.offset] with
-  | '\n' ->
-      c.line <- c.line + 1;
-      c.column <- 1
-  | _ -> c.column <- c.column + 1);
-  c.offset <- c.offset + 1
+let position = Cursor.position
+let peek = Cursor.peek
+let advance = Cursor.advance
 
 let fail ~span cause = Error.raise_cause ~phase:Error.Lex ~span cause
 
@@ -220,7 +201,7 @@ and read_list c ~start =
   loop []
 
 let of_string ?(file = "<string>") source =
-  let c = cursor ~file source in
+  let c = Cursor.create ~file source in
   let rec loop acc =
     match read_datum c with Some datum -> loop (datum :: acc) | None -> List.rev acc
   in

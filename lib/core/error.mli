@@ -54,6 +54,11 @@ type cause =
       (** One binder list binds a printed name twice. The reader works in names,
           so allowing it would make resolution depend on the order bindings were
           entered, and it would build a frame no name lookup could resolve. *)
+  | End_of_input
+      (** An observable input primitive was called with nothing left to read.
+          A program-level condition rather than a host failure: input is
+          scripted rather than taken from the host, so this is as reproducible
+          as any other error. *)
 
 type t = {
   phase : phase;

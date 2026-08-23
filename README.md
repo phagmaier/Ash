@@ -34,11 +34,12 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 |------|----------|
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
-| `lib/syntax/` | `ash.syntax`: s-expression data, and the canonical Core reader and printer |
-| `lib/runtime/` | `ash.runtime`: pure primitives, the CPS evaluator, and the frozen oracle |
+| `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader and printer, and the surface lexer |
+| `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `test/differential/` | oracle/CPS comparisons on a shared corpus |
+| `test/golden/` | pinned token streams, diagnostics, and reports |
 | `docs/decisions/` | numbered architecture decision records |
 | `docs/progress/` | experiment and reproducibility notes |
 
@@ -176,11 +177,7 @@ against something independent. It is deliberately never extended — it refuses
 pure. Its value comes entirely from being simple enough to believe by reading,
 and every feature it grew would be a feature it could no longer check.
 
-`Ash_runtime.Primitives` holds the pure primitives — integer arithmetic,
-comparison, and immutable lists. The remaining effect classes arrive with the
-full registry.
-
-The dynamic semantics these fix, which every later evaluator must match:
+The dynamic semantics the oracle fixes, which every later evaluator must match:
 
 - the function position is evaluated first, then arguments left to right;
 - `If` requires a boolean — there is no truthiness coercion in Core;
@@ -214,6 +211,73 @@ The oracle and the CPS evaluator are compared on a shared corpus in
 `test/differential/`, agreeing on values, on mutation and evaluation order, and
 on failures by both cause and location. See
 [`docs/decisions/0008-cps-evaluator-and-open-recursion.md`](docs/decisions/0008-cps-evaluator-and-open-recursion.md).
+
+## Primitives and effects
+
+`Ash_runtime.Primitives` is the classified registry. Every primitive carries
+exactly one `Ash_core.Effect_class`, as a field rather than as something a
+specializer infers, because "every primitive is stage-polymorphic" is wrong in a
+way that produces incorrect compilers rather than slow ones: folding
+`print("hi")` when its argument is static means *compiling* prints and *running*
+does not.
+
+| Class | Members | Specialization |
+|-------|---------|----------------|
+| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, `cons`, `head`, `tail`, `empty?`, `length`, `list` | fold when every argument is static |
+| allocation/mutation | `cell_new`, `deref`, `cell_set` | residualize until Phase 7's store splitting |
+| observable effect | `print`, `println`, `read_line` | never executed at specialization time |
+| control | — awaits one-shot continuations (task 1.5) | bespoke |
+| reflection | — awaits staging and the tower | bespoke, and the classification target |
+
+A registry is created over an `Ash_runtime.Io` stream: observable primitives
+write events to it and read scripted lines from it, so a program's *trace* is a
+value tests can compare rather than characters that have left the process. That
+is what makes "the residual program produced exactly the source program's
+effects" checkable. A stream can also echo to a channel, but echoing is an
+addition to the record, never a replacement. `print` writes a string's
+characters, while a diagnostic writes its escaped literal.
+
+Arity is checked by whatever applies a primitive, so an arity error reads the
+same wherever the call came from, and again inside the primitive because an
+implementation is a total function; argument types are checked by the primitive,
+left to right, and reported at the call site. See
+[`docs/decisions/0009-classified-primitive-registry.md`](docs/decisions/0009-classified-primitive-registry.md).
+
+## Surface syntax
+
+`Ash_syntax.Lexer` scans the surface language of spec §4 into `Ash_syntax.Token`
+values, each with a span. It is not the Core reader: Core is written in the
+canonical s-expression notation above, so the self-interpreter's corpus does not
+move when surface syntax does. Comments are `#` here and `;` there — the Core
+reader cannot use `#` because `#t` and `#f` start with one, and Ash spells those
+`true` and `false`, which leaves `;` free to be the sequencing operator.
+
+What the lexicon settles:
+
+- **Layout is recorded, not consumed.** Every token says whether a line break
+  precedes it, because the spec's blocks separate statements by newline as well
+  as by `;`. The lexer does not decide what that means; it declines to throw the
+  information away.
+- **Integers only, and a malformed literal is refused rather than split.**
+  `12abc` is an error naming the text, not `12` followed by `abc`; so are `1.5`
+  and an integer too large for a machine word.
+- **A name may end in `?`** — that is how `empty?` is written — **and never
+  contains `!`**, which is prefix negation. `_` alone is the wildcard; `_x` is a
+  name.
+- **A word is reserved only when the parser must recognize it before parsing
+  what follows**: `true false let var fn if then else match open up meta_with
+  reifier`. `run`, `lift`, `reflect`, `eval`, and `print` are ordinary bindings,
+  because a program must be able to shadow what it is reflecting on.
+- **Maximal munch**, so `|>` is never `|` then `>`. `:` and `&` mean nothing
+  alone and are reported as stray characters rather than lexed.
+- **`` `{ `` and `${` are one token each**, and a backtick without a brace says
+  which character followed it instead.
+
+See
+[`docs/decisions/0010-surface-lexicon-and-layout.md`](docs/decisions/0010-surface-lexicon-and-layout.md).
+Golden output for every spec sample, the maximal-munch table, and each lexical
+diagnostic is in `test/golden/lexer.expected`; regenerate it with
+`dune runtest --auto-promote` and read the diff.
 
 ## Development workflow
 

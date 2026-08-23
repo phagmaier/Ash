@@ -44,7 +44,11 @@ let causes =
     Error.Unexpected { found = "an integer"; expected = "a Core form" };
     Error.Unknown_form "lambda";
     Error.Malformed_form { form = "lam"; expected = "(lam (param ...) body)" };
+    Error.Arity_error { callee = Some "f"; expected = "2"; actual = 3 };
+    Error.Unsupported { what = "quote"; by = "the direct-style oracle" };
+    Error.Division_by_zero;
     Error.Duplicate_binder "x";
+    Error.End_of_input;
   ]
 
 let test_phases () =
@@ -53,7 +57,7 @@ let test_phases () =
   check_string "the evaluate phase is named" "evaluate" (Error.phase_name Error.Evaluate)
 
 let test_causes () =
-  check_int "every cause is enumerated" 10 (List.length causes);
+  check_int "every cause is enumerated" 14 (List.length causes);
   check "cause messages are distinct" (distinct (List.map Error.cause_message causes));
   List.iter
     (fun cause ->

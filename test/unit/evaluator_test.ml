@@ -27,7 +27,7 @@ let sp =
     ~stop:(Span.position ~file:"e.ash" ~line:1 ~column:2 ~offset:1)
 
 let ground () =
-  let globals = Primitives.globals () in
+  let globals = Primitives.globals (Primitives.create ()) in
   let scope =
     Core_reader.scope_of_list
       (List.map (fun (ident, _) -> (Ident.name ident, ident)) globals)

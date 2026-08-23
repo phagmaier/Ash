@@ -14,6 +14,7 @@ type cause =
   | Unsupported of { what : string; by : string }
   | Division_by_zero
   | Duplicate_binder of string
+  | End_of_input
 
 type t = { phase : phase; span : Span.t; level : int option; cause : cause }
 
@@ -66,6 +67,7 @@ let message ~show_ids cause =
   | Division_by_zero -> "division by zero"
   | Duplicate_binder name ->
       Printf.sprintf "`%s` is bound twice in the same binder list" name
+  | End_of_input -> "no input left to read"
 
 let cause_message cause = message ~show_ids:false cause
 
@@ -91,10 +93,11 @@ let cause_equal a b =
       String.equal x.what y.what && String.equal x.by y.by
   | Division_by_zero, Division_by_zero -> true
   | Duplicate_binder x, Duplicate_binder y -> String.equal x y
+  | End_of_input, End_of_input -> true
   | ( ( Unbound_ident _ | Unbound_name _ | Ambiguous_name _ | Unfilled_binding _
       | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
       | Malformed_form _ | Arity_error _ | Unsupported _ | Division_by_zero
-      | Duplicate_binder _ ),
+      | Duplicate_binder _ | End_of_input ),
       _ ) ->
       false
 

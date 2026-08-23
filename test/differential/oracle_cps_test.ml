@@ -27,7 +27,7 @@ let attempt f = match f () with value -> Ok value | exception Error.Ash_error e 
    the same global bindings, so a program that mutates does not leak from the
    first run into the second. *)
 let agree name text =
-  let globals = Primitives.globals () in
+  let globals = Primitives.globals (Primitives.create ()) in
   let scope =
     Core_reader.scope_of_list
       (List.map (fun (ident, _) -> (Ident.name ident, ident)) globals)
@@ -132,7 +132,7 @@ let errors =
 
 let test_frozen_boundary () =
   let refused_by_oracle text =
-    let globals = Primitives.globals () in
+    let globals = Primitives.globals (Primitives.create ()) in
     let scope =
       Core_reader.scope_of_list
         (List.map (fun (ident, _) -> (Ident.name ident, ident)) globals)
@@ -150,7 +150,7 @@ let test_frozen_boundary () =
           | Error.Unfilled_binding _ | Error.Unexpected_character _
           | Error.Unterminated _ | Error.Unexpected _ | Error.Unknown_form _
           | Error.Malformed_form _ | Error.Arity_error _ | Error.Division_by_zero
-          | Error.Duplicate_binder _ ->
+          | Error.Duplicate_binder _ | Error.End_of_input ->
               false)
       | Ok _ -> false
     in
