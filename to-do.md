@@ -16,14 +16,12 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 1 — surface language and continuations
-- **Next:** 1.2 — implement the precedence parser
-- **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
-  and `dune exec ash -- --help` pass with `ash.core` (identifiers, Core, values,
-  environments, errors, alpha-equivalence), `ash.syntax` (cursor, s-expressions,
-  Core reader and printer, surface lexer), and `ash.runtime` (the classified
-  primitive registry, the observable-effect stream, the direct-style oracle, and
-  the CPS evaluator), plus a 46-program oracle/CPS differential corpus and the
-  first golden file
+- **Next:** 1.3 — implement patterns and pattern parsing
+- **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
+  `opam exec -- dune runtest`, and `opam exec -- dune exec ash -- --help` pass
+  with the source-located surface AST and precedence parser, parser unit and
+  golden tests, the existing lexer/Core/runtime suites, and the 46-program
+  oracle/CPS differential corpus
 - **Blocker:** none
 
 ## Locked decisions
@@ -114,7 +112,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
     with that; ADR 0010 records why the lexer records layout rather than
     consuming it.
 
-- [ ] **1.2 Implement the precedence parser.**
+- [x] **1.2 Implement the precedence parser.**
   - Cover bindings, mutation, functions, calls, blocks, conditionals, lists,
     pipelines, and the exact precedence/associativity table from the spec.
   - Accept: parser golden tests include every precedence boundary.
@@ -341,6 +339,45 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 1.2
+
+- Completed: the source-located surface AST, handwritten precedence parser, and
+  structural debug printer.
+  - `Ash_syntax.Surface` preserves located names, binding mutability, recursive
+    named declarations, anonymous functions, calls, blocks, conditionals, lists,
+    mutation, grouping, and unary/binary operators for hygienic lowering in 1.4.
+    Whole nodes and operator tokens retain spans; no hygienic ID is allocated by
+    parsing.
+  - `Ash_syntax.Parser.expression` accepts exactly one statement-shaped form;
+    `Parser.program` accepts statement lists separated by newline or `;`.
+    Newlines remain whitespace wherever the grammar already expects an
+    expression, including after a function `=` and inside calls/lists.
+  - The recursive-descent layers implement the spec table literally: pipeline,
+    `||`, `&&`, comparisons, right-associative `::`, additive, multiplicative,
+    unary, and left-associative calls. Other binary layers associate left.
+    Mutation is right-associative below pipelines and requires a name target.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/parser_test.exe`,
+  `opam exec -- dune runtest`, `opam exec -- dune build @all`, and
+  `opam exec -- dune exec ash -- --help` all passed. The full test run retained
+  the 46-program oracle/CPS differential result. `git diff --check` passed.
+- Acceptance: `test/golden/parser.expected` exposes every adjacent precedence
+  boundary, the complete precedence ladder, and associativity at every level,
+  plus bindings, mutation, named/anonymous functions, calls, blocks,
+  conditionals, lists, pipelines, layout, and located diagnostics. Focused unit
+  tests additionally traverse parsed trees to ensure all nodes have source spans.
+- Decisions: ADR 0011 records contextual statement layout; explicit surface AST
+  retention; left association for every binary row not marked otherwise by the
+  spec; right association for cons and mutation; mutation below pipelines;
+  trailing-comma rejection; and parser-level rejection of field access, which
+  ADR 0010 had required because Ash has no field-bearing values.
+- Known issues: none within 1.2. Reserved syntax for match/patterns, quotation,
+  and tower forms remains deliberately unparsed until its checklist task, so no
+  placeholder AST claims unsupported semantics.
+- Next: 1.3 — add wildcard, literal, variable, list, alternative, Core
+  constructor, and quasiquote patterns; reject inconsistent binders; make the
+  documented `length` and `simplify` examples parse.
 
 ### 2026-08-23 — task 1.1
 

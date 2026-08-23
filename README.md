@@ -34,7 +34,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 |------|----------|
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
-| `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader and printer, and the surface lexer |
+| `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, and precedence parser |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
@@ -278,6 +278,22 @@ See
 Golden output for every spec sample, the maximal-munch table, and each lexical
 diagnostic is in `test/golden/lexer.expected`; regenerate it with
 `dune runtest --auto-promote` and read the diff.
+
+`Ash_syntax.Parser` turns that token stream into a source-located `Surface` tree.
+`Parser.program` accepts statements separated by either a newline or `;` at the
+top level and inside braces; newlines remain whitespace in expression positions,
+so the body after a function's `=` and multiline calls parse naturally. The
+precedence rows are, loosest to tightest, pipeline, `||`, `&&`, comparisons,
+right-associative `::`, additive, multiplicative, unary, and left-associative
+calls. Other binary rows associate left. Mutation is right-associative below
+pipelines and requires a name on its left.
+
+The structural `Surface_printer` makes grouping explicit rather than trying to
+reproduce source formatting. `test/golden/parser.expected` uses it to pin every
+adjacent precedence boundary and associativity rule. Field access remains an
+explicit parse error because Ash has no field-bearing values. Pattern matching
+is the next parser slice. The layout and AST decisions are recorded in
+[`docs/decisions/0011-surface-precedence-and-statement-layout.md`](docs/decisions/0011-surface-precedence-and-statement-layout.md).
 
 ## Development workflow
 
