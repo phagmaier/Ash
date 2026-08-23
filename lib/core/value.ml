@@ -94,7 +94,17 @@ let mark_continuation_used k ~at =
 let empty_env : env = []
 
 let frame_of_list bindings =
-  { bindings = Ident.Map.of_list bindings }
+  (* A duplicate identity would silently drop a binding, so it is a host bug
+     rather than something to resolve by last-one-wins. Repeated printed names
+     are fine; repeated identities are not. *)
+  let add map (ident, cell) =
+    if Ident.Map.mem ident map then
+      invalid_arg
+        (Printf.sprintf "Value.frame_of_list: duplicate binder %s"
+           (Ident.to_string ident));
+    Ident.Map.add ident cell map
+  in
+  { bindings = List.fold_left add Ident.Map.empty bindings }
 
 let push_frame frame env = frame :: env
 

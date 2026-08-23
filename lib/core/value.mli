@@ -130,7 +130,12 @@ val mark_continuation_used : continuation -> at:Span.t -> unit
 (** {1 Environments} *)
 
 val empty_env : env
+
 val frame_of_list : (Ident.t * cell) list -> frame
+(** @raise Invalid_argument if two entries share a binder identity, which would
+    otherwise silently drop one of them. Entries that merely share a printed name
+    are fine. *)
+
 val push_frame : frame -> env -> env
 
 (** {1 Arities} *)

@@ -33,7 +33,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | Path | Contents |
 |------|----------|
 | `bin/` | CLI entry point |
-| `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, and the value model |
+| `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `docs/decisions/` | numbered architecture decision records |
@@ -85,6 +85,26 @@ No match over a Core form or value shape in this project uses a catch-all case:
 adding a variant is meant to be a compile error at every site that interprets
 one. See
 [`docs/decisions/0003-core-and-value-representation.md`](docs/decisions/0003-core-and-value-representation.md).
+
+## Environments and errors
+
+`Ash_core.Env` operates on the frame chains in `Value`: `lookup`, `state`,
+`lookup_by_name`, `bind`, `extend`, `preallocate`, and `assign`. Frames are
+immutable and searched innermost first, so shadowing is frame order; values are
+reached through cells, so an assignment is visible to every closure that already
+captured the binding. `Env.state` distinguishes unbound from bound-but-unfilled,
+which `LetRec` preallocation needs. Assignment never creates a binding.
+
+A single frame that binds two distinct identifiers printing alike makes a
+`NamedVar` lookup ambiguous, and Ash reports that rather than picking one:
+resolving by allocation order would make the gensym counter observable, and that
+channel is explicitly excluded from Ash's equivalence claims.
+
+`Ash_core.Error` carries the phase, span, tower level, and a structured cause,
+and is formatted only at the boundary. Rendered diagnostics print identifiers by
+printed name and never by unique ID, so golden output cannot depend on allocation
+order; `Error.to_string_debug` adds IDs for interactive use only. See
+[`docs/decisions/0004-environments-and-structured-errors.md`](docs/decisions/0004-environments-and-structured-errors.md).
 
 ## Development workflow
 

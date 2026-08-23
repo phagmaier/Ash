@@ -16,10 +16,10 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 0 — Core
-- **Next:** 0.4 — implement explicit environments and cells
+- **Next:** 0.5 — implement a canonical Core s-expression reader
 - **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
   and `dune exec ash -- --help` pass with the `ash.core` span/constant/identifier
-  layer, the Core AST, and the value model
+  layer, the Core AST, the value model, environments, and structured errors
 - **Blocker:** none
 
 ## Locked decisions
@@ -61,7 +61,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Accept: constructor fixtures cover every variant; unknown variants fail
     explicitly rather than falling through.
 
-- [ ] **0.4 Implement explicit environments and cells.**
+- [x] **0.4 Implement explicit environments and cells.**
   - Add lexical frame chains keyed by hygienic IDs plus `lookup`,
     `lookup-by-name`, `bind`, `extend`, `preallocate`, and `assign`.
   - Include source locations in unbound-name errors.
@@ -326,6 +326,45 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 0.4
+
+- Completed: added `Env` and `Error` to `lib/core/`.
+  - `Env`: `lookup`, `lookup_exn`, `state`, `read_exn`, `lookup_by_name`,
+    `lookup_by_name_exn`, `bind`, `bind_cell`, `extend`, `extend_cells`,
+    `preallocate`, `assign`, `assign_exn`, `depth`, and `idents`. `state` is a
+    three-way `Unbound | Unfilled | Bound` answer so a preallocated `LetRec` cell
+    is never confused with an absent binding. Assignment fills an existing cell
+    and never creates a binding, which is what makes `Set`, recursive filling,
+    and meta-level writes one mechanism.
+  - `Error`: phase, span, relative tower level, and a structured cause
+    (`Unbound_ident`, `Unbound_name`, `Ambiguous_name`, `Unfilled_binding`),
+    raised as `Error.Ash_error` and formatted only at the boundary.
+  - `Value.frame_of_list` now rejects a repeated binder identity instead of
+    silently dropping a binding.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/env_test.ml` and `test/unit/error_test.ml`; both were checked to
+  fail loudly by perturbing an expected value before restoring it.
+- Acceptance: tests cover shadowing by identity across frames, closure-visible
+  mutation through shared cells (and that rebinding is deliberately *not*
+  visible to a captured chain), recursive preallocation including the
+  unfilled-read error, name lookup with innermost-frame resolution and the
+  ambiguous case, and the failure behaviour of every `_exn` operation with its
+  span, phase, level, and rendered message.
+- Decisions: ADR 0004 records that a name bound twice in one frame is an error
+  rather than a winner chosen by allocation order — deciding it by ID would make
+  the gensym counter observable, and D9 excludes that channel — plus the
+  three-way binding state, assignment never binding, one frame per extension, and
+  errors propagating as an exception rather than through `answer`, with rendering
+  that never prints unique IDs so golden diagnostics stay stable.
+- Known issues: none. Note for 0.8 and 4.2 that if `meta_error` needs errors as
+  ordinary values at level *n+1*, that is a level-crossing mechanism and must not
+  quietly widen the ground `answer` type.
+- Next: 0.5 — the canonical Core s-expression reader (debug/test format, not the
+  surface parser): validate shape and arity, retain source spans, and report
+  malformed forms with their location.
 
 ### 2026-08-23 — task 0.3
 
