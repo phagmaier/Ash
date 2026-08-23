@@ -35,6 +35,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
 | `lib/syntax/` | `ash.syntax`: s-expression data, and the canonical Core reader and printer |
+| `lib/runtime/` | `ash.runtime`: pure primitives and the frozen direct-style oracle |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `docs/decisions/` | numbered architecture decision records |
@@ -163,6 +164,31 @@ alpha-equivalence, and `Ash_core.Alpha` is where that lives:
 fresh identities. `Core_printer.to_string (Alpha.canonicalize t)` is the stable
 textual key for a term. See
 [`docs/decisions/0006-core-printing-and-alpha-equivalence.md`](docs/decisions/0006-core-printing-and-alpha-equivalence.md).
+
+## Running Core
+
+`Ash_runtime.Oracle` is the frozen direct-style oracle: about a hundred lines of
+ordinary recursive evaluation whose only job is to say what a pure Core program
+means, so the CPS evaluator, the tower, and every residual program can be checked
+against something independent. It is deliberately never extended — it refuses
+`NamedVar`, `Quote`, `Reifier`, continuations, and any primitive that is not
+pure. Its value comes entirely from being simple enough to believe by reading,
+and every feature it grew would be a feature it could no longer check.
+
+`Ash_runtime.Primitives` holds the pure primitives — integer arithmetic,
+comparison, and immutable lists. The remaining effect classes arrive with the
+full registry.
+
+The dynamic semantics these fix, which every later evaluator must match:
+
+- the function position is evaluated first, then arguments left to right;
+- `If` requires a boolean — there is no truthiness coercion in Core;
+- integer division truncates toward zero, the remainder takes the sign of the
+  dividend, and dividing by zero is an error;
+- `==` compares scalars and lists structurally and everything else by identity.
+
+See
+[`docs/decisions/0007-oracle-semantics-and-pure-primitives.md`](docs/decisions/0007-oracle-semantics-and-pure-primitives.md).
 
 ## Development workflow
 

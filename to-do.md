@@ -16,11 +16,11 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 0 — Core
-- **Next:** 0.7 — implement the frozen direct-style oracle
+- **Next:** 0.8 — implement the real evaluator in CPS
 - **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
-  and `dune exec ash -- --help` pass with the `ash.core` layer (identifiers,
-  Core, values, environments, errors, alpha-equivalence) and `ash.syntax`
-  (s-expressions, the canonical Core reader, and the printer)
+  and `dune exec ash -- --help` pass with `ash.core` (identifiers, Core, values,
+  environments, errors, alpha-equivalence), `ash.syntax` (s-expressions, reader,
+  printer), and `ash.runtime` (pure primitives, direct-style oracle)
 - **Blocker:** none
 
 ## Locked decisions
@@ -79,7 +79,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Accept: `read(print(core))` is alpha-equivalent for every form, including
     shadowing, `LetRec`, quotation, and reifiers.
 
-- [ ] **0.7 Implement the frozen direct-style oracle.**
+- [x] **0.7 Implement the frozen direct-style oracle.**
   - Support pure ordinary Core only; explicitly forbid reflection, staging, and
     continuation extensions.
   - Accept: arithmetic, functions, lexical scope, `If`, `Let`, `LetRec`, and
@@ -327,6 +327,45 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 0.7
+
+- Completed: added the `ash.runtime` library (`lib/runtime/`) with `Primitives`
+  and `Oracle`, plus the supporting core changes they needed.
+  - `Oracle` (112 lines): direct-style evaluation of `Lit`, `Var`, `Lam`, `App`,
+    `Let`, `LetRec`, `If`, and `Set`. It refuses `NamedVar`, `Quote`, `Reifier`,
+    applying a continuation, and any primitive that is not `Pure`, reporting
+    `Error.Unsupported` with the location of what it refused.
+  - `Primitives`: the pure set — `+ - * / %`, `< <= > >=`, `== !=`, `not`,
+    `cons`, `head`, `tail`, `empty?`, `length`, `list` — all `Effect_class.Pure`,
+    with `globals ()` allocating fresh identities per call so a materialized
+    level can clone them.
+  - `Error` gained `Arity_error`, `Unsupported`, and `Division_by_zero`; `Value`
+    gained `type_phrase` and `equal`, and `prim_impl` now takes `~call_site` so a
+    primitive that rejects an argument can locate the complaint.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/oracle_test.ml`, checked to fail loudly by perturbing an expected
+  value before restoring it.
+- Acceptance: arithmetic, functions and closures, lexical scope, `If`, `Let`,
+  `LetRec` (factorial, 20!, mutual recursion, empty group), and immutable-list
+  fixtures including two recursive list functions all pass, alongside the
+  refusals that keep the oracle frozen.
+- Decisions: ADR 0007 fixes the dynamic semantics every later evaluator must
+  match — function position first then arguments left to right, `If` requiring a
+  boolean with no truthiness coercion, truncating division with a
+  sign-of-dividend remainder and division by zero an error, and `==` structural
+  on scalars and lists but identity elsewhere — plus the oracle's frozen
+  boundary, central arity checking, and reusing `Error.Unexpected` for runtime
+  type errors since `phase` already distinguishes them.
+- Known issues: none. The primitive set is deliberately pure-only; 0.9 adds the
+  other four classes, buffered output, and the completeness check. `truthy` is
+  not implemented yet — the self-interpreter's `my_if` will need it in 2.2.
+- Next: 0.8 — the real evaluator in CPS: explicit CPS `eval`, `apply`, and
+  `eval-list`, `LetRec` via preallocated cells, evaluator-step and
+  constructor-dispatch counters from the start, `fact(20)` working, and agreement
+  with the oracle on the initial corpus.
 
 ### 2026-08-23 — task 0.6
 

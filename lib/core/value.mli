@@ -77,9 +77,14 @@ and primitive = {
   prim_arity : arity;
   prim_class : Effect_class.t;
       (** Exactly one class per primitive; see {!Effect_class} and spec §D7. *)
-  prim_impl : value list -> (value -> answer) -> answer;
+  prim_impl : call_site:Span.t -> value list -> (value -> answer) -> answer;
       (** In CPS so that control primitives are ordinary members of the registry
-          rather than evaluator special cases. *)
+          rather than evaluator special cases. [call_site] is where the
+          application was written: a primitive that rejects an argument has no
+          other location to report, and a diagnostic without one is not much of a
+          diagnostic. Arity is checked by the applying evaluator, so every
+          primitive reports arity the same way; a primitive still checks its own
+          argument types. *)
 }
 
 and arity = Exactly of int | At_least of int
@@ -146,7 +151,22 @@ val arity_to_string : arity -> string
 (** {1 Description} *)
 
 val type_name : value -> string
-(** The name used in type errors, e.g. ["closure"]. Exhaustive over {!value}. *)
+(** The bare name of a value's shape, e.g. ["closure"]. Exhaustive over
+    {!value}. *)
+
+val type_phrase : value -> string
+(** The noun phrase diagnostics use, e.g. ["a closure"], ["the empty list"]. *)
+
+val equal : value -> value -> bool
+(** Ash-level equality, as the [==] primitive computes it: scalars and lists
+    compare structurally, and everything carrying identity compares by identity,
+    because two closures with the same body are still two closures. Primitives
+    compare by name, so the same primitive drawn from two cloned global
+    environments is the same value.
+
+    [Code] currently compares by identity. Comparing quoted code by
+    alpha-equivalence is a Phase 3 question, and no program that can reach this
+    equality has a [Code] value yet. *)
 
 val to_string : value -> string
 (** A diagnostic rendering. Scalars and lists print structurally; everything with

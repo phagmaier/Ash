@@ -223,7 +223,7 @@ let primitive_fixture =
     prim_arity = Value.Exactly 2;
     prim_class = Effect_class.Pure;
     prim_impl =
-      (fun args k ->
+      (fun ~call_site:_ args k ->
         match args with
         | [ Value.Num a; Value.Num b ] -> k (Value.Num (a + b))
         | _ -> k Value.Unit);
@@ -404,7 +404,8 @@ let test_primitives () =
   (* A primitive is CPS so that control primitives need no evaluator special
      case: applying one delivers its result to the continuation. *)
   let result =
-    primitive_fixture.Value.prim_impl [ Value.Num 2; Value.Num 3 ] (fun v -> v)
+    primitive_fixture.Value.prim_impl ~call_site:sp [ Value.Num 2; Value.Num 3 ]
+      (fun v -> v)
   in
   check "a primitive delivers its result to the continuation"
     (match result with Value.Num 5 -> true | _ -> false)

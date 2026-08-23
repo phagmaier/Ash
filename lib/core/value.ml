@@ -38,7 +38,7 @@ and primitive = {
   prim_name : string;
   prim_arity : arity;
   prim_class : Effect_class.t;
-  prim_impl : value list -> (value -> answer) -> answer;
+  prim_impl : call_site:Span.t -> value list -> (value -> answer) -> answer;
 }
 
 and arity = Exactly of int | At_least of int
@@ -135,6 +135,44 @@ let type_name = function
   | Cell _ -> "cell"
   | Code _ -> "code"
   | Primitive _ -> "primitive"
+
+let type_phrase = function
+  | Num _ -> "a number"
+  | Bool _ -> "a boolean"
+  | Str _ -> "a string"
+  | Sym _ -> "a symbol"
+  | Unit -> "unit"
+  | List [] -> "the empty list"
+  | List (_ :: _) -> "a list"
+  | Closure _ -> "a closure"
+  | Reifier _ -> "a reifier"
+  | Continuation _ -> "a continuation"
+  | Environment _ -> "an environment"
+  | Cell _ -> "a cell"
+  | Code _ -> "code"
+  | Primitive _ -> "a primitive"
+
+let rec equal a b =
+  match (a, b) with
+  | Num x, Num y -> Int.equal x y
+  | Bool x, Bool y -> Bool.equal x y
+  | Str x, Str y -> String.equal x y
+  | Sym x, Sym y -> String.equal x y
+  | Unit, Unit -> true
+  | List x, List y -> List.equal equal x y
+  (* Identity, not structure: two closures with the same body are two closures,
+     and two cells with the same contents are two places. *)
+  | Closure x, Closure y -> x == y
+  | Reifier x, Reifier y -> x == y
+  | Continuation x, Continuation y -> x == y
+  | Environment x, Environment y -> x == y
+  | Cell x, Cell y -> same_cell x y
+  | Code x, Code y -> x == y
+  | Primitive x, Primitive y -> String.equal x.prim_name y.prim_name
+  | ( ( Num _ | Bool _ | Str _ | Sym _ | Unit | List _ | Closure _ | Reifier _
+      | Continuation _ | Environment _ | Cell _ | Code _ | Primitive _ ),
+      _ ) ->
+      false
 
 let named prefix = function
   | None -> Printf.sprintf "#<%s>" prefix

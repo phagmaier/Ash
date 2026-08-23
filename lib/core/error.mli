@@ -35,11 +35,21 @@ type cause =
       (** Input ended inside the named construct, e.g. ["string literal"]. *)
   | Unexpected of { found : string; expected : string }
       (** Both parts are noun phrases: ["expected a Core form, found an
-          integer"]. *)
+          integer"]. Runtime type errors use this too — a value's phrase comes
+          from {!Value.type_phrase} — because the {!phase} already says whether a
+          mismatch was syntactic or dynamic. *)
   | Unknown_form of string  (** A head atom that names no Core form. *)
   | Malformed_form of { form : string; expected : string }
       (** A recognized form with the wrong shape or arity; [expected] shows the
           form's canonical spelling. *)
+  | Arity_error of { callee : string option; expected : string; actual : int }
+      (** A call with the wrong number of arguments. [callee] is a name when one
+          is known; anonymous functions have none. *)
+  | Unsupported of { what : string; by : string }
+      (** A construct a deliberately restricted component refuses, such as the
+          frozen direct-style oracle meeting a reifier. Not a program error in
+          general — only in that component. *)
+  | Division_by_zero
   | Duplicate_binder of string
       (** One binder list binds a printed name twice. The reader works in names,
           so allowing it would make resolution depend on the order bindings were

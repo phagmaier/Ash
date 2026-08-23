@@ -10,6 +10,9 @@ type cause =
   | Unexpected of { found : string; expected : string }
   | Unknown_form of string
   | Malformed_form of { form : string; expected : string }
+  | Arity_error of { callee : string option; expected : string; actual : int }
+  | Unsupported of { what : string; by : string }
+  | Division_by_zero
   | Duplicate_binder of string
 
 type t = { phase : phase; span : Span.t; level : int option; cause : cause }
@@ -55,6 +58,12 @@ let message ~show_ids cause =
   | Unknown_form form -> Printf.sprintf "`%s` is not a Core form" form
   | Malformed_form { form; expected } ->
       Printf.sprintf "malformed `%s`: expected %s" form expected
+  | Arity_error { callee; expected; actual } ->
+      Printf.sprintf "%s expects %s argument(s), given %d"
+        (match callee with None -> "this function" | Some name -> "`" ^ name ^ "`")
+        expected actual
+  | Unsupported { what; by } -> Printf.sprintf "`%s` is not supported by %s" what by
+  | Division_by_zero -> "division by zero"
   | Duplicate_binder name ->
       Printf.sprintf "`%s` is bound twice in the same binder list" name
 
@@ -74,10 +83,18 @@ let cause_equal a b =
   | Unknown_form x, Unknown_form y -> String.equal x y
   | Malformed_form x, Malformed_form y ->
       String.equal x.form y.form && String.equal x.expected y.expected
+  | Arity_error x, Arity_error y ->
+      Option.equal String.equal x.callee y.callee
+      && String.equal x.expected y.expected
+      && Int.equal x.actual y.actual
+  | Unsupported x, Unsupported y ->
+      String.equal x.what y.what && String.equal x.by y.by
+  | Division_by_zero, Division_by_zero -> true
   | Duplicate_binder x, Duplicate_binder y -> String.equal x y
   | ( ( Unbound_ident _ | Unbound_name _ | Ambiguous_name _ | Unfilled_binding _
       | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
-      | Malformed_form _ | Duplicate_binder _ ),
+      | Malformed_form _ | Arity_error _ | Unsupported _ | Division_by_zero
+      | Duplicate_binder _ ),
       _ ) ->
       false
 
