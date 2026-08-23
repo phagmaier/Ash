@@ -40,7 +40,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `test/differential/` | oracle/CPS and CPS/self-interpreter comparisons on one shared corpus |
-| `test/laws/` | semantic invariants — currently open recursion at the Ash level |
+| `test/laws/` | semantic invariants — currently open recursion at the Ash level, including at depth |
 | `test/golden/` | pinned token streams, diagnostics, and reports |
 | `docs/decisions/` | numbered architecture decision records |
 | `docs/progress/` | experiment and reproducibility notes |
@@ -440,12 +440,12 @@ printed name plus unique id, so hygiene survives the encoding. Dispatch is an
 `if` chain over the form tag rather than the constructor patterns spec §6 sketches,
 because those parse but do not lower until Phase 3.
 
-Interpreted scalars, lists, and cells represent themselves, so a primitive can be
-handed one directly. Everything the host distinguishes by identity — closures,
-reifiers, continuations, primitives — is a list headed by a private cell the
-interpreted program has no way to name or forge, and each closure carries a fresh
-cell as its identity so that `==` on two of them compares places rather than
-shapes.
+Interpreted scalars, lists, cells, and primitives represent themselves, so a
+primitive can be handed one directly. The three things the interpreted level
+constructs — closures, reifiers, continuations — are lists headed by a private
+cell the interpreted program has no way to name or forge, and each closure
+carries a fresh cell as its identity so that `==` on two of them compares places
+rather than shapes.
 
 Nothing here is a host escape hatch. The interpreted level receives exactly the
 globals a level-0 run receives, and everything it cannot do itself it does by
@@ -462,6 +462,36 @@ interpreted closure, a reused continuation, an unbound identifier, reifier
 application — reports as `No_matching_clause` naming the condition, because Ash
 cannot construct a structured error. See
 [`docs/decisions/0016-the-ash-self-interpreter.md`](docs/decisions/0016-the-ash-self-interpreter.md).
+
+## Layers
+
+`Self.interpreting t` is the Core term that interprets `t` — the interpreter
+applied to the encoded program and the encoded globals, with both written *into*
+the term rather than passed beside it. The result is an ordinary Core term, so it
+is itself something a further layer can interpret, and layer *n* is *n*
+applications of one function:
+
+```text
+layer 0   the ground evaluator runs the program
+layer 1   the ground evaluator runs the interpreter, which runs the program
+layer 2   … which runs the interpreter, which runs the program
+```
+
+Every layer answers the same value and leaves the same trace. That is a stronger
+statement than layer 1's agreement alone: layer 2 only passes if the encoding
+survives being applied to the interpreter's own lowering, and if a primitive
+handed down two levels is still something the bottom level can apply. The second
+of those is why a primitive crosses **unwrapped** — a wrapped one would arrive at
+the bottom as the middle level's wrapper, a list rather than something callable —
+and why `callcc` is recognized by value (`f == callcc`) rather than by a name in
+a wrapper.
+
+Which layer carries a patch decides what the patch sees. Patching the layer that
+runs the program observes the program's thirteen nodes for §D3's fixture, whether
+that layer is running on the host or is itself being interpreted; patching the
+layer beneath it observes the interpreter's own execution, some 3500 steps for
+the same fixture. Same fixture, same answer, a different subject. See
+[`docs/decisions/0017-interpreter-layers.md`](docs/decisions/0017-interpreter-layers.md).
 
 ## The differential corpus
 
@@ -485,6 +515,13 @@ programs than the first. The self-interpreter comparison adds output and control
 programs, which are the two areas the oracle refuses and the shared corpus
 therefore cannot exercise; it compares value, cause, and trace but not location,
 for the reason given above.
+
+A third comparison runs the same corpus at layers 0, 1, and 2. Layer 2 costs the
+product of two interpretations, so which programs it runs is decided by a
+deterministic Ash-level step budget — a program is compared at layer 2 when its
+layer-0 run takes at most 800 evaluator steps — rather than by wall time. That
+admits every corpus program but the ten-thousand-iteration loop, whose step count
+is printed so a change in either direction is visible.
 
 The oracle's refusals are checked too, as a boundary rather than as agreement:
 quotation, reifiers, `callcc`, observable effects, and cells are all outside the

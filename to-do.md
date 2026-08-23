@@ -15,24 +15,27 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 2 — self-interpreter and open recursion
-- **Next:** 2.3 — test iteration and invariant OR: self-interpreter layers 1 and
-  2 plus the spec's patch-depth fixture
+- **Phase:** 3 — code and staging foundations
+- **Next:** 3.1 — implement hygienic quotation, splicing, and code patterns
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
   pass from a clean `_build` with the hygienic desugarer, `open fn` groups, the
-  Ash self-interpreter (`lib/self/eval.ash`), the 31-primitive registry (`list?`,
-  `invoke`, and the `open_*` trio), the
+  Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
+  31-primitive registry (`list?`, `invoke`, and the `open_*` trio), the
   desugar/continuation/parser/lexer/Core/runtime suites, the open-recursion law
-  suite, and both differential comparisons over the shared 91-program corpus
-  (73 Core, 18 surface) — the self-interpreter one adding 4 output and 4 control
-  programs
+  suite including patching at depth, and three differential comparisons over the
+  shared 91-program corpus (73 Core, 18 surface): oracle/CPS, CPS/layer 1, and
+  layers 0/1/2
 - **Blocker:** none
 
-Tasks 2.1 and 2.2 are done: `open fn` is a surface binding form that lowers to
-open-recursion cells, and the CPS Core evaluator is written in Ash and agrees
-with the host evaluator on the corpus. What 2.3 adds is depth — running the
-interpreter on itself, which needs the encoding to survive a second level.
+Phase 2 is complete. `open fn` is a surface binding form that lowers to
+open-recursion cells; the CPS Core evaluator is written in Ash and agrees with
+the host evaluator; and it runs under itself, with every layer agreeing and each
+layer's `eval` cell governing exactly the evaluation that layer performs. Phase 3
+is what the self-interpreter has been waiting for: `Code`, quotation, and
+splicing, which is also what closes the two boundaries 2.2 declared — spans
+crossing into the interpreted level, and constructor patterns replacing the tag
+dispatch in `eval.ash`.
 
 ## Locked decisions
 
@@ -185,9 +188,15 @@ interpreter on itself, which needs the encoding to survive a second level.
     the encoding, the value domain, and the two declared boundaries — locations,
     and failures the interpreted level detects itself.
 
-- [ ] **2.3 Test iteration and invariant OR.**
+- [x] **2.3 Test iteration and invariant OR.**
   - Test self-interpreter layers 1 and 2 plus the spec's patch-depth fixture.
   - Accept: all layers agree and recursive evaluation remains patchable.
+  - A layer is a term transformer: `Self.interpreting t` is the term that
+    interprets `t`, so layer *n* is *n* applications of it. Layer 2 forced one
+    change to 2.2's representation — a primitive crosses levels unwrapped,
+    because a wrapped one arrives at the bottom level as the middle level's
+    wrapper. ADR 0017 records that, the deterministic step budget that decides
+    which programs run at layer 2, and why layer 3 is not tested.
 
 ## Phase 3 — code and staging foundations
 
@@ -371,6 +380,67 @@ interpreter on itself, which needs the encoding to survive a second level.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 2.3 (Phase 2 complete)
+
+- Completed 2.3: iteration and invariant OR at depth.
+  - **A layer is a term transformer.** `Self.interpreting t` builds the Core term
+    that interprets `t` — the interpreter applied to the encoded program and the
+    encoded globals, with both written *into* the term rather than passed beside
+    it — so the result is itself something a further layer can interpret and
+    layer *n* is *n* applications of one function. `Encode.datum` is what makes a
+    value writable into a term: a list becomes a call of `list` and a primitive
+    becomes a reference to the global that denotes it, Core literals holding only
+    constants.
+  - **Layer 2 forced one change to 2.2's representation.** A primitive now
+    crosses levels unwrapped. `Encode.datum` writes a primitive as a `Var`, and a
+    `Var` is resolved by whatever level evaluates it, so a wrapped primitive
+    would arrive at the bottom level as the *middle* level's wrapper — a list,
+    not something applicable. Three things fell out, all improvements: the
+    `'prim` case in `apply` disappeared (a primitive is not tagged, so it takes
+    the branch that delegates below, which is what applying a primitive means);
+    `callcc` is recognized by value, `f == callcc`, so a program that renames it
+    is still caught and one that shadows it with its own function correctly is
+    not; and `Encode.reveal` leaves a primitive alone, so a program that returns
+    one is now comparable rather than merely tagged alike.
+  - **Layer-2 coverage is decided by a step budget, not a clock.** A program runs
+    at layer 2 when its layer-0 run takes at most 800 evaluator steps — a
+    property of the program, not of the machine. That admits 98 of 99 programs;
+    the ten-thousand-iteration loop is the exclusion and its step count is
+    printed.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all passed. `git diff --check` passed.
+  The suite takes about ten seconds, essentially all of it layer 2.
+- Acceptance 2.3, all layers agree: `test/differential/self_layers_test.ml`
+  compares layers 0, 1, and 2 on all 91 corpus programs plus eight written for
+  this task — output and control, which are the two things most likely to be lost
+  on the way down a second level, and closures and primitives as values, which
+  are what `reveal` and the unwrapping decision are about. It was checked by
+  re-wrapping primitives in `eval.ash`, which left layer 1 almost entirely
+  passing and broke layer 2 across the board.
+- Acceptance 2.3, still patchable: `test/laws/open_recursion_test.ml` gains the
+  patch-depth fixture. §D3's `1 + (2 * (3 - (4 / 5)))` with the patch on the
+  layer that runs it observes 13 nodes — exactly the count at depth 1, even
+  though the patched interpreter is itself being interpreted; with the patch on
+  the layer beneath, 3540 steps, because its subject is the interpreter rather
+  than the program. `apply` and `eval_list` at depth observe 4 and 12, which are
+  the four operator applications and the three `eval_list` calls each
+  two-argument application makes. Every variant answers the ground value.
+- Decisions: ADR 0017 records layer composition, the primitive representation
+  change (amending ADR 0016, which now says so), the step budget, and why layer 3
+  is not tested — it runs, but takes about two minutes on the smallest useful
+  program, which is a suite nobody runs rather than a stronger claim. Spec §5.7's
+  open-recursion law is ticked; it asked to be tested in Phase 2 and now is,
+  at depth.
+- Known issues: the two boundaries 2.2 declared are unchanged — an encoded term
+  carries no spans, and Ash cannot construct a structured error. Both are Phase 3
+  questions about `Code`, not about the interpreter. Layer 3 and beyond work but
+  are untested for cost.
+- Next: Phase 3, task 3.1. Note for that work: `Code` arriving is what replaces
+  `Ash_self.Encode`, lets `eval.ash` dispatch with constructor patterns instead
+  of an `if` chain over the form tag, and carries the spans that would close both
+  known boundaries.
 
 ### 2026-08-23 — tasks 2.1 and 2.2
 

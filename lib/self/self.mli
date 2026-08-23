@@ -34,26 +34,46 @@ open Ash_core
 val source : string
 (** The interpreter's text, exactly as [lib/self/eval.ash] holds it. *)
 
+val program :
+  ?extra:string -> globals:(Ident.t * Value.value) list -> unit -> Core.t
+(** The interpreter lowered to Core, with [extra] appended as further statements.
+    [extra] defaults to ["interpret"], so the term's value is the interpreter's
+    entry point. Appended statements see [eval], [apply], [eval_list], and
+    [interpret], which is how a caller installs a wrapper around a group member
+    without this module having to reach inside. *)
+
 val load :
   ?extra:string ->
   globals:(Ident.t * Value.value) list ->
   unit ->
   Value.value
-(** Lower and evaluate the interpreter with [extra] appended as further
-    statements, and answer the value of the whole program — which is [extra]'s
-    last expression. [extra] defaults to ["interpret"], so the default answer is
-    the interpreter's entry point. Appended statements see [eval], [apply],
-    [eval_list], and [interpret], which is how a test installs a wrapper around a
-    group member without this module having to reach inside. *)
+(** {!program}, evaluated on the ground evaluator. *)
 
 val call : Value.value -> Value.value list -> Value.value
 (** Apply an Ash value to arguments on a fresh default machine. *)
 
-val eval : globals:(Ident.t * Value.value) list -> Core.t -> Value.value
-(** Interpret [term] over [globals], and reveal the answer. [globals] must be the
-    same list the term's identifiers were resolved against —
-    {!Ash_runtime.Primitives.globals} allocates fresh identities on every call, so a term resolved against one list
-    is not resolved against another. *)
+val interpreting :
+  ?extra:string -> globals:(Ident.t * Value.value) list -> Core.t -> Core.t
+(** The term that interprets [term]: the interpreter applied to the encoded
+    program and the encoded globals, with both written into the term rather than
+    passed beside it. The result is an ordinary Core term, so it can itself be
+    the program a further layer interprets — which is what makes {!eval} with
+    [~layers:2] mean the interpreter running under itself. *)
+
+val eval :
+  ?layers:int -> globals:(Ident.t * Value.value) list -> Core.t -> Value.value
+(** Interpret [term] through [layers] layers of the self-interpreter (one by
+    default; zero is the ground evaluator) and answer the revealed result. A
+    caller that wants one particular layer patched builds the nesting itself out
+    of {!interpreting}, since which layer carries the patch is the whole question
+    a depth test is asking. [globals] must be the same list the
+    term's identifiers were resolved against —
+    {!Ash_runtime.Primitives.globals} allocates fresh identities on every call,
+    so a term resolved against one list is not resolved against another.
+
+    Layers cost what nesting an interpreter costs: layer 2 is the ground
+    evaluator running the interpreter running the interpreter running the
+    program, so it is far slower than layer 1 and belongs on small programs. *)
 
 val file : string
 (** The file name diagnostics from the interpreter's own source carry. *)

@@ -1,6 +1,7 @@
 # 0016 — The CPS Core evaluator written in Ash
 
-- **Status:** accepted
+- **Status:** accepted, amended in part by
+  [0017](0017-interpreter-layers.md)
 - **Date:** 2026-08-23
 - **Task:** 2.2
 
@@ -35,12 +36,14 @@ encoding is what it replaces; until then, a data encoding is the honest way to
 say that the level below has not been built yet.
 
 **The interpreted value domain is Ash's own, with a private tag for the values
-that carry identity.** Scalars, lists, and cells represent themselves, so a
-primitive can be handed one directly and arithmetic needs no marshalling.
-Closures, reifiers, continuations, and primitives are lists whose head is `TAG`,
+this level constructs.** Scalars, lists, cells, and primitives represent
+themselves, so a primitive can be handed one directly and arithmetic needs no
+marshalling. Closures, reifiers, and continuations are lists whose head is `TAG`,
 a cell the interpreter allocates and nothing else can reach — an interpreted
 program cannot forge one, because it has no way to name `TAG` and every cell it
-can allocate is a different cell. Each closure and reifier carries a fresh cell
+can allocate is a different cell. (Primitives were tagged too when this record
+was written; ADR 0017 unwraps them, because a wrapped primitive does not survive
+a second layer of interpretation.) Each closure and reifier carries a fresh cell
 as its identity, so `==` on two of them compares places rather than shapes, which
 is what the host means by "two closures with the same body are still two
 closures".
@@ -124,7 +127,7 @@ somewhere untrue.
 ## Semantic consequences
 
 - The interpreted level's answer is compared through `Encode.reveal`, which
-  replaces each value carrying identity with its tag. An interpreted closure is
+  replaces each value the interpreted level constructs for itself with its tag. An interpreted closure is
   not a host closure and never could be; cells, code, and environments are left
   alone, so a program that returns one is asking a question this encoding cannot
   answer, and the comparison fails rather than answering it wrongly.

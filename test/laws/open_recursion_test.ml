@@ -188,6 +188,67 @@ let test_restoration () =
   check "restoring the cell restores the group"
     (Value.equal (Value.List [ Value.Bool true; Value.Num 0 ]) rest)
 
+(* Patching at depth (to-do task 2.3).
+
+   §D3's fixture again, but with the patched interpreter itself being
+   interpreted. Which layer carries the patch decides what the patch sees, and
+   that is the whole claim: a layer's `eval` cell governs the evaluation that
+   layer is performing, and nothing else.
+
+   `Self.interpreting t` is the term that interprets `t`, so the outer call is
+   the layer nearer the ground evaluator and the inner one is the layer nearer
+   the program. *)
+let test_patching_at_depth () =
+  let _, globals, term = level "1 + (2 * (3 - (4 / 5)))" in
+  let expected = host ~globals term in
+  let run nested = Evaluator.eval ~env:(Env.extend globals Value.empty_env) nested in
+  (* The patch on the layer that runs the program: it sees the program's nodes,
+     exactly as it does at depth 1, even though the interpreter it is patching is
+     itself running interpreted. *)
+  let inner_patched =
+    Self.interpreting ~globals (Self.interpreting ~extra:(wrapper "eval") ~globals term)
+  in
+  let inner_hits, inner_answer =
+    pair "the patched inner layer" (run inner_patched)
+  in
+  check "an interpreted interpreter still answers the ground value"
+    (Value.equal expected (Encode.reveal inner_answer));
+  check "patching at depth observes more than the entry" (inner_hits >= 9);
+  check_int "patching at depth observes every node of the program"
+    (Core.node_count term) inner_hits;
+  (* The patch on the layer that runs the *interpreter*: its subject is the
+     interpreter's own execution, which is thousands of steps rather than
+     thirteen. Same fixture, same answer, a different thing observed. *)
+  let outer_patched =
+    Self.interpreting ~extra:(wrapper "eval") ~globals (Self.interpreting ~globals term)
+  in
+  let outer_hits, outer_answer = pair "the patched outer layer" (run outer_patched) in
+  check "patching the layer below leaves the answer alone"
+    (Value.equal expected (Encode.reveal outer_answer));
+  (* Two orders of magnitude is not a tuning constant: interpreting one node
+     costs the interpreter a great many nodes of its own, so anything close to
+     the program's count would mean the patch had reached the wrong subject. *)
+  check "the layer below observes the interpreter, not the program"
+    (outer_hits > 100 * inner_hits);
+  (* `apply` and `eval_list` are patchable at depth on the same terms, and their
+     counts say which steps they are: four applications, one per operator, and
+     three `eval_list` calls per two-argument application — one per argument and
+     one for the empty tail. *)
+  List.iter
+    (fun (member, expected_hits) ->
+      let nested =
+        Self.interpreting ~globals
+          (Self.interpreting ~extra:(wrapper member) ~globals term)
+      in
+      let hits, answer = pair ("patching " ^ member ^ " at depth") (run nested) in
+      check
+        (Printf.sprintf "patching %s at depth leaves the answer alone" member)
+        (Value.equal expected (Encode.reveal answer));
+      check_int
+        (Printf.sprintf "patching %s at depth observes its own steps" member)
+        expected_hits hits)
+    [ ("apply", 4); ("eval_list", 12) ]
+
 (* Instrumentation is observationally inert: the dereference counter is a
    property of the run, and reading or clearing it changes nothing about it. *)
 let test_instrumentation_is_inert () =
@@ -210,6 +271,7 @@ let () =
   test_every_member ();
   test_replacement_mid_evaluation ();
   test_restoration ();
+  test_patching_at_depth ();
   test_instrumentation_is_inert ();
   if !failures > 0 then (
     Printf.printf "%d open-recursion law assertion(s) failed\n" !failures;

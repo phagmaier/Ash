@@ -533,7 +533,7 @@ Counting the steps the level-1 evaluator takes while interpreting your program. 
 ### 5.7 Laws to test
 
 - [ ] **Transparency** — a program using no reflective operator produces identical values and identical observable effects at tower depth 0 and depth *k*, for all *k*. (Excluding the resource channels named in D9.)
-- [ ] **Open recursion (OR)** — patching `eval` intercepts *every* recursive evaluation step, at arbitrary AST depth. Test in Phase 2.
+- [x] **Open recursion (OR)** — patching `eval` intercepts *every* recursive evaluation step, at arbitrary AST depth. Test in Phase 2. *(Done: `test/laws/open_recursion_test.ml`, including with the patched interpreter itself being interpreted.)*
 - [ ] **Reifier identity** — `id` above is observationally `fn(x) -> x`, including for effectful and non-terminating arguments.
 - [ ] **Level independence** — mutating `eval` at level *n+1* affects levels ≤ *n* and not level *n+1*'s own execution.
 - [ ] **Overlay discipline** — a continuation captured inside a `meta_with` extent and invoked outside it sees the overlay; the ambient meta-context is unaffected.

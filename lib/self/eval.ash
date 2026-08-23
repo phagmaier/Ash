@@ -21,12 +21,18 @@
 #
 # What an interpreted value looks like here
 # -----------------------------------------
-# Scalars, lists, and cells are represented by themselves, so a primitive can be
-# handed one directly and arithmetic needs no marshalling. Everything the host
-# distinguishes by identity — closures, reifiers, continuations, primitives — is
-# a list whose head is TAG, a cell this file allocates and nothing else can
-# reach. An interpreted program cannot forge one: it has no way to name TAG, and
-# every cell it can allocate is a different cell.
+# Scalars, lists, cells, and primitives are represented by themselves, so a
+# primitive can be handed one directly and arithmetic needs no marshalling.
+# Closures, reifiers, and continuations — the three this level constructs — are
+# lists whose head is TAG, a cell this file allocates and nothing else can reach.
+# An interpreted program cannot forge one: it has no way to name TAG, and every
+# cell it can allocate is a different cell.
+#
+# A primitive stays a primitive rather than being wrapped, and that is what lets
+# this interpreter run under itself. Wrapped, the primitive a level below hands
+# down would arrive as that level's wrapper — a list, not something applicable —
+# and the second layer would have nothing it could call. Unwrapped, `invoke`
+# reaches the same primitive however many levels it passed through.
 #
 # Each closure and reifier carries a fresh cell as its identity, so `==` on two
 # of them compares places rather than shapes, which is what the host means by
@@ -42,7 +48,6 @@ fn tag_of(v) = nth(v, 1)
 fn clo(params, body, r) = [TAG, 'clo, params, body, r, cell_new('identity)]
 fn reif(params, body, r) = [TAG, 'reif, params, body, r, cell_new('identity)]
 fn cont(k) = [TAG, 'cont, k, cell_new(false)]
-fn prim(name, op) = [TAG, 'prim, name, op]
 
 # Ash has no way to build a structured error: a cause carries a span, and the
 # encoding carries none until `Code` does (Phase 3). A failure this level
@@ -147,24 +152,25 @@ open fn eval(e, r, k) = {
 }
 
 open fn apply(f, vs, k) =
-  # Anything that is not one of the four interpreted callables is handed to the
-  # host, which refuses it in exactly the words level 0 uses.
-  if !tagged?(f) then k(invoke(f, vs))
+  # Not one of the three callables this level constructs: a primitive, or
+  # something that is not callable at all. `callcc` is the one primitive this
+  # level cannot delegate — the level below would capture the interpreter's
+  # continuation instead of the interpreted program's — and it is recognized by
+  # value rather than by name, so a program that renames it is still caught and a
+  # program that shadows it with its own function is not. Everything else is
+  # applied below, so its arity, type, and arithmetic diagnostics are the ones a
+  # level-0 run would give, and anything uncallable is refused in those words.
+  if !tagged?(f) then
+    if f == callcc then
+      if length(vs) != 1 then die(['arity, 1, length(vs)])
+      else apply(head(vs), [cont(k)], k)
+    else k(invoke(f, vs))
   else {
     let what = tag_of(f)
     if what == 'clo then
       if length(nth(f, 2)) != length(vs) then
         die(['arity, length(nth(f, 2)), length(vs)])
       else eval(nth(f, 3), extend(nth(f, 4), nth(f, 2), vs), k)
-    else if what == 'prim then
-      # `callcc` is the one primitive this level cannot delegate: the host would
-      # capture the interpreter's continuation instead of the interpreted
-      # program's. Everything else is applied by the host, so its arity, type,
-      # and arithmetic diagnostics are the ones a level-0 run would give.
-      if nth(f, 2) == "callcc" then
-        if length(vs) != 1 then die(['arity, 1, length(vs)])
-        else apply(head(vs), [cont(k)], k)
-      else k(invoke(nth(f, 3), vs))
     else if what == 'cont then
       if length(vs) != 1 then die(['arity, 1, length(vs)])
       else {
@@ -188,19 +194,19 @@ open fn eval_list(es, r, k) =
   if empty?(es) then k([])
   else eval(head(es), r, fn(v) -> eval_list(tail(es), r, fn(vs) -> k(v :: vs)))
 
-# The interface the host calls. `prims` is a list of `[identifier, name, op]`,
-# one per primitive of the level below, which becomes the interpreted program's
-# single global frame — the same bindings a level-0 run is given.
+# The interface the level below calls. `prims` is a list of `[identifier, op]`,
+# one per primitive of that level, which becomes the interpreted program's single
+# global frame — the same bindings a level-0 run is given.
 fn globals_frame(prims) =
   if empty?(prims) then []
   else {
     let p = head(prims)
-    [head(p), cell_new(prim(nth(p, 1), nth(p, 2)))] :: globals_frame(tail(prims))
+    [head(p), cell_new(nth(p, 1))] :: globals_frame(tail(prims))
   }
 
 # An interpreted closure has no host counterpart, so it is reported as its tag
-# rather than handed back as a list the host would compare structurally. Scalars
-# and lists are already themselves.
+# rather than handed back as a list the host would compare structurally. Scalars,
+# lists, cells, and primitives are already themselves.
 fn reveal(v) =
   if tagged?(v) then tag_of(v)
   else if list?(v) then reveal_list(v)

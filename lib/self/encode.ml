@@ -45,9 +45,7 @@ let globals bindings =
     (List.map
        (fun (identity, value) ->
          match value with
-         | Value.Primitive primitive ->
-             Value.List
-               [ ident identity; Value.Str primitive.Value.prim_name; value ]
+         | Value.Primitive _ -> Value.List [ ident identity; value ]
          | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
          | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
          | Value.Environment _ | Value.Cell _ | Value.Code _ ->
@@ -61,8 +59,55 @@ let rec reveal value =
   | Value.Closure _ -> sym "clo"
   | Value.Reifier _ -> sym "reif"
   | Value.Continuation _ -> sym "cont"
-  | Value.Primitive _ -> sym "prim"
   | Value.List items -> Value.List (List.map reveal items)
+  (* A primitive is left alone because it needs no counterpart: the interpreted
+     level holds the same primitive, and primitives compare by name. *)
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
-  | Value.Environment _ | Value.Cell _ | Value.Code _ ->
+  | Value.Environment _ | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
       value
+
+(* A Core term that evaluates to a value. Core literals hold constants only, so
+   the two shapes that are not constants are built rather than written down: a
+   list is a call of [list], and a primitive is the global that denotes it. This
+   is what lets an encoded program be written into a term instead of passed
+   beside it, which is what makes one layer of interpretation compose with the
+   next. *)
+let datum ~globals =
+  let by_name = Hashtbl.create 64 in
+  List.iter
+    (fun (identity, value) ->
+      match value with
+      | Value.Primitive primitive ->
+          Hashtbl.replace by_name primitive.Value.prim_name identity
+      | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+      | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+      | Value.Environment _ | Value.Cell _ | Value.Code _ ->
+          ())
+    globals;
+  let global name =
+    match Hashtbl.find_opt by_name name with
+    | Some identity -> identity
+    | None -> invalid_arg (Printf.sprintf "Encode.datum: `%s` is not a global" name)
+  in
+  let span = Span.generated ~by:"self/datum" ~from:Span.unknown in
+  let constant c = Core.lit ~span c in
+  let rec go value =
+    match value with
+    | Value.Num n -> constant (Constant.Num n)
+    | Value.Bool b -> constant (Constant.Bool b)
+    | Value.Str s -> constant (Constant.Str s)
+    | Value.Sym s -> constant (Constant.Sym s)
+    | Value.Unit -> constant Constant.Unit
+    | Value.List [] -> constant Constant.Nil
+    | Value.List items ->
+        Core.app ~span
+          ~func:(Core.var ~span (global "list"))
+          ~args:(List.map go items)
+    | Value.Primitive primitive -> Core.var ~span (global primitive.Value.prim_name)
+    | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
+    | Value.Cell _ | Value.Code _ ->
+        invalid_arg
+          (Printf.sprintf "Encode.datum: %s has no term that evaluates to it"
+             (Value.type_phrase value))
+  in
+  go
