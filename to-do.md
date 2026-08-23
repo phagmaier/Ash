@@ -16,9 +16,10 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 0 — Core
-- **Next:** 0.2 — implement source spans, constants, and hygienic identifiers
-- **Last verified:** 2026-08-23 — Git initialized; OCaml/Dune build, tests, CLI
-  help, and version checks pass
+- **Next:** 0.4 — implement explicit environments and cells
+- **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
+  and `dune exec ash -- --help` pass with the `ash.core` span/constant/identifier
+  layer, the Core AST, and the value model
 - **Blocker:** none
 
 ## Locked decisions
@@ -46,13 +47,13 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Accept: `dune build @all`, `dune runtest`, and
     `dune exec ash -- --help` pass on a clean checkout.
 
-- [ ] **0.2 Implement source spans, constants, and hygienic identifiers.**
+- [x] **0.2 Implement source spans, constants, and hygienic identifiers.**
   - Separate printed names from identity; centralize fresh-ID generation.
   - Add deterministic ID canonicalization for printing and tests.
   - Accept: same-name/different-ID binders remain distinct, while alpha-renamed
     samples canonicalize to structurally equal terms.
 
-- [ ] **0.3 Implement the complete Core and value data model.**
+- [x] **0.3 Implement the complete Core and value data model.**
   - Core: `Lit`, `Var`, `NamedVar`, `Lam`, `App`, `Let`, `LetRec`, `If`, `Set`,
     `Quote`, `Reifier`.
   - Values: scalars, immutable lists, closures, reifiers, continuations,
@@ -325,6 +326,82 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 0.3
+
+- Completed: added `Core`, `Value`, and `Effect_class` to `lib/core/`.
+  - `Core`: all eleven forms with a span on every node, validating constructors
+    (a lambda, `letrec`, or reifier that repeats a binder *identity* raises
+    `Invalid_argument`, while repeating a printed name is legal), plus
+    `kind_name`, `children`, `binders`, `node_count`, `with_span`, and
+    `mark_generated`. `LetRec` bindings hold a `lambda` rather than an arbitrary
+    expression, and `Reifier` has three named parameters.
+  - `Value`: scalars, immutable lists, closures, reifiers, one-shot
+    continuations, first-class environments, cells, `Code`, and CPS primitives.
+    `answer = value`. `cell` and `continuation` are private records so mutation
+    stays centralized in `fill_cell` and `mark_continuation_used`; cell contents
+    are `value option` so a preallocated `LetRec` cell reads as unfilled rather
+    than as a default. Environments and frames are immutable.
+  - `Effect_class`: §D7's five classes with `may_fold_when_static` and
+    `always_residualizes`, required on every primitive from the start.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/data_model_test.ml` (93 assertion sites, several iterating over
+  every fixture); the harness was checked to fail loudly by perturbing an
+  expected value before restoring it.
+- Acceptance: there is a fixture for every Core form and every value shape, the
+  test asserts both enumerations are complete with distinct names, and no match
+  over a Core form or value shape anywhere in the library uses a catch-all —
+  including the negative arms of `to_constant` and the printers — so a new
+  variant is a compile error rather than a fallthrough.
+- Decisions: ADR 0003 records `answer = value` (relying on OCaml's guaranteed
+  TCO, since host stack depth is an excluded observation), lambda-only `LetRec`
+  bindings, the three-parameter reifier, private cells and continuations with
+  option-typed cell contents, immutable frames, CPS primitives carrying an
+  effect class, and separate runtime scalars bridged to `Constant.t`.
+- Known issues: because frames are immutable, a level's global environment needs
+  a per-level reference rather than a mutable frame — that lands with lazy level
+  materialization in 4.1. `Core.children` deliberately includes a `Quote` body,
+  so evaluator traversals must not use it to mean "evaluated positions".
+- Next: 0.4 — explicit environments and cells (`lookup`, `lookup-by-name`,
+  `bind`, `extend`, `preallocate`, `assign`, with located unbound-name errors).
+  Note that `lookup-by-name` needs a documented rule for two same-name binders in
+  one frame, since `Ident.Map` has no insertion order.
+
+### 2026-08-23 — task 0.2
+
+- Completed: added the `ash.core` library (`lib/core/`) with `Span`, `Constant`,
+  and `Ident`.
+  - `Span`: positions, joining, and a provenance model where a generated node
+    inherits its origin's positions and adds a `Generated { by; from }` marker;
+    `source_span` recovers the human-written region and `generators` reports the
+    nested phase chain.
+  - `Constant`: the closed literal domain `Num | Bool | Str | Sym | Unit | Nil`
+    with structural equality, a total order, `type_name` for error messages, and
+    escaping printers.
+  - `Ident`: `private { name; id }` so allocation stays centralized in one
+    `Atomic` counter; identity is the ID, the name is for humans;
+    `Ident.Set`/`Ident.Map`; and `Ident.Canon` renumbering by first occurrence
+    under `Erase_names` (alpha-equivalence) or `Keep_names` (readable printing),
+    with `fix` for free identifiers.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`,
+  `opam exec -- dune exec ash -- --help`, and
+  `opam exec -- dune exec ash -- --version` all passed. New unit tests live in
+  `test/unit/core_test.ml` (88 assertions, all passing).
+- Acceptance: same-name/different-ID binders stay distinct through `equal`,
+  `compare`, `Set`, `Map`, and canonicalization; alpha-renamed identifier
+  sequences canonicalize to structurally equal results, independently of
+  allocation order.
+- Decisions: ADR 0002 records the integer-only numeric domain, the private
+  identifier record with a single atomic counter, first-occurrence
+  canonicalization with explicit fixing of free identifiers, and the generated
+  span provenance model.
+- Known issues: canonicalization is currently sequence-level because Core does not
+  exist yet; binding-aware alpha-equivalence over terms is task 0.6 and must call
+  `Canon.fix` on the free identifiers of the terms it compares.
+- Next: 0.3 — implement the complete Core and value data model.
 
 ### 2026-08-23 — task 0.1
 

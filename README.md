@@ -28,6 +28,64 @@ opam exec -- dune exec ash -- --help
 The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 `to-do.md` to continue implementation.
 
+## Repository layout
+
+| Path | Contents |
+|------|----------|
+| `bin/` | CLI entry point |
+| `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, and the value model |
+| `lib/` | `ash`: version metadata, and later the layers above Core |
+| `test/unit/` | module-level behaviour tests |
+| `docs/decisions/` | numbered architecture decision records |
+| `docs/progress/` | experiment and reproducibility notes |
+
+Lower layers never import higher ones: `ash.core` knows nothing about the tower,
+staging, or classification.
+
+## Core identity model
+
+Ash identifiers are hygienic by construction. `Ash_core.Ident.t` pairs a printed
+name with a unique ID, so `fn(x) -> x` and an unrelated `x` are different terms
+even though they print alike, and only `Ident.fresh` (and its derivatives) can
+allocate one. The ID counter is an excluded observation: never compare terms by
+raw IDs, canonicalize them with `Ident.Canon` first. `Erase_names` (the default)
+renumbers and erases printed names, so alpha-renamed terms become structurally
+equal; `Keep_names` renumbers but keeps names for readable printing. Register any
+identifier that is free in the compared term with `Canon.fix` before traversal.
+
+`Ash_core.Span` carries locations through surface syntax, Core, residual
+provenance, and errors. A node invented by a later phase is not location-less: it
+keeps the positions of the source it came from and adds a `Generated` marker
+naming the phase, so `Span.source_span` still points diagnostics at user text
+while `Span.generators` explains where the node came from.
+
+See [`docs/decisions/0002-core-constants-and-identifiers.md`](docs/decisions/0002-core-constants-and-identifiers.md)
+for the numeric domain and alpha-equivalence rationale.
+
+## Core and values
+
+`Ash_core.Core` is the eleven-form Core language — `Lit`, `Var`, `NamedVar`,
+`Lam`, `App`, `Let`, `LetRec`, `If`, `Set`, `Quote`, `Reifier` — with a span on
+every node. `NamedVar` is a distinct form rather than a `Var` with a null ID,
+because a name resolved against an environment that is not statically known is a
+specialization barrier the collapse report has to count. `LetRec` is a Core form
+and binds lambdas in the type, so the preallocate-then-fill implementation cannot
+observe an unfilled cell.
+
+`Ash_core.Value` is the runtime domain: scalars, immutable lists, closures,
+reifiers, one-shot continuations, first-class environments, cells, `Code`, and
+primitives. `Code` lives in the same domain as everything else, which is what
+makes the collapser online — a static value is a real value, a dynamic value is
+`Code`. Cells are the only mutable part and can only be mutated through
+`Value.fill_cell`; environments and frames are immutable. Primitives are CPS and
+carry an `Ash_core.Effect_class`, so no primitive can exist without a staging
+policy.
+
+No match over a Core form or value shape in this project uses a catch-all case:
+adding a variant is meant to be a compile error at every site that interprets
+one. See
+[`docs/decisions/0003-core-and-value-representation.md`](docs/decisions/0003-core-and-value-representation.md).
+
 ## Development workflow
 
 Read `AGENTS.md` before changing code. At the end of each completed task, update
