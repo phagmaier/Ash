@@ -124,6 +124,16 @@ val kind_name : t -> string
 
 val kind_name_of_shape : shape -> string
 
+val kind_names : string list
+(** Every form's name, in index order. Enumerated once here so a report that
+    iterates the forms cannot silently omit one. *)
+
+val kind_count : int
+(** [List.length kind_names]. *)
+
+val kind_index : shape -> int
+(** The form's position in {!kind_names}, for per-form counters. *)
+
 val children : t -> t list
 (** Immediate syntactic subterms, in source order. The body of a [Quote] is
     included: it is a subterm of the program text even though it is data rather

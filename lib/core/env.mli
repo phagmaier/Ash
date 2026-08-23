@@ -18,7 +18,9 @@ type binding_state =
 
 type name_lookup =
   | Name_unbound
-  | Name_found of Value.cell
+  | Name_found of Ident.t * Value.cell
+      (** The binding that matched, identity included: a caller that has only a
+          string still needs the identity to report a useful failure. *)
   | Name_ambiguous of Ident.t list
       (** The innermost frame that mentions the name binds several distinct
           identifiers that print alike. There is no non-arbitrary answer: picking
@@ -54,9 +56,20 @@ val read_exn :
 val lookup_by_name : Value.env -> string -> name_lookup
 
 val lookup_by_name_exn :
-  phase:Error.phase -> span:Span.t -> ?level:int -> Value.env -> string -> Value.cell
+  phase:Error.phase ->
+  span:Span.t ->
+  ?level:int ->
+  Value.env ->
+  string ->
+  Ident.t * Value.cell
 (** @raise Error.Ash_error with {!Error.Unbound_name} or
     {!Error.Ambiguous_name}. *)
+
+val read_by_name_exn :
+  phase:Error.phase -> span:Span.t -> ?level:int -> Value.env -> string -> Value.value
+(** What [NamedVar] evaluates to.
+    @raise Error.Ash_error with {!Error.Unbound_name}, {!Error.Ambiguous_name},
+    or {!Error.Unfilled_binding}. *)
 
 (** {1 Extension}
 

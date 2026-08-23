@@ -154,11 +154,11 @@ let test_name_lookup () =
   in
   check "a name resolves to the innermost frame that mentions it"
     (match Env.lookup_by_name env "x" with
-    | Env.Name_found cell -> is_num 2 (Value.cell_contents cell)
+    | Env.Name_found (_, cell) -> is_num 2 (Value.cell_contents cell)
     | Env.Name_unbound | Env.Name_ambiguous _ -> false);
   check "a name only bound further out is still found"
     (match Env.lookup_by_name env "y" with
-    | Env.Name_found cell -> is_num 3 (Value.cell_contents cell)
+    | Env.Name_found (_, cell) -> is_num 3 (Value.cell_contents cell)
     | Env.Name_unbound | Env.Name_ambiguous _ -> false);
   check "an unbound name is reported as unbound"
     (Env.lookup_by_name env "nope" = Env.Name_unbound);
@@ -166,7 +166,7 @@ let test_name_lookup () =
   (* Name lookup finds the cell, so a reflective assignment through a name is
      visible to identity lookups of that same binding. *)
   (match Env.lookup_by_name env "x" with
-  | Env.Name_found cell -> Value.fill_cell cell (Value.Num 20)
+  | Env.Name_found (_, cell) -> Value.fill_cell cell (Value.Num 20)
   | Env.Name_unbound | Env.Name_ambiguous _ -> ());
   check "name lookup yields the binding's own cell"
     (bound_num 20 (Env.state env inner_x));
@@ -186,7 +186,7 @@ let test_name_lookup () =
     && bound_num 2 (Env.state ambiguous inner_x));
   check "an inner frame resolves the name before the ambiguous one is reached"
     (match Env.lookup_by_name (Env.bind (Ident.fresh "x") (Value.Num 5) ambiguous) "x" with
-    | Env.Name_found cell -> is_num 5 (Value.cell_contents cell)
+    | Env.Name_found (_, cell) -> is_num 5 (Value.cell_contents cell)
     | Env.Name_unbound | Env.Name_ambiguous _ -> false)
 
 (* Failure behaviour *)

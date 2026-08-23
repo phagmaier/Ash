@@ -106,6 +106,25 @@ let kind_name_of_shape = function
 
 let kind_name node = kind_name_of_shape node.shape
 
+let kind_names =
+  [ "lit"; "var"; "named-var"; "lam"; "app"; "let"; "letrec"; "if"; "set"; "quote";
+    "reifier" ]
+
+let kind_count = List.length kind_names
+
+let kind_index = function
+  | Lit _ -> 0
+  | Var _ -> 1
+  | NamedVar _ -> 2
+  | Lam _ -> 3
+  | App _ -> 4
+  | Let _ -> 5
+  | LetRec _ -> 6
+  | If _ -> 7
+  | Set _ -> 8
+  | Quote _ -> 9
+  | Reifier _ -> 10
+
 let children node =
   match node.shape with
   | Lit _ | Var _ | NamedVar _ -> []

@@ -35,9 +35,10 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
 | `lib/syntax/` | `ash.syntax`: s-expression data, and the canonical Core reader and printer |
-| `lib/runtime/` | `ash.runtime`: pure primitives and the frozen direct-style oracle |
+| `lib/runtime/` | `ash.runtime`: pure primitives, the CPS evaluator, and the frozen oracle |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
+| `test/differential/` | oracle/CPS comparisons on a shared corpus |
 | `docs/decisions/` | numbered architecture decision records |
 | `docs/progress/` | experiment and reproducibility notes |
 
@@ -189,6 +190,30 @@ The dynamic semantics these fix, which every later evaluator must match:
 
 See
 [`docs/decisions/0007-oracle-semantics-and-pure-primitives.md`](docs/decisions/0007-oracle-semantics-and-pure-primitives.md).
+
+`Ash_runtime.Evaluator` is the real one: Core in continuation-passing style,
+because a reflective procedure receives the continuation of the level below and
+in direct style that lives on the host stack where nothing can reach it. Ash tail
+calls pass the continuation through unchanged and every host call is in tail
+position, so a tail-recursive Ash loop runs in constant host stack.
+
+`eval`, `apply`, and `eval_list` live in mutable cells on an
+`Ash_runtime.Machine`, and every call between them reads its cell. That is the
+invariant the whole tower rests on: a meta level replacing `eval` must intercept
+*every* nested step, not just the one at the top. An evaluator with a direct
+self-reference produces a meta-patch that fires once and looks almost right,
+which is the most expensive mistake on the spec's list of traps — so it is done
+from the first line rather than retrofitted.
+
+The machine counts group calls, per-form dispatches, cell dereferences, and
+`NamedVar` lookups from the start. These are the raw material for the step
+metrics and the collapse report, and they are observationally inert: nothing in
+the evaluator reads them and no Ash value can depend on them.
+
+The oracle and the CPS evaluator are compared on a shared corpus in
+`test/differential/`, agreeing on values, on mutation and evaluation order, and
+on failures by both cause and location. See
+[`docs/decisions/0008-cps-evaluator-and-open-recursion.md`](docs/decisions/0008-cps-evaluator-and-open-recursion.md).
 
 ## Development workflow
 

@@ -2,7 +2,7 @@ type binding_state = Unbound | Unfilled | Bound of Value.value
 
 type name_lookup =
   | Name_unbound
-  | Name_found of Value.cell
+  | Name_found of Ident.t * Value.cell
   | Name_ambiguous of Ident.t list
 
 (* Lookup by identity *)
@@ -51,15 +51,21 @@ let rec lookup_by_name env name =
   | frame :: outer -> (
       match frame_matches name frame with
       | [] -> lookup_by_name outer name
-      | [ (_, cell) ] -> Name_found cell
+      | [ (ident, cell) ] -> Name_found (ident, cell)
       | (_ :: _ :: _) as matches -> Name_ambiguous (List.map fst matches))
 
 let lookup_by_name_exn ~phase ~span ?level env name =
   match lookup_by_name env name with
-  | Name_found cell -> cell
+  | Name_found (ident, cell) -> (ident, cell)
   | Name_unbound -> Error.raise_cause ~phase ~span ?level (Error.Unbound_name name)
   | Name_ambiguous candidates ->
       Error.raise_cause ~phase ~span ?level (Error.Ambiguous_name { name; candidates })
+
+let read_by_name_exn ~phase ~span ?level env name =
+  let ident, cell = lookup_by_name_exn ~phase ~span ?level env name in
+  match Value.cell_contents cell with
+  | Some value -> value
+  | None -> Error.raise_cause ~phase ~span ?level (Error.Unfilled_binding ident)
 
 (* Extension *)
 

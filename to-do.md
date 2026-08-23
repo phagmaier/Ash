@@ -16,11 +16,12 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 0 — Core
-- **Next:** 0.8 — implement the real evaluator in CPS
+- **Next:** 0.9 — implement the classified primitive registry
 - **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
   and `dune exec ash -- --help` pass with `ash.core` (identifiers, Core, values,
   environments, errors, alpha-equivalence), `ash.syntax` (s-expressions, reader,
-  printer), and `ash.runtime` (pure primitives, direct-style oracle)
+  printer), and `ash.runtime` (pure primitives, direct-style oracle, CPS
+  evaluator), plus a 46-program oracle/CPS differential corpus
 - **Blocker:** none
 
 ## Locked decisions
@@ -85,7 +86,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Accept: arithmetic, functions, lexical scope, `If`, `Let`, `LetRec`, and
     immutable-list fixtures pass.
 
-- [ ] **0.8 Implement the real evaluator in CPS.**
+- [x] **0.8 Implement the real evaluator in CPS.**
   - Make `eval`, `apply`, and `eval-list` explicitly CPS.
   - Implement `LetRec` with preallocated cells and closures in the extended env.
   - Count evaluator steps and constructor dispatches from the start.
@@ -135,6 +136,9 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Every intra-group call must dynamically dereference its cell; instrument each
     dereference. Never capture direct group references in closures.
   - Accept: wrapping `eval` observes every nested AST node, not just entry.
+  - **Host side already done in 0.8** (`Ash_runtime.Machine`, ADR 0008), with the
+    acceptance test at host level. What remains is the Ash-level evaluator group
+    and the same law tested there.
 
 - [ ] **2.2 Write the CPS Core evaluator in Ash.**
   - Keep it parallel to the host evaluator. Resolve missing language support as a
@@ -327,6 +331,45 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 0.8
+
+- Completed: added `Machine` and `Evaluator` to `ash.runtime`.
+  - `Machine`: `eval`, `apply`, and `eval_list` in mutable cells, with every
+    group call going through the module so each one re-reads its cell, plus
+    counters for group calls, per-form dispatches, cell dereferences, and
+    `NamedVar` lookups.
+  - `Evaluator`: all eleven Core forms in CPS. `LetRec` preallocates cells then
+    fills them with closures over the extended environment. `Quote` yields code
+    and `Reifier` yields a reifier value; applying a reifier (needs 4.2) or a
+    continuation (needs 1.5) is refused with `Error.Unsupported` naming the
+    missing piece. Primitives receive the real continuation, not the identity
+    one.
+  - `Env.lookup_by_name` now returns the identity alongside the cell, and
+    `Env.read_by_name_exn` is what `NamedVar` evaluates through; `Core` gained
+    `kind_names`, `kind_count`, and `kind_index` for per-form counters.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/evaluator_test.ml` and `test/differential/oracle_cps_test.ml`; the
+  differential harness was validated by reversing `eval_list` and confirming it
+  reported a readable minimal difference before being restored.
+- Acceptance: `fact(20)` gives 2432902008176640000, and the oracle and CPS
+  evaluator agree on 46 programs — values, mutation, evaluation order, and
+  failures compared by both cause and span. A hundred thousand Ash tail calls run
+  in constant host stack, confirming the CPS/TCO assumption from ADR 0003.
+- Decisions: ADR 0008 records making the evaluator open-recursive from the first
+  line rather than at 2.1. The spec puts direct self-references first on its list
+  of traps and AGENTS invariant 3 is unconditional, both of which outrank
+  checklist ordering; retrofitting would touch every recursive call site and the
+  failure it causes is silent. It also records instrumentation going in with the
+  evaluator, refusing unbuilt operations by name, and comparing differential
+  failures by location as well as cause.
+- Known issues: none. Task 2.1's host side is satisfied and tested; its Ash-level
+  half remains, and the checklist entry now says so.
+- Next: 0.9 — the classified primitive registry: every primitive in exactly one
+  effect class, buffered observable output for deterministic tests, and
+  consistent arity and type errors.
 
 ### 2026-08-23 — task 0.7
 
