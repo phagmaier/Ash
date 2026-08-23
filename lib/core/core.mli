@@ -80,6 +80,11 @@ val lambda : params:Ident.t list -> body:t -> lambda
     repeating an identity would make the binding ambiguous. *)
 
 val lam : span:Span.t -> params:Ident.t list -> body:t -> t
+
+val of_lambda : span:Span.t -> lambda -> t
+(** Wrap an already-built lambda as a node, for callers that construct the
+    lambda first because [LetRec] needs one too. *)
+
 val app : span:Span.t -> func:t -> args:t list -> t
 val let_ : span:Span.t -> binder:Ident.t -> value:t -> body:t -> t
 

@@ -131,10 +131,7 @@ let test_preallocation () =
   check "a preallocated binding is bound" (Option.is_some (Env.lookup env f));
   check "a preallocated binding is unfilled" (Env.state env f = Env.Unfilled);
   check_error "reading an unfilled binding is reported"
-    ~expect:(fun error ->
-      match error.Error.cause with
-      | Error.Unfilled_binding ident -> Ident.equal ident f
-      | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Ambiguous_name _ -> false)
+    ~expect:(fun error -> Error.cause_equal error.Error.cause (Error.Unfilled_binding f))
     (fun () -> Env.read_exn ~phase:Error.Evaluate ~span:use env f);
 
   check "filling a preallocated binding succeeds" (Env.assign env f (Value.Num 1));
@@ -199,39 +196,30 @@ let test_failures () =
   let env = Value.empty_env in
   check_error "an unbound identifier reports its cause, span, phase and level"
     ~expect:(fun error ->
-      (match error.Error.cause with
-      | Error.Unbound_ident ident -> Ident.equal ident x
-      | Error.Unbound_name _ | Error.Ambiguous_name _ | Error.Unfilled_binding _ -> false)
-      && Span.equal use error.Error.span
-      && error.Error.phase = Error.Evaluate
-      && error.Error.level = Some 1)
+      Error.equal error
+        (Error.make ~phase:Error.Evaluate ~span:use ~level:1 (Error.Unbound_ident x)))
     (fun () -> Env.lookup_exn ~phase:Error.Evaluate ~span:use ~level:1 env x);
   check_error "read_exn reports an unbound identifier too"
-    ~expect:(fun error ->
-      match error.Error.cause with
-      | Error.Unbound_ident ident -> Ident.equal ident x
-      | Error.Unbound_name _ | Error.Ambiguous_name _ | Error.Unfilled_binding _ -> false)
+    ~expect:(fun error -> Error.cause_equal error.Error.cause (Error.Unbound_ident x))
     (fun () -> Env.read_exn ~phase:Error.Evaluate ~span:use env x);
   check_error "assign_exn reports an unbound identifier"
-    ~expect:(fun error ->
-      match error.Error.cause with
-      | Error.Unbound_ident ident -> Ident.equal ident x
-      | Error.Unbound_name _ | Error.Ambiguous_name _ | Error.Unfilled_binding _ -> false)
+    ~expect:(fun error -> Error.cause_equal error.Error.cause (Error.Unbound_ident x))
     (fun () -> Env.assign_exn ~phase:Error.Evaluate ~span:use env x (Value.Num 1));
   check_error "an unbound name reports the name it looked for"
-    ~expect:(fun error ->
-      match error.Error.cause with
-      | Error.Unbound_name name -> String.equal name "ghost"
-      | Error.Unbound_ident _ | Error.Ambiguous_name _ | Error.Unfilled_binding _ -> false)
+    ~expect:(fun error -> Error.cause_equal error.Error.cause (Error.Unbound_name "ghost"))
     (fun () -> Env.lookup_by_name_exn ~phase:Error.Evaluate ~span:use env "ghost");
   let a = Ident.fresh "dup" and b = Ident.fresh "dup" in
   let ambiguous = Env.extend [ (a, Value.Unit); (b, Value.Unit) ] Value.empty_env in
+  let candidates =
+    match Env.lookup_by_name ambiguous "dup" with
+    | Env.Name_ambiguous candidates -> candidates
+    | Env.Name_found _ | Env.Name_unbound -> []
+  in
+  check_int "both same-name binders are reported as candidates" 2 (List.length candidates);
   check_error "an ambiguous name names its candidates"
     ~expect:(fun error ->
-      match error.Error.cause with
-      | Error.Ambiguous_name { name; candidates } ->
-          String.equal name "dup" && List.length candidates = 2
-      | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Unfilled_binding _ -> false)
+      Error.cause_equal error.Error.cause
+        (Error.Ambiguous_name { name = "dup"; candidates }))
     (fun () -> Env.lookup_by_name_exn ~phase:Error.Evaluate ~span:use ambiguous "dup");
 
   (* The rendered message locates the use site and never leaks a unique ID,

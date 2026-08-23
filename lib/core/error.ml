@@ -5,6 +5,12 @@ type cause =
   | Unbound_name of string
   | Ambiguous_name of { name : string; candidates : Ident.t list }
   | Unfilled_binding of Ident.t
+  | Unexpected_character of char
+  | Unterminated of string
+  | Unexpected of { found : string; expected : string }
+  | Unknown_form of string
+  | Malformed_form of { form : string; expected : string }
+  | Duplicate_binder of string
 
 type t = { phase : phase; span : Span.t; level : int option; cause : cause }
 
@@ -42,8 +48,44 @@ let message ~show_ids cause =
           name (List.length candidates)
   | Unfilled_binding id ->
       Printf.sprintf "`%s` is used before its recursive binding is filled" (ident id)
+  | Unexpected_character c -> Printf.sprintf "unexpected character `%c`" c
+  | Unterminated what -> Printf.sprintf "unterminated %s" what
+  | Unexpected { found; expected } ->
+      Printf.sprintf "expected %s, found %s" expected found
+  | Unknown_form form -> Printf.sprintf "`%s` is not a Core form" form
+  | Malformed_form { form; expected } ->
+      Printf.sprintf "malformed `%s`: expected %s" form expected
+  | Duplicate_binder name ->
+      Printf.sprintf "`%s` is bound twice in the same binder list" name
 
 let cause_message cause = message ~show_ids:false cause
+
+let cause_equal a b =
+  match (a, b) with
+  | Unbound_ident x, Unbound_ident y -> Ident.equal x y
+  | Unbound_name x, Unbound_name y -> String.equal x y
+  | Ambiguous_name x, Ambiguous_name y ->
+      String.equal x.name y.name && List.equal Ident.equal x.candidates y.candidates
+  | Unfilled_binding x, Unfilled_binding y -> Ident.equal x y
+  | Unexpected_character x, Unexpected_character y -> Char.equal x y
+  | Unterminated x, Unterminated y -> String.equal x y
+  | Unexpected x, Unexpected y ->
+      String.equal x.found y.found && String.equal x.expected y.expected
+  | Unknown_form x, Unknown_form y -> String.equal x y
+  | Malformed_form x, Malformed_form y ->
+      String.equal x.form y.form && String.equal x.expected y.expected
+  | Duplicate_binder x, Duplicate_binder y -> String.equal x y
+  | ( ( Unbound_ident _ | Unbound_name _ | Ambiguous_name _ | Unfilled_binding _
+      | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
+      | Malformed_form _ | Duplicate_binder _ ),
+      _ ) ->
+      false
+
+let equal a b =
+  a.phase = b.phase
+  && Span.equal a.span b.span
+  && Option.equal Int.equal a.level b.level
+  && cause_equal a.cause b.cause
 
 let render ~show_ids error =
   let level =

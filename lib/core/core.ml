@@ -53,6 +53,7 @@ let lambda ~params ~body =
   { params; lam_body = body }
 
 let lam ~span ~params ~body = make span (Lam (lambda ~params ~body))
+let of_lambda ~span lambda = make span (Lam lambda)
 let app ~span ~func ~args = make span (App { func; args })
 
 let let_ ~span ~binder ~value ~body =

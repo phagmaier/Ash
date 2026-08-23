@@ -30,6 +30,20 @@ type cause =
           excluded-observation rule forbids. *)
   | Unfilled_binding of Ident.t
       (** A recursive binding read before its cell was filled. *)
+  | Unexpected_character of char  (** A character no token can start with. *)
+  | Unterminated of string
+      (** Input ended inside the named construct, e.g. ["string literal"]. *)
+  | Unexpected of { found : string; expected : string }
+      (** Both parts are noun phrases: ["expected a Core form, found an
+          integer"]. *)
+  | Unknown_form of string  (** A head atom that names no Core form. *)
+  | Malformed_form of { form : string; expected : string }
+      (** A recognized form with the wrong shape or arity; [expected] shows the
+          form's canonical spelling. *)
+  | Duplicate_binder of string
+      (** One binder list binds a printed name twice. The reader works in names,
+          so allowing it would make resolution depend on the order bindings were
+          entered, and it would build a frame no name lookup could resolve. *)
 
 type t = {
   phase : phase;
@@ -49,8 +63,17 @@ val fail : t -> 'a
 val raise_cause : phase:phase -> span:Span.t -> ?level:int -> cause -> 'a
 
 val phase_name : phase -> string
+
 val cause_message : cause -> string
 (** The cause alone, without location or phase. *)
+
+val cause_equal : cause -> cause -> bool
+(** Structural equality of causes. Differential tests compare reported failures
+    with this rather than with rendered text, so rewording a message cannot
+    change what a test asserts. *)
+
+val equal : t -> t -> bool
+(** Structural equality including phase, span, and level. *)
 
 val to_string : t -> string
 (** ["file:1:5: evaluate error: unbound identifier `x`"], with

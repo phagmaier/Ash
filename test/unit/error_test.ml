@@ -39,6 +39,12 @@ let causes =
     Error.Unbound_name "x";
     Error.Ambiguous_name { name = "x"; candidates = [ x; x' ] };
     Error.Unfilled_binding x;
+    Error.Unexpected_character '@';
+    Error.Unterminated "string literal";
+    Error.Unexpected { found = "an integer"; expected = "a Core form" };
+    Error.Unknown_form "lambda";
+    Error.Malformed_form { form = "lam"; expected = "(lam (param ...) body)" };
+    Error.Duplicate_binder "x";
   ]
 
 let test_phases () =
@@ -47,7 +53,7 @@ let test_phases () =
   check_string "the evaluate phase is named" "evaluate" (Error.phase_name Error.Evaluate)
 
 let test_causes () =
-  check_int "every cause is enumerated" 4 (List.length causes);
+  check_int "every cause is enumerated" 10 (List.length causes);
   check "cause messages are distinct" (distinct (List.map Error.cause_message causes));
   List.iter
     (fun cause ->
@@ -105,10 +111,7 @@ let test_raising () =
         error.Error.phase = Error.Read
         && error.Error.level = Some 0
         && Span.equal span error.Error.span
-        && (match error.Error.cause with
-           | Error.Unbound_name name -> String.equal name "q"
-           | Error.Unbound_ident _ | Error.Ambiguous_name _ | Error.Unfilled_binding _ ->
-               false)
+        && Error.cause_equal error.Error.cause (Error.Unbound_name "q")
     | None -> false);
   let failed =
     let error = Error.make ~phase:Error.Parse ~span (Error.Unbound_name "q") in
@@ -118,8 +121,31 @@ let test_raising () =
   in
   check "fail raises the very error it was given" failed
 
+let test_equality () =
+  (* Differential tests compare reported failures structurally, so rewording a
+     message must not change what a comparison asserts. *)
+  check "a cause equals itself"
+    (List.for_all (fun cause -> Error.cause_equal cause cause) causes);
+  check "distinct causes are unequal"
+    (not (Error.cause_equal (Error.Unbound_name "x") (Error.Unknown_form "x")));
+  check "causes of the same shape compare their payloads"
+    (not (Error.cause_equal (Error.Unterminated "list") (Error.Unterminated "string literal")));
+  check "same-name different-identity binders are different causes"
+    (not (Error.cause_equal (Error.Unbound_ident x) (Error.Unbound_ident x')));
+  let base = Error.make ~phase:Error.Read ~span (Error.Unknown_form "lam") in
+  check "an error equals itself" (Error.equal base base);
+  check "the phase is part of the error"
+    (not (Error.equal base (Error.make ~phase:Error.Parse ~span (Error.Unknown_form "lam"))));
+  check "the level is part of the error"
+    (not (Error.equal base (Error.make ~phase:Error.Read ~span ~level:0 (Error.Unknown_form "lam"))));
+  check "the span is part of the error"
+    (not
+       (Error.equal base
+          (Error.make ~phase:Error.Read ~span:Span.unknown (Error.Unknown_form "lam"))))
+
 let () =
   test_phases ();
+  test_equality ();
   test_causes ();
   test_rendering ();
   test_raising ();

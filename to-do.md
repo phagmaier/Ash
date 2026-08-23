@@ -16,10 +16,11 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 0 — Core
-- **Next:** 0.5 — implement a canonical Core s-expression reader
+- **Next:** 0.6 — implement the Core printer and alpha-equivalence
 - **Last verified:** 2026-08-23 — clean-tree `dune build @all`, `dune runtest`,
-  and `dune exec ash -- --help` pass with the `ash.core` span/constant/identifier
-  layer, the Core AST, the value model, environments, and structured errors
+  and `dune exec ash -- --help` pass with the `ash.core` layer (identifiers,
+  Core, values, environments, errors) and `ash.syntax` (s-expressions and the
+  canonical Core reader)
 - **Blocker:** none
 
 ## Locked decisions
@@ -68,7 +69,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   - Accept: tests cover shadowing, closure-visible mutation, recursive
     preallocation, name lookup, and failure behavior.
 
-- [ ] **0.5 Implement a canonical Core s-expression reader.**
+- [x] **0.5 Implement a canonical Core s-expression reader.**
   - This is the early debug/test format, not the user-facing parser.
   - Validate shape/arity and retain source spans.
   - Accept: every Core form round-trips; malformed forms identify their location.
@@ -326,6 +327,44 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 0.5
+
+- Completed: added the `ash.syntax` library (`lib/syntax/`) with `Sexp` and
+  `Core_reader`, plus supporting changes in `ash.core`.
+  - `Sexp`: s-expression data with spans — integers, `#t`/`#f`, strings with the
+    same escapes `Constant.escape_string` emits, `'symbols`, bare atoms, and
+    lists — with `of_string`, `one_of_string`, and a canonical `to_string` that
+    is the round-trip partner of the reader. Comments use `;`, because the
+    surface language's `#` collides with `#t`/`#f`.
+  - `Core_reader`: one spelling per Core form, validating shape and arity and
+    resolving printed names to fresh hygienic identities. Quoted code is read in
+    the enclosing scope so a quoted variable keeps its binder ID; a name with no
+    binder is an error unless a supplied `scope` provides one; one binder list
+    may not bind a name twice.
+  - `Error` gained six syntactic causes and the structural comparisons
+    `cause_equal` and `equal`; `Core` gained `of_lambda`.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest`, and
+  `opam exec -- dune exec ash -- --help` all passed. New tests are in
+  `test/unit/reader_test.ml`, checked to fail loudly by perturbing an expected
+  value before restoring it.
+- Acceptance: every Core form's canonical text round-trips through
+  `Sexp.of_string`/`to_string` unchanged and reads back as the expected form, and
+  eighteen malformed inputs are each checked for both their structured cause and
+  their exact rendered location, including across a newline.
+- Decisions: ADR 0005 records the one-spelling-per-form notation, the split
+  between the datum layer and Core validation, name-to-identity resolution with
+  explicit scopes for open terms, quoted code reading in the enclosing scope, and
+  rejecting a printed name bound twice in one binder list rather than resolving
+  it by entry order.
+- Known issues: none. Note that `read` is deliberately not idempotent on
+  identities — two reads of the same text are alpha-equivalent, not equal — so
+  cross-read comparison must wait for 0.6's alpha-equivalence.
+- Next: 0.6 — the Core printer and alpha-equivalence: print deterministic
+  readable binders and compare through canonical IDs, with
+  `read(print(core))` alpha-equivalent for every form including shadowing,
+  `LetRec`, quotation, and reifiers.
 
 ### 2026-08-23 — task 0.4
 

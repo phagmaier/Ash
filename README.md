@@ -34,6 +34,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 |------|----------|
 | `bin/` | CLI entry point |
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
+| `lib/syntax/` | `ash.syntax`: s-expression data and the canonical Core reader |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `docs/decisions/` | numbered architecture decision records |
@@ -105,6 +106,36 @@ and is formatted only at the boundary. Rendered diagnostics print identifiers by
 printed name and never by unique ID, so golden output cannot depend on allocation
 order; `Error.to_string_debug` adds IDs for interactive use only. See
 [`docs/decisions/0004-environments-and-structured-errors.md`](docs/decisions/0004-environments-and-structured-errors.md).
+
+## Writing Core down
+
+`Ash_syntax.Core_reader` reads the canonical Core notation — a debug and test
+format, not the Ash surface syntax, which is Phase 1. Every form has exactly one
+spelling:
+
+```text
+(lit 42)  (lit #t)  (lit "s")  (lit 'sym)  (lit unit)  (lit nil)
+(var x)
+(named-var "x")
+(lam (x y) body)
+(app f arg ...)
+(let x value body)
+(letrec ((f (lam (n) body)) ...) body)
+(if condition consequent alternative)
+(set x value)
+(quote core)
+(reifier (exp env cont) body)
+```
+
+The notation is written in printed names, but Core is hygienic, so the reader
+resolves names to identities: each binder allocates a fresh identifier and
+occurrences under it read as that identifier. Two reads of the same text are
+alpha-equivalent, not equal. A name with no binder in scope is an error — pass a
+`scope` to read open terms. Quoted code is read in the enclosing scope, so a
+quoted variable keeps the binder ID of the binding it was written under, and one
+binder list may not bind a printed name twice. Comments start with `;`, since
+`#t` and `#f` need the hash. See
+[`docs/decisions/0005-canonical-core-notation.md`](docs/decisions/0005-canonical-core-notation.md).
 
 ## Development workflow
 
