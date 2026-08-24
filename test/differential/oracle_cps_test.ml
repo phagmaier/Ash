@@ -141,7 +141,8 @@ let test_frozen_boundary () =
           match error.Error.cause with
           | Error.Unsupported { by; _ } -> String.equal by "the direct-style oracle"
           | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Ambiguous_name _
-          | Error.Unfilled_binding _ | Error.Unexpected_character _
+          | Error.Unfilled_binding _ | Error.Open_code _ | Error.Unliftable_value _
+          | Error.Unexpected_character _
           | Error.Unterminated _ | Error.Unexpected _ | Error.Unknown_form _
           | Error.Malformed_form _ | Error.Arity_error _ | Error.Division_by_zero
           | Error.Continuation_reuse _ | Error.Immutable_binding _

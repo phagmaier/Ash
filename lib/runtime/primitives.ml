@@ -145,27 +145,26 @@ let code_view node =
 let make ~name ~arity ~cls impl =
   { Value.prim_name = name; prim_arity = arity; prim_class = cls; prim_impl = impl }
 
-(* The three wrappers cover every primitive that returns a value to its caller
-   and never calls back into Ash, which is all of them but [callcc]: they drop
-   the applier and invoke the continuation once, in tail position. *)
+(* The three wrappers cover primitives that need none of the evaluator callbacks:
+   they drop them and invoke the continuation once, in tail position. *)
 
 let nullary name cls impl =
   let arity = Value.Exactly 0 in
-  make ~name ~arity ~cls (fun ~call_site ~apply:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
       match args with
       | [] -> k (impl ~span:call_site)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let unary name cls impl =
   let arity = Value.Exactly 1 in
-  make ~name ~arity ~cls (fun ~call_site ~apply:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
       match args with
       | [ a ] -> k (impl ~span:call_site a)
       | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let binary name cls impl =
   let arity = Value.Exactly 2 in
-  make ~name ~arity ~cls (fun ~call_site ~apply:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
       match args with
       | [ a; b ] -> k (impl ~span:call_site a b)
       | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
@@ -216,7 +215,7 @@ let pure =
     unary "length" Effect_class.Pure (fun ~span a ->
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
-      (fun ~call_site:_ ~apply:_ args k -> k (Value.List args));
+      (fun ~call_site:_ ~apply:_ ~lift:_ ~run:_ args k -> k (Value.List args));
     (* The one type test Ash has. The self-interpreter needs it because its
        value domain distinguishes an interpreted closure — a list carrying a
        private tag — from an interpreted scalar, and every other list operation
@@ -233,8 +232,8 @@ let pure =
               false));
     (* Code construction and observation are pure: Core and [Code] are
        immutable, and D7 explicitly puts Code constructors in the foldable
-       class. Reflection stays reserved for [run], [reflect], [up], and reifier
-       application, whose meaning depends on evaluator/tower state. *)
+       class. Reflection stays reserved for [lift], [run], [reflect], [up], and
+       reifier application, whose meaning depends on evaluator/tower state. *)
     unary "code?" Effect_class.Pure (fun ~span:_ value ->
         Value.Bool
           (match value with
@@ -247,7 +246,7 @@ let pure =
     unary "code_view" Effect_class.Pure (fun ~span value ->
         code_view (code ~span value));
     make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
-      (fun ~call_site ~apply:_ args k ->
+      (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
         match args with
         | [ template; marker; replacement ] ->
             let template = code ~span:call_site template in
@@ -258,7 +257,7 @@ let pure =
             wrong_arity ~span:call_site ~name:"code_splice"
               ~arity:(Value.Exactly 3) args);
     make ~name:"code_match" ~arity:(Value.At_least 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~apply:_ args k ->
+      (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
         match args with
         | template :: subject :: markers ->
             let template = code ~span:call_site template in
@@ -363,7 +362,7 @@ let observable io =
 let control =
   [
     make ~name:"callcc" ~arity:(Value.Exactly 1) ~cls:Effect_class.Control
-      (fun ~call_site ~apply args k ->
+      (fun ~call_site ~apply ~lift:_ ~run:_ args k ->
         match args with
         | [ receiver ] ->
             (* [k] is the continuation of the [callcc] call itself, so invoking
@@ -390,7 +389,7 @@ let control =
        does not, residualizes it. That is the same treatment [callcc] gets, and
        for the same reason. *)
     make ~name:"invoke" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~apply args k ->
+      (fun ~call_site ~apply ~lift:_ ~run:_ args k ->
         match args with
         | [ callee; arguments ] ->
             apply ~call_site callee (items ~span:call_site arguments) k
@@ -398,15 +397,29 @@ let control =
             wrong_arity ~span:call_site ~name:"invoke" ~arity:(Value.Exactly 2) args);
   ]
 
-(* [Reflection] ([lift], [run], [reflect], [up]) waits for staging and the tower
-   in Phases 3 and 4. It is empty rather than stubbed: a primitive that exists
-   but refuses to run is a worse answer than one that is honestly not there yet,
-   and nothing about the classification depends on a class being populated — the
-   class is a field of the primitive, so a primitive without one cannot be
-   written. *)
+(* Evaluator-dependent operations. [lift] delegates Code construction because a
+   lifted list must refer to this level's hygienic [list] global. [run] delegates
+   both analysis and execution, so it cannot accidentally retain the registry's
+   construction environment or its caller's lexical frame. [reflect] and [up]
+   arrive in tasks 4.2--4.3. *)
+let reflection =
+  [
+    make ~name:"lift" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
+      (fun ~call_site ~apply:_ ~lift ~run:_ args k ->
+        match args with
+        | [ value ] -> k (Value.Code (lift ~call_site value))
+        | [] | _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"lift" ~arity:(Value.Exactly 1) args);
+    make ~name:"run" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
+      (fun ~call_site ~apply:_ ~lift:_ ~run args k ->
+        match args with
+        | [ value ] -> run ~call_site (code ~span:call_site value) k
+        | [] | _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"run" ~arity:(Value.Exactly 1) args);
+  ]
 
 let build io dereferences =
-  let primitives = pure @ mutating dereferences @ observable io @ control in
+  let primitives = pure @ mutating dereferences @ observable io @ control @ reflection in
   (* Exactly one class per primitive is a property of the record type; what it
      cannot rule out is the same name registered twice with different classes,
      where a lookup would answer one and the environment bind the other. *)

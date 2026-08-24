@@ -1,6 +1,7 @@
 # 0014 — One-shot continuations, and how a primitive calls back
 
-- **Status:** accepted
+- **Status:** accepted; primitive callbacks amended by
+  [0019](0019-closed-code-run.md) and [0020](0020-fixed-lift-domain.md)
 - **Date:** 2026-08-23
 - **Task:** 1.5
 

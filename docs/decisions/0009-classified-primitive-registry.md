@@ -1,7 +1,8 @@
 # 0009 — The classified primitive registry and the observable-effect stream
 
 - **Status:** accepted, clarified by
-  [0018](0018-hygienic-code-and-refutable-shapes.md)
+  [0018](0018-hygienic-code-and-refutable-shapes.md) and amended by
+  [0019](0019-closed-code-run.md) and [0020](0020-fixed-lift-domain.md)
 - **Date:** 2026-08-23
 - **Task:** 0.9
 

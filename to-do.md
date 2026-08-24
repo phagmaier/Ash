@@ -16,12 +16,13 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 3 — code and staging foundations
-- **Next:** 3.2 — implement closed-code analysis and `run`
+- **Next:** 3.4 — add staged-power and simplifier regressions
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass from a clean `_build` with the hygienic desugarer, `open fn` groups, the
+  pass with the hygienic desugarer, `open fn` groups, the
   Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
-  36-primitive registry (including the five pure Code operations), the
+  38-primitive registry (including the five pure Code operations and reflective
+  fixed-domain `lift` plus closed-code `run`), the
   desugar/continuation/parser/lexer/Core/runtime suites, the open-recursion law
   suite including patching at depth, and three differential comparisons over the
   shared 91-program corpus (73 Core, 18 surface): oracle/CPS, CPS/layer 1, and
@@ -32,10 +33,17 @@ Phase 2 is complete. `open fn` is a surface binding form that lowers to
 open-recursion cells; the CPS Core evaluator is written in Ash and agrees with
 the host evaluator; and it runs under itself, with every layer agreeing and each
 layer's `eval` cell governing exactly the evaluation that layer performs. Task
-3.1 now supplies hygienic `Code`, quotation/splicing, and both constructor and
+3.1 supplies hygienic `Code`, quotation/splicing, and both constructor and
 quasiquote patterns. The self-interpreter deliberately retains its Phase 2 data
 encoding until task 3.5, after 3.2–3.4 complete the Code foundation; that task
 owns both declared boundaries rather than changing the layer tests during 3.1.
+Task 3.2 adds deterministic closedness analysis and executes accepted Code on
+the active open-recursive machine using only its explicit level-global
+environment; caller lexical frames never cross the stage boundary.
+Task 3.3 adds exhaustive fixed-domain lifting: scalars, unit, immutable lists,
+and Code cross into Code, while executable/context/store values fail with a
+structured origin path. Lifted lists refer to the active level's exact hygienic
+`list` global rather than residualizing a printed-name lookup.
 
 ## Locked decisions
 
@@ -210,11 +218,11 @@ owns both declared boundaries rather than changing the layer tests during 3.1.
     alpha-equivalence. ADR 0018 records the semantics and the decision that a
     structural pattern on the wrong value shape falls through.
 
-- [ ] **3.2 Implement closed-code analysis and `run`.**
+- [x] **3.2 Implement closed-code analysis and `run`.**
   - Report all unresolved dependencies; never inherit caller lexical state.
   - Accept: closed code runs and open code fails with useful locations.
 
-- [ ] **3.3 Implement the fixed `lift` domain.**
+- [x] **3.3 Implement the fixed `lift` domain.**
   - Lift scalars, unit, immutable liftable lists, and code. Reject closures,
     continuations, environments, and cells with origin-aware errors.
   - Accept: nested lifting and every rejection category have focused tests.
@@ -393,6 +401,89 @@ owns both declared boundaries rather than changing the layer tests during 3.1.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 3.3
+
+- Completed 3.3: exhaustive fixed-domain `lift`.
+  - Numbers, booleans, strings, symbols, unit, and the empty list lift to Core
+    literals. Non-empty immutable lists lift recursively to an application of
+    the active evaluator level's exact hygienic `list` global. Existing Code
+    passes through unchanged, retaining identity and provenance.
+  - Closures, reifiers, continuations, environments, cells, and primitives are
+    rejected. `Error.Unliftable_value` retains the rejected leaf's opaque value
+    rendering and type plus a one-based path through enclosing lists; the error
+    itself remains located at the source `lift` call.
+  - `Value.primitive.prim_impl` gains an evaluator-supplied `~lift` callback.
+    This avoids capturing one level's global identity in the shared registry and
+    avoids emitting a reflective `NamedVar("list")`. The registry grows from 37
+    to 38 primitives; Reflection is now `lift` and `run`.
+- Acceptance: `test/unit/lift_test.ml` covers all scalar/unit forms, empty and
+  nested immutable lists, exact hygienic list identity, generated provenance,
+  Code identity and Code nested in data, every rejected runtime shape, call-site
+  location, and nested origin paths. `primitives_test.ml` independently pins
+  class, arity, and accepted input; `error_test.ml` pins the structured message.
+- Decision and documentation: ADR 0020 records the whitelist, level-hygienic
+  list representation, callback, origin paths, and Reflection classification.
+  Spec D6/D7, README, and amended callback/classification ADR links agree.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/lift_test.exe`,
+  `opam exec -- dune exec test/unit/primitives_test.exe`,
+  `opam exec -- dune exec test/unit/error_test.exe`,
+  `opam exec -- dune exec test/unit/oracle_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `git diff --check` all pass. The
+  full suite retains 91 oracle/CPS programs, 99 self-interpreter programs at
+  layer 1, and 98 at layer 2.
+- Known issues: none within 3.3. The optional `dune build @fmt` alias remains
+  non-clean because pre-existing `lib/self/dune` and `test/golden/dune` formatting
+  differs from Dune's formatter and the repository has no `.ocamlformat`; the
+  canonical build/test/smoke commands are unaffected.
+- Next: 3.4 — add staged-power and simplifier regressions.
+
+### 2026-08-23 — task 3.2
+
+- Completed 3.2: deterministic closed-code analysis and reflective `run`.
+  - `Ash_core.Code.unresolved_dependencies` walks all eleven Core forms under
+    hygienic binding structure. It reports every free identity absent from the
+    explicit available set and every occurrence span, ordered by first source
+    occurrence rather than ID-map order. `Set` targets and nested `Quote` bodies
+    are dependencies; `NamedVar` remains explicit run-time name lookup.
+  - `Error.Open_code` carries the complete structured report. The primary error
+    span is the `run` call, while its message names every missing identity and
+    quoted use site in one diagnostic.
+  - A machine now retains the explicit environment installed by top-level
+    `Evaluator.run`. Accepted Code re-enters that same machine and continuation
+    with only this level-global environment. A caller's `Let`, lambda, or closure
+    frames are never inherited; quoted primitive identities still resolve and
+    effects use the same registry stream.
+  - `Value.primitive.prim_impl` gains a `~run` callback beside `~apply`, keeping
+    evaluator dependence out of the registry and leaving future levels able to
+    provide their own machine/global pair. The registry grows from 36 to 37;
+    Reflection is now exactly `run`.
+- Acceptance: `test/unit/run_test.ml` runs closed arithmetic, a generated
+  closure, recursive Code, and observable output. It rejects caller-local and
+  multi-dependency Code, retaining both occurrences of a repeated free identity
+  with exact source locations; it also covers nested quotation dependencies,
+  explicit `NamedVar` isolation, binding-aware analysis, and `run` type errors.
+  `primitives_test.ml` independently pins the new class, arity, and type rule.
+- Decision and documentation: ADR 0019 records level-global closedness, complete
+  source-ordered diagnostics, whole-tree traversal, and the evaluator callback.
+  Spec D5/D7 and README document the same behavior; ADR 0009 points to the
+  amendment.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/run_test.exe`,
+  `opam exec -- dune exec test/unit/primitives_test.exe`,
+  `opam exec -- dune exec test/unit/error_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `git diff --check` all pass. The
+  full suite retains 91 oracle/CPS programs, 99 self-interpreter programs at
+  layer 1, and 98 at layer 2.
+- Known issues: none within 3.2. The Phase 2 self-interpreter still uses its
+  temporary data encoding and therefore retains the two boundaries assigned to
+  task 3.5: transported spans and host-equivalent failures detected in Ash.
+- Next: 3.3 — implement the fixed `lift` domain for scalars, unit, recursively
+  liftable immutable lists, and Code, with origin-aware rejection of closures,
+  continuations, environments, and cells.
 
 ### 2026-08-23 — task 3.1
 

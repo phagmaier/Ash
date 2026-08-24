@@ -39,6 +39,8 @@ let causes =
     Error.Unbound_name "x";
     Error.Ambiguous_name { name = "x"; candidates = [ x; x' ] };
     Error.Unfilled_binding x;
+    Error.Open_code [ { Code.ident = x; occurrences = [ span ] } ];
+    Error.Unliftable_value { found = "a closure"; value = "#<closure f>"; path = [ 2 ] };
     Error.Unexpected_character '@';
     Error.Unterminated "string literal";
     Error.Unexpected { found = "an integer"; expected = "a Core form" };
@@ -58,7 +60,7 @@ let test_phases () =
   check_string "the evaluate phase is named" "evaluate" (Error.phase_name Error.Evaluate)
 
 let test_causes () =
-  check_int "every cause is enumerated" 15 (List.length causes);
+  check_int "every cause is enumerated" 17 (List.length causes);
   check "cause messages are distinct" (distinct (List.map Error.cause_message causes));
   List.iter
     (fun cause ->
@@ -66,7 +68,16 @@ let test_causes () =
     causes;
   check_string "an ambiguous name reports how many candidates there are"
     "the name `x` is bound 2 times in one frame, so a name lookup cannot choose"
-    (Error.cause_message (Error.Ambiguous_name { name = "x"; candidates = [ x; x' ] }))
+    (Error.cause_message (Error.Ambiguous_name { name = "x"; candidates = [ x; x' ] }));
+  check_string "open code reports dependency locations"
+    "code is open; unresolved dependencies: `x` at demo.ash:12:3-8"
+    (Error.cause_message
+       (Error.Open_code [ { Code.ident = x; occurrences = [ span ] } ]));
+  check_string "an unliftable value reports its nested origin"
+    "cannot lift #<closure f> from the lift argument list item 2: a closure is outside the fixed lift domain"
+    (Error.cause_message
+       (Error.Unliftable_value
+          { found = "a closure"; value = "#<closure f>"; path = [ 2 ] }))
 
 let test_rendering () =
   let error = Error.make ~phase:Error.Evaluate ~span (Error.Unbound_ident x) in

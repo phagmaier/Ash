@@ -108,6 +108,8 @@ and apply ~span callee arguments =
         primitive.Value.prim_impl ~call_site:span
           ~apply:(fun ~call_site callee arguments k ->
             k (apply ~span:call_site callee arguments))
+          ~lift:(fun ~call_site _ -> unsupported ~span:call_site "lift")
+          ~run:(fun ~call_site _ _ -> unsupported ~span:call_site "run")
           arguments
           (fun value -> value)
   | Value.Reifier _ -> unsupported ~span "reifier"

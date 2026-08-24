@@ -78,6 +78,46 @@ let eval_list_default machine nodes env k =
       Machine.eval machine node env (fun value ->
           Machine.eval_list machine rest env (fun values -> k (value :: values)))
 
+let run_code machine ~call_site node k =
+  let global = Machine.global_env machine in
+  match Code.unresolved_dependencies ~available:(Env.idents global) node with
+  | [] -> Machine.eval machine node global k
+  | dependencies -> fail ~span:call_site (Error.Open_code dependencies)
+
+let lift_value machine ~call_site value =
+  let generated = Span.generated ~by:"lift" ~from:call_site in
+  let rec lift path value =
+    match value with
+    | Value.Num number -> Core.lit ~span:generated (Constant.Num number)
+    | Value.Bool boolean -> Core.lit ~span:generated (Constant.Bool boolean)
+    | Value.Str string -> Core.lit ~span:generated (Constant.Str string)
+    | Value.Sym symbol -> Core.lit ~span:generated (Constant.Sym symbol)
+    | Value.Unit -> Core.lit ~span:generated Constant.Unit
+    | Value.List [] -> Core.lit ~span:generated Constant.Nil
+    | Value.List items ->
+        let list_ident, _ =
+          Env.lookup_by_name_exn ~phase:Error.Evaluate ~span:call_site
+            (Machine.global_env machine) "list"
+        in
+        let arguments =
+          List.mapi (fun index item -> lift ((index + 1) :: path) item) items
+        in
+        Core.app ~span:generated
+          ~func:(Core.var ~span:generated list_ident)
+          ~args:arguments
+    | Value.Code node -> node
+    | ( Value.Closure _ | Value.Reifier _ | Value.Continuation _
+      | Value.Environment _ | Value.Cell _ | Value.Primitive _ ) as rejected ->
+        fail ~span:call_site
+          (Error.Unliftable_value
+             {
+               found = Value.type_phrase rejected;
+               value = Value.to_string rejected;
+               path = List.rev path;
+             })
+  in
+  lift [] value
+
 let apply_default machine ~call_site callee arguments k =
   let given = List.length arguments in
   let arity_error ~callee_name ~expected =
@@ -108,6 +148,8 @@ let apply_default machine ~call_site callee arguments k =
         primitive.Value.prim_impl ~call_site
           ~apply:(fun ~call_site callee arguments k ->
             Machine.apply machine ~call_site callee arguments k)
+          ~lift:(fun ~call_site value -> lift_value machine ~call_site value)
+          ~run:(fun ~call_site node k -> run_code machine ~call_site node k)
           arguments k
   | Value.Reifier _ ->
       (* Applying a reifier runs one level up with the caller's expression,
@@ -144,5 +186,7 @@ let apply_default machine ~call_site callee arguments k =
 let machine () =
   Machine.create ~eval:eval_default ~apply:apply_default ~eval_list:eval_list_default
 
-let run machine ~env node = Machine.eval machine node env (fun value -> value)
+let run machine ~env node =
+  Machine.set_global_env machine env;
+  Machine.eval machine node env (fun value -> value)
 let eval ~env node = run (machine ()) ~env node

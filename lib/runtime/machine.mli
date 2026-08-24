@@ -64,6 +64,14 @@ val current_eval : t -> eval_fn
 val current_apply : t -> apply_fn
 val current_eval_list : t -> eval_list_fn
 
+(** {1 Global environment} *)
+
+val set_global_env : t -> Value.env -> unit
+(** Set the explicit environment of the top-level evaluation. [run] executes
+    accepted Code here, never in the lexical environment of its call site. *)
+
+val global_env : t -> Value.env
+
 (** {1 Counters} *)
 
 val count_dispatch : t -> Core.shape -> unit

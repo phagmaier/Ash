@@ -223,7 +223,7 @@ let primitive_fixture =
     prim_arity = Value.Exactly 2;
     prim_class = Effect_class.Pure;
     prim_impl =
-      (fun ~call_site:_ ~apply:_ args k ->
+      (fun ~call_site:_ ~apply:_ ~lift:_ ~run:_ args k ->
         match args with
         | [ Value.Num a; Value.Num b ] -> k (Value.Num (a + b))
         | _ -> k Value.Unit);
@@ -406,6 +406,8 @@ let test_primitives () =
   let result =
     primitive_fixture.Value.prim_impl ~call_site:sp
       ~apply:(fun ~call_site:_ _ _ _ -> Value.Unit)
+      ~lift:(fun ~call_site:_ _ -> one)
+      ~run:(fun ~call_site:_ _ _ -> Value.Unit)
       [ Value.Num 2; Value.Num 3 ]
       (fun v -> v)
   in

@@ -48,7 +48,9 @@ let self_diagnosed error =
   match error.Error.cause with
   | Error.No_matching_clause _ -> true
   | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Ambiguous_name _
-  | Error.Unfilled_binding _ | Error.Unexpected_character _ | Error.Unterminated _
+  | Error.Unfilled_binding _ | Error.Open_code _ | Error.Unliftable_value _
+  | Error.Unexpected_character _
+  | Error.Unterminated _
   | Error.Unexpected _ | Error.Unknown_form _ | Error.Malformed_form _
   | Error.Arity_error _ | Error.Division_by_zero | Error.Continuation_reuse _
   | Error.Immutable_binding _ | Error.Unsupported _ | Error.Duplicate_binder _

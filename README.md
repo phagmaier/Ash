@@ -229,7 +229,7 @@ does not.
 | allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
 | control | `callcc`, `invoke` | never folded: capturing at specialization time captures the specializer, and `invoke`'s class is its callee's |
-| reflection | — awaits closed-code `run` and the tower | bespoke, and the classification target |
+| reflection | `lift`, `run`; later `reflect`, `up`, and reifier application | bespoke, and the classification target |
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
 write events to it and read scripted lines from it, so a program's *trace* is a
@@ -380,6 +380,41 @@ foundation can support replacing the encoding without weakening the existing
 layer tests. See
 [`docs/decisions/0013-hygienic-desugaring-to-core.md`](docs/decisions/0013-hygienic-desugaring-to-core.md).
 
+## Closed Code and `run`
+
+`run(code)` accepts Code only when every hygienic `Var` dependency is bound
+inside the Code or is one of the current level's explicit globals. It reports all
+unresolved identities and all their source locations in one structured error.
+The complete tree is checked, including `Set` targets and nested quotations;
+`NamedVar` remains an explicit request for printed-name lookup during execution.
+
+Accepted Code runs on the active open-recursive machine with the level-global
+environment. It never receives a `let`, lambda, or closure frame from the call
+site, so this fails rather than answering 42:
+
+```ash
+let x = 40
+run(`{ x + 2 })
+```
+
+Quoted primitive references such as `+` do resolve because their exact global
+identities are deliberately available. See
+[`docs/decisions/0019-closed-code-run.md`](docs/decisions/0019-closed-code-run.md).
+
+## Fixed-domain lifting
+
+`lift(value)` constructs Code only for numbers, booleans, strings, symbols,
+unit, recursively liftable immutable lists, and Code. Existing Code passes
+through unchanged. Closures, reifiers, continuations, environments, cells, and
+primitives are rejected rather than serialized.
+
+Non-empty lists become calls to the active level's exact hygienic `list` global;
+lifting never inserts a `NamedVar` lookup. Invented nodes retain the `lift` call
+as generated provenance. A rejection points at that call and identifies the
+offending leaf's one-based path through nested lists, so a closure inside item 2
+of item 3 is distinguishable from a direct closure argument. See
+[`docs/decisions/0020-fixed-lift-domain.md`](docs/decisions/0020-fixed-lift-domain.md).
+
 ## Continuations
 
 `callcc` reifies the continuation of its own call as a value and hands it to its
@@ -406,12 +441,15 @@ and re-entrant `meta_with` all need them, and none is needed for the headline
 result. The `used` flag is what makes lifting that restriction a decision rather
 than a discovery.
 
-A primitive receives an `~apply` alongside its call site, arguments, and
-continuation — that is how `callcc` calls its argument. The caller supplies it, so
-the callback runs on whatever evaluator is executing: the ground evaluator routes
-it through the machine's open-recursion cell, and a meta level that replaces
-`apply` therefore intercepts a primitive's callback too. See
-[`docs/decisions/0014-one-shot-continuations-and-the-applier.md`](docs/decisions/0014-one-shot-continuations-and-the-applier.md).
+A primitive receives evaluator callbacks alongside its call site, arguments,
+and continuation: `~apply` is how `callcc` calls its argument, `~lift` constructs
+Code using the active level's hygienic globals, and `~run` analyzes and executes
+closed Code without capturing caller lexical state. The applying evaluator
+supplies all three, so callbacks use the active machine and a meta-level
+replacement can intercept evaluator work. See
+[`docs/decisions/0014-one-shot-continuations-and-the-applier.md`](docs/decisions/0014-one-shot-continuations-and-the-applier.md)
+[`docs/decisions/0019-closed-code-run.md`](docs/decisions/0019-closed-code-run.md),
+and [`docs/decisions/0020-fixed-lift-domain.md`](docs/decisions/0020-fixed-lift-domain.md).
 
 ## Open-recursive groups
 

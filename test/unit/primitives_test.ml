@@ -79,7 +79,7 @@ let identity_primitive =
     prim_arity = Value.Exactly 1;
     prim_class = Effect_class.Pure;
     prim_impl =
-      (fun ~call_site:_ ~apply:_ args k ->
+      (fun ~call_site:_ ~apply:_ ~lift:_ ~run:_ args k ->
         match args with [ a ] -> k a | [] | _ :: _ :: _ -> k Value.Unit);
   }
 
@@ -94,7 +94,8 @@ let expected_classification =
   let pure = Effect_class.Pure
   and mutating = Effect_class.Allocation_or_mutation
   and observable = Effect_class.Observable_effect
-  and control = Effect_class.Control in
+  and control = Effect_class.Control
+  and reflection = Effect_class.Reflection in
   [
     ("+", pure); ("-", pure); ("*", pure); ("/", pure); ("%", pure);
     ("<", pure); ("<=", pure); (">", pure); (">=", pure);
@@ -107,6 +108,7 @@ let expected_classification =
     ("open_cell", mutating); ("open_deref", mutating); ("open_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
     ("callcc", control); ("invoke", control);
+    ("lift", reflection); ("run", reflection);
   ]
 
 let sorted_names names = List.sort String.compare names
@@ -168,15 +170,14 @@ let test_classification () =
            (List.mem name (Primitives.by_class Effect_class.Observable_effect)))
        Primitives.classification);
 
-  (* Control is capture and run-time application, both of which the specializer
-     handles by bespoke rule; reflection is honestly empty rather than stubbed.
-     When the tower fills it, this says so instead of quietly passing. *)
+  (* Control and reflection are evaluator-dependent and get bespoke rules. *)
   check "control is capture and run-time application"
     (List.equal String.equal
        [ "callcc"; "invoke" ]
        (Primitives.by_class Effect_class.Control));
-  check "reflection is empty until code execution and the tower exist"
-    (Primitives.by_class Effect_class.Reflection = []);
+  check "reflection contains staging and closed-code execution"
+    (List.equal String.equal [ "lift"; "run" ]
+       (Primitives.by_class Effect_class.Reflection));
 
   check "an unregistered name has no class" (Primitives.class_of "nope" = None);
   check "find locates a primitive by name"
@@ -222,7 +223,9 @@ let test_arity () =
                again, and the two checks must not disagree. *)
             match
               attempt (fun () ->
-                  primitive.Value.prim_impl ~call_site:sp ~apply:test_apply args
+                  primitive.Value.prim_impl ~call_site:sp ~apply:test_apply
+                    ~lift:(fun ~call_site:_ _ -> Core.lit ~span:sp Constant.Unit)
+                    ~run:(fun ~call_site:_ _ k -> k Value.Unit) args
                     (fun v -> v))
             with
             | Ok _ ->
@@ -334,6 +337,8 @@ let type_expectations =
        the call. *)
     ( "invoke",
       Rejects [ ([ Value.Primitive identity_primitive; n ], "a number", "a list") ] );
+    ("lift", Total [ n ]);
+    ("run", Rejects [ ([ n ], "a number", "code") ]);
   ]
 
 let test_type_errors () =

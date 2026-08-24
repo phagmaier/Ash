@@ -7,6 +7,7 @@ type t = {
   mutable eval_cell : eval_fn;
   mutable apply_cell : apply_fn;
   mutable eval_list_cell : eval_list_fn;
+  mutable global_env : Value.env;
   mutable steps : int;
   mutable eval_calls : int;
   mutable apply_calls : int;
@@ -25,6 +26,7 @@ let create ~eval ~apply ~eval_list =
     eval_cell = eval;
     apply_cell = apply;
     eval_list_cell = eval_list;
+    global_env = Value.empty_env;
     steps = 0;
     eval_calls = 0;
     apply_calls = 0;
@@ -65,6 +67,8 @@ let set_eval_list machine f = machine.eval_list_cell <- f
 let current_eval machine = machine.eval_cell
 let current_apply machine = machine.apply_cell
 let current_eval_list machine = machine.eval_list_cell
+let set_global_env machine env = machine.global_env <- env
+let global_env machine = machine.global_env
 
 let count_dispatch machine shape =
   let index = Core.kind_index shape in

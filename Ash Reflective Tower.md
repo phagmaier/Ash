@@ -177,6 +177,14 @@ reflect(code, env, k)
 
 Letting `run` implicitly inherit the caller's lexical environment drags in cross-stage persistence before you need it. This also gives the free-variable checker a permanent job even after D1 makes hygiene intrinsic.
 
+Closedness is relative only to the current level's explicit global environment:
+hygienic references to that level's primitive globals are resolved, while a
+lexical frame introduced by a caller is not. Report every unresolved identity
+and every occurrence location, in source order, rather than failing on the first.
+A nested `Quote` retains the surrounding lexical scope and is traversed;
+`NamedVar` is instead an explicit request for printed-name lookup during
+execution, still against the same global environment.
+
 ### D6. `lift` has a small, fixed domain
 
 | Value | Liftable? |
@@ -188,10 +196,17 @@ Letting `run` implicitly inherit the caller's lexical environment drags in cross
 | continuations | **no** |
 | environments | **no** |
 | cells | **no** |
+| reifiers, primitives, any future unlisted shape | **no** |
 
 Closures bring sharing, identity, mutable captured cells, recursive cycles, and environment representation with them. The specializer does not need general closure lifting: it residualizes a lambda from the lambda's *syntax* plus static/dynamic knowledge of what it captures. Closure serialization is a later experiment, not a v1 requirement.
 
-Error message on a rejected lift should name the value's origin, not just its type.
+`Code` passes through unchanged, including provenance. A non-empty list lifts to
+an application of the current level's exact hygienic `list` global, never a
+`NamedVar` lookup; every invented node retains the `lift` call as generated
+provenance. Rejection is exhaustive over everything outside the table's positive
+rows. Its structured error points at the source call and records the one-based
+path through nested lists to the rejected value, naming its data origin rather
+than only its type.
 
 ### D7. Primitives are stage-polymorphic *by class*, not uniformly
 
@@ -207,7 +222,7 @@ Fix the policy before the specializer exists:
 | **Allocation / mutation** | `cell_new`, `deref`, `set` | residualize by default; static store only under an explicit store-splitting discipline (Phase 7) |
 | **Observable effect** | `print`, `read`, IO | **always residualize.** Never execute at specialization time. |
 | **Control** | `call/cc`, `resume`, `abort` | bespoke; residualize unless the entire control flow is static |
-| **Reflection** | `up`, `reflect`, reifier application | bespoke; this is the classification target |
+| **Reflection** | `lift`, `run`, `up`, `reflect`, reifier application | bespoke; this is the classification target |
 
 If you want compile-time logging, give it a separate primitive (`static_log`) that is *defined* to run at specialization time. Don't overload `print`.
 

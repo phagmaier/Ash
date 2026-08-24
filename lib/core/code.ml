@@ -224,3 +224,74 @@ let match_template ~holes ~template subject =
     if List.for_all Option.is_some captured then Some (List.map Option.get captured)
     else None
   else None
+
+type dependency = { ident : Ident.t; occurrences : Span.t list }
+
+(* This is deliberately a source-order walk rather than [Alpha.free_idents]
+   followed by a map lookup. Identifier-map order is allocation order, which is
+   an excluded observation, and the closed-code diagnostic also needs every use
+   site rather than only the set of identities. *)
+let unresolved_dependencies ~available node =
+  let occurrences = ref Ident.Map.empty in
+  let order = ref [] in
+  let record ident span =
+    if not (Ident.Set.mem ident available) then
+      match Ident.Map.find_opt ident !occurrences with
+      | None ->
+          order := ident :: !order;
+          occurrences := Ident.Map.add ident [ span ] !occurrences
+      | Some spans ->
+          occurrences := Ident.Map.add ident (span :: spans) !occurrences
+  in
+  let add_all idents bound =
+    List.fold_left (fun bound ident -> Ident.Set.add ident bound) bound idents
+  in
+  let rec go bound node =
+    match Core.shape node with
+    | Core.Lit _ | Core.NamedVar _ -> ()
+    | Core.Var ident ->
+        if not (Ident.Set.mem ident bound) then record ident (Core.span node)
+    | Core.Lam lambda ->
+        go (add_all lambda.Core.params bound) lambda.Core.lam_body
+    | Core.App { Core.func; args } ->
+        go bound func;
+        List.iter (go bound) args
+    | Core.Let { Core.let_binder; let_value; let_body } ->
+        go bound let_value;
+        go (Ident.Set.add let_binder bound) let_body
+    | Core.LetRec { Core.rec_bindings; rec_body } ->
+        let names = List.map (fun binding -> binding.Core.rec_name) rec_bindings in
+        let recursive_bound = add_all names bound in
+        List.iter
+          (fun binding ->
+            let lambda = binding.Core.rec_lambda in
+            go (add_all lambda.Core.params recursive_bound) lambda.Core.lam_body)
+          rec_bindings;
+        go recursive_bound rec_body
+    | Core.If { Core.condition; consequent; alternative } ->
+        go bound condition;
+        go bound consequent;
+        go bound alternative
+    | Core.Set { Core.set_target; set_value } ->
+        if not (Ident.Set.mem set_target bound) then
+          record set_target (Core.span node);
+        go bound set_value
+    | Core.Quote quoted ->
+        (* A quoted variable still denotes the binding under which it was
+           written. Open nested Code is allowed while being assembled, but a
+           term handed to [run] is closed as a whole. *)
+        go bound quoted
+    | Core.Reifier { Core.exp_param; env_param; cont_param; reifier_body } ->
+        go (add_all [ exp_param; env_param; cont_param ] bound) reifier_body
+  in
+  go Ident.Set.empty node;
+  List.rev_map
+    (fun ident ->
+      {
+        ident;
+        occurrences = List.rev (Ident.Map.find ident !occurrences);
+      })
+    !order
+
+let is_closed ~available node =
+  unresolved_dependencies ~available node = []

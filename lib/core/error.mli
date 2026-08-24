@@ -30,6 +30,15 @@ type cause =
           excluded-observation rule forbids. *)
   | Unfilled_binding of Ident.t
       (** A recursive binding read before its cell was filled. *)
+  | Open_code of Code.dependency list
+      (** [run] was given Code with unresolved hygienic dependencies. The list
+          contains every identity and every occurrence location in source order,
+          rather than stopping at the first unbound variable. *)
+  | Unliftable_value of { found : string; value : string; path : int list }
+      (** [lift] reached a value outside its fixed domain. [path] is a sequence
+          of one-based immutable-list indexes from the argument to the rejected
+          value, so a nested failure identifies where the value came from rather
+          than reporting only its type. [value] is its finite opaque rendering. *)
   | Unexpected_character of char  (** A character no token can start with. *)
   | Unterminated of string
       (** Input ended inside the named construct, e.g. ["string literal"]. *)

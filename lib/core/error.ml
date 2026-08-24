@@ -5,6 +5,8 @@ type cause =
   | Unbound_name of string
   | Ambiguous_name of { name : string; candidates : Ident.t list }
   | Unfilled_binding of Ident.t
+  | Open_code of Code.dependency list
+  | Unliftable_value of { found : string; value : string; path : int list }
   | Unexpected_character of char
   | Unterminated of string
   | Unexpected of { found : string; expected : string }
@@ -56,6 +58,24 @@ let message ~show_ids cause =
           name (List.length candidates)
   | Unfilled_binding id ->
       Printf.sprintf "`%s` is used before its recursive binding is filled" (ident id)
+  | Open_code dependencies ->
+      let dependency item =
+        Printf.sprintf "`%s` at %s" (ident item.Code.ident)
+          (String.concat ", " (List.map Span.to_string item.Code.occurrences))
+      in
+      Printf.sprintf "code is open; unresolved dependencies: %s"
+        (String.concat "; " (List.map dependency dependencies))
+  | Unliftable_value { found; value; path } ->
+      let origin =
+        match path with
+        | [] -> "the lift argument"
+        | _ :: _ ->
+            "the lift argument"
+            ^ String.concat ""
+                (List.map (fun index -> Printf.sprintf " list item %d" index) path)
+      in
+      Printf.sprintf "cannot lift %s from %s: %s is outside the fixed lift domain"
+        value origin found
   | Unexpected_character c -> Printf.sprintf "unexpected character `%c`" c
   | Unterminated what -> Printf.sprintf "unterminated %s" what
   | Unexpected { found; expected } ->
@@ -94,6 +114,16 @@ let cause_equal a b =
   | Ambiguous_name x, Ambiguous_name y ->
       String.equal x.name y.name && List.equal Ident.equal x.candidates y.candidates
   | Unfilled_binding x, Unfilled_binding y -> Ident.equal x y
+  | Open_code x, Open_code y ->
+      List.equal
+        (fun left right ->
+          Ident.equal left.Code.ident right.Code.ident
+          && List.equal Span.equal left.Code.occurrences right.Code.occurrences)
+        x y
+  | Unliftable_value x, Unliftable_value y ->
+      String.equal x.found y.found
+      && String.equal x.value y.value
+      && List.equal Int.equal x.path y.path
   | Unexpected_character x, Unexpected_character y -> Char.equal x y
   | Unterminated x, Unterminated y -> String.equal x y
   | Unexpected x, Unexpected y ->
@@ -118,6 +148,7 @@ let cause_equal a b =
       && List.equal String.equal x.actual y.actual
   | End_of_input, End_of_input -> true
   | ( ( Unbound_ident _ | Unbound_name _ | Ambiguous_name _ | Unfilled_binding _
+      | Open_code _ | Unliftable_value _
       | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
       | Malformed_form _ | Arity_error _ | Unsupported _ | Division_by_zero
       | Continuation_reuse _ | Immutable_binding _ | No_matching_clause _

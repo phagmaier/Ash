@@ -39,10 +39,19 @@ and primitive = {
   prim_name : string;
   prim_arity : arity;
   prim_class : Effect_class.t;
-  prim_impl : call_site:Span.t -> apply:applier -> value list -> (value -> answer) -> answer;
+  prim_impl :
+    call_site:Span.t ->
+    apply:applier ->
+    lift:lifter ->
+    run:runner ->
+    value list ->
+    (value -> answer) ->
+    answer;
 }
 
 and applier = call_site:Span.t -> value -> value list -> (value -> answer) -> answer
+and lifter = call_site:Span.t -> value -> Core.t
+and runner = call_site:Span.t -> Core.t -> (value -> answer) -> answer
 and arity = Exactly of int | At_least of int
 
 (* Constants *)

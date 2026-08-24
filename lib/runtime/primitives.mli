@@ -29,6 +29,12 @@
       class is its callee's, which no amount of knowledge about its arguments
       settles.
 
+    - {!Ash_core.Effect_class.Reflection} — [lift], which converts only the fixed
+      liftable domain to Code using level-hygienic list construction, and [run],
+      which requires Code to have no unresolved lexical dependencies and
+      evaluates it in the current level's explicit global environment. Both are
+      evaluator-dependent and need bespoke specialization rules.
+
     {1 Open recursion}
 
     [open_cell], [open_deref], and [open_set] are the ordinary store operations
@@ -38,12 +44,9 @@
     the ones a run actually performs. The surviving dereferences in a residual
     program are precisely the interpreter residue §9 classifies.
 
-    {!Ash_core.Effect_class.Reflection} has no members yet: [run], [reflect],
-    and [up] need execution or the tower; immutable Code operations are pure per
-    spec D7. An empty class is not a gap
-    in the classification — the class is part of a primitive's definition, so the
-    property "exactly one class per primitive" holds by construction and is
-    checked over whatever is registered.
+    Immutable Code operations are pure per spec D7; [lift] and [run] are
+    Reflection because they cross into or execute a stage using the active
+    evaluator level. [reflect] and [up] still wait for the tower.
 
     {1 Errors}
 
@@ -80,7 +83,7 @@ val reset_open_dereferences : t -> unit
 
 val all : t -> Value.primitive list
 (** Every primitive, in registry order: pure, then allocation/mutation, then
-    observable, then control. *)
+    observable, control, and reflection. *)
 
 val find : t -> string -> Value.primitive option
 

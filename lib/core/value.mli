@@ -86,7 +86,13 @@ and primitive = {
   prim_class : Effect_class.t;
       (** Exactly one class per primitive; see {!Effect_class} and spec §D7. *)
   prim_impl :
-    call_site:Span.t -> apply:applier -> value list -> (value -> answer) -> answer;
+    call_site:Span.t ->
+    apply:applier ->
+    lift:lifter ->
+    run:runner ->
+    value list ->
+    (value -> answer) ->
+    answer;
       (** In CPS so that control primitives are ordinary members of the registry
           rather than evaluator special cases. [call_site] is where the
           application was written: a primitive that rejects an argument has no
@@ -100,11 +106,30 @@ and primitive = {
           it, so the call goes through whatever evaluator is running: the ground
           evaluator routes it through the machine's open-recursion cell (spec
           §D3), and a replaced [apply] therefore intercepts a primitive's call
-          too. A primitive that never calls back ignores it. *)
+          too.
+
+          [lift] constructs Code from the fixed liftable value domain. The
+          applying evaluator supplies it because lifting a non-empty list must
+          refer to that level's hygienic [list] global rather than inventing a
+          printed-name lookup.
+
+          [run] is the corresponding evaluator-dependent callback for closed
+          Code. The caller owns both closedness analysis and the explicit global
+          environment in which accepted code executes; this keeps a primitive
+          from capturing the lexical environment of its call. Primitives that
+          never call back ignore all three callbacks. *)
 }
 
 and applier = call_site:Span.t -> value -> value list -> (value -> answer) -> answer
 (** Applying an Ash callee to arguments, in CPS. *)
+
+and lifter = call_site:Span.t -> value -> Core.t
+(** Convert a value in the fixed lift domain to Core at the current evaluator
+    level. Rejected values raise a structured error at [call_site]. *)
+
+and runner = call_site:Span.t -> Core.t -> (value -> answer) -> answer
+(** Analyze and execute Code on the current evaluator, in its explicit global
+    environment. The callback reports open Code at [call_site]. *)
 
 and arity = Exactly of int | At_least of int
 

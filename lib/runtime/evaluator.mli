@@ -18,6 +18,11 @@
     second invocation raises {!Ash_core.Error.Continuation_reuse} naming where the
     continuation was captured and where it already went (spec §D4).
 
+    [lift] converts only the fixed scalar, unit, immutable-list, and Code domain.
+    Non-empty lists refer to the current machine's exact hygienic [list] global;
+    rejected values raise {!Ash_core.Error.Unliftable_value} with their nested
+    data-origin path (spec §D6).
+
     The dynamic semantics are the ones ADR 0007 fixed for the oracle: the function
     position is evaluated first, then arguments left to right; [If] requires a
     boolean; [Set] evaluates to unit. Agreement with the oracle on the pure corpus
@@ -33,7 +38,10 @@ val machine : unit -> Machine.t
 
 val run : Machine.t -> env:Value.env -> Core.t -> Value.value
 (** Evaluate to completion with the identity continuation, leaving the machine's
-    counters to be read afterwards. *)
+    counters to be read afterwards. [env] is also installed as this evaluation's
+    explicit global environment: [lift] resolves hygienic list construction and
+    [run] executes closed Code there, never in a lexical frame introduced while
+    evaluating [Core.t]. *)
 
 val eval : env:Value.env -> Core.t -> Value.value
 (** Convenience for callers with nothing to ask the counters. *)
