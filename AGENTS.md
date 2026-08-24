@@ -46,7 +46,9 @@ opam exec -- dune exec ash -- --help
 
 Keep one compile, full-test, and CLI-smoke command current here and in
 `README.md`. The packaged milestone demos are `dune exec ash -- --demo NAME`;
-`test/golden/demos.expected` stores what each prints.
+`test/golden/demos.expected` stores what each prints. The collapse report is
+`dune exec ash -- --collapse FILE [--depth N]`; `test/golden/collapse.expected`
+stores it for a fixed sample set.
 
 ## Semantic invariants
 

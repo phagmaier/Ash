@@ -149,6 +149,7 @@ let default_eval_value machine base =
       Value.prim_name = "eval";
       prim_arity = Value.Exactly 3;
       prim_class = Effect_class.Reflection;
+      prim_observes = Observation.whole_values;
       prim_impl =
         (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
           match args with
@@ -169,6 +170,7 @@ let default_apply_value machine base =
       Value.prim_name = "apply";
       prim_arity = Value.Exactly 3;
       prim_class = Effect_class.Reflection;
+      prim_observes = Observation.whole_values;
       prim_impl =
         (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
           match args with

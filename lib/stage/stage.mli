@@ -11,6 +11,7 @@ open Ash_runtime
 module Mode = Mode
 module Value = Stage_value
 module Emit = Emit
+module Specialize = Specialize
 module Eval = Staged_eval
 
 val eval : ?mode:Mode.t -> env:Ash_core.Value.env -> Core.t -> Ash_core.Value.value
@@ -27,6 +28,11 @@ val fold : env:Ash_core.Value.env -> Core.t -> Core.t
 val is_static : Ash_core.Value.value -> bool
 val is_dynamic : Ash_core.Value.value -> bool
 val is_purely_static : Ash_core.Value.value -> bool
+val is_shape_static : Ash_core.Value.value -> bool
+
+val may_fold : Ash_core.Value.primitive -> Ash_core.Value.value list -> bool
+(** Whether a primitive may be applied during specialization to these
+    arguments: see {!Stage_value.may_fold}. *)
 
 val maybe_lift :
   mode:Mode.t ->

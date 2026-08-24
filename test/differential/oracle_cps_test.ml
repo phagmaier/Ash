@@ -147,7 +147,7 @@ let test_frozen_boundary () =
           | Error.Malformed_form _ | Error.Arity_error _ | Error.Division_by_zero
           | Error.Continuation_reuse _ | Error.Meta_error _ | Error.Immutable_binding _
           | Error.No_matching_clause _ | Error.Duplicate_binder _
-          | Error.Inconsistent_pattern_binders _ | Error.End_of_input ->
+          | Error.Inconsistent_pattern_binders _ | Error.End_of_input | Error.Budget_exhausted _ ->
               false)
       | Ok _ -> false
     in

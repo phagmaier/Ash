@@ -224,8 +224,18 @@ let code_view node =
    [prim_impl] is a total function and an incomplete match would be a host
    crash rather than an Ash diagnostic. The two checks report identically. *)
 
-let make ~name ~arity ~cls impl =
-  { Value.prim_name = name; prim_arity = arity; prim_class = cls; prim_impl = impl }
+(* [observes] defaults to the conservative judgement: every argument decides the
+   result, so nothing folds until everything is known. A primitive that answers
+   from an argument's spine alone says so once, here, rather than leaving the
+   specializer to infer it (spec §7.4 step 1). *)
+let make ~name ~arity ~cls ?(observes = Observation.whole_values) impl =
+  {
+    Value.prim_name = name;
+    prim_arity = arity;
+    prim_class = cls;
+    prim_observes = observes;
+    prim_impl = impl;
+  }
 
 (* The three wrappers cover primitives that need neither the evaluator callbacks
    nor the level they are running at: they drop both and invoke the continuation
@@ -238,16 +248,16 @@ let nullary name cls impl =
       | [] -> k (impl ~span:call_site)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
-let unary name cls impl =
+let unary ?observes name cls impl =
   let arity = Value.Exactly 1 in
-  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+  make ~name ~arity ~cls ?observes (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
       match args with
       | [ a ] -> k (impl ~span:call_site a)
       | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
-let binary name cls impl =
+let binary ?observes name cls impl =
   let arity = Value.Exactly 2 in
-  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+  make ~name ~arity ~cls ?observes (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
       match args with
       | [ a; b ] -> k (impl ~span:call_site a b)
       | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
@@ -291,13 +301,25 @@ let pure =
     binary "==" Effect_class.Pure (fun ~span:_ a b -> Value.Bool (Value.equal a b));
     binary "!=" Effect_class.Pure (fun ~span:_ a b -> Value.Bool (not (Value.equal a b)));
     unary "not" Effect_class.Pure (fun ~span a -> Value.Bool (not (boolean ~span a)));
-    binary "cons" Effect_class.Pure (fun ~span a b -> Value.List (a :: items ~span b));
-    unary "head" Effect_class.Pure (fun ~span a -> fst (non_empty ~span a));
-    unary "tail" Effect_class.Pure (fun ~span a -> Value.List (snd (non_empty ~span a)));
-    unary "empty?" Effect_class.Pure (fun ~span a -> Value.Bool (items ~span a = []));
-    unary "length" Effect_class.Pure (fun ~span a ->
+    (* The immutable-data group. Each answers from the spine of its list
+       argument, never from the elements, so the specializer may run it on a
+       list whose spine is known even when the elements are still dynamic: that
+       is what lets a loop over a statically shaped list unroll while the values
+       it carries stay residual (spec §7.3, §7.4 step 1). *)
+    binary ~observes:(Observation.of_positional [ Unobserved; Shape_only ])
+      "cons" Effect_class.Pure (fun ~span a b -> Value.List (a :: items ~span b));
+    unary ~observes:(Observation.of_positional [ Shape_only ])
+      "head" Effect_class.Pure (fun ~span a -> fst (non_empty ~span a));
+    unary ~observes:(Observation.of_positional [ Shape_only ])
+      "tail" Effect_class.Pure (fun ~span a ->
+        Value.List (snd (non_empty ~span a)));
+    unary ~observes:(Observation.of_positional [ Shape_only ])
+      "empty?" Effect_class.Pure (fun ~span a -> Value.Bool (items ~span a = []));
+    unary ~observes:(Observation.of_positional [ Shape_only ])
+      "length" Effect_class.Pure (fun ~span a ->
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
+      ~observes:(Observation.uniform Observation.Unobserved)
       (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k -> k (Value.List args));
     (* The one type test Ash has. The self-interpreter needs it because its
        value domain distinguishes an interpreted closure — a list carrying a
@@ -305,7 +327,8 @@ let pure =
        fails rather than answering when handed a non-list. A predicate that
        answers is a different thing from an accessor that refuses, and only the
        predicate can be used to choose a branch. *)
-    unary "list?" Effect_class.Pure (fun ~span:_ value ->
+    unary ~observes:(Observation.of_positional [ Shape_only ])
+      "list?" Effect_class.Pure (fun ~span:_ value ->
         Value.Bool
           (match value with
           | Value.List _ -> true

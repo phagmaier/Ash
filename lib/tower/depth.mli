@@ -21,6 +21,13 @@
 
 open Ash_core
 
+val interposed_term : unit -> Core.t
+(** The term interposed at each level, [fn(e, r, k) -> base(e, r, k)], as Core.
+    Its {!Ash_core.Core.node_count} is the per-level interpreter size the §9.1
+    expanded-semantic figure multiplies by depth, so the report measures what is
+    actually installed rather than a number written down beside it. Each call
+    allocates fresh binders, exactly as {!interpose} does. *)
+
 val interpose : Tower.t -> level:int -> unit
 (** Interpose one interpreter above [level], materializing the level that will
     run it. The level's current evaluator becomes the new one's [base], so

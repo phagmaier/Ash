@@ -1,0 +1,500 @@
+== collapse: recursion on static data ==
+
+  Program:                        sample.ash, 19 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        25 nodes  (19 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       1 node
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 1
+
+Work
+  Source run:                     162
+  Tower run (depth 1):            1122  (level 0: 162, level 1: 960)
+  Tower eval-cell derefs:         level 0: 162, level 1: 960
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   480
+  Specialization:                 162
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         120
+  Tower:                          120  (agrees)
+  Residual:                       120  (agrees)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: recursion on static data, no tower ==
+
+  Program:                        sample.ash, 19 nodes
+  Tower depth:                    0
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        19 nodes  (19 + 0 x 6)
+  Materialized representation:    0 upper levels, 0 global cells, 0 group cells
+  Residual:                       1 node
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 1
+
+Work
+  Source run:                     162
+  Tower run (depth 0):            162  (level 0: 162)
+  Tower eval-cell derefs:         level 0: 162
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   80
+  Specialization:                 162
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         120
+  Tower:                          120  (agrees)
+  Residual:                       120  (agrees)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: recursion on static data, depth 3 ==
+
+  Program:                        sample.ash, 19 nodes
+  Tower depth:                    3
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        37 nodes  (19 + 3 x 6)
+  Materialized representation:    3 upper levels, 147 global cells, 9 group cells
+  Residual:                       1 node
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 1
+
+Work
+  Source run:                     162
+  Tower run (depth 3):            29442  (level 0: 162, level 1: 960, level 2: 4720, level 3: 23600)
+  Tower eval-cell derefs:         level 0: 162, level 1: 960, level 2: 4720, level 3: 23600
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   12480
+  Specialization:                 162
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         120
+  Tower:                          120  (agrees)
+  Residual:                       120  (agrees)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: a function of an unknown argument ==
+
+  Program:                        sample.ash, 8 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        14 nodes  (8 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       12 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 12
+
+Work
+  Source run:                     1
+  Tower run (depth 1):            13  (level 0: 1, level 1: 12)
+  Tower eval-cell derefs:         level 0: 1, level 1: 12
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   6
+  Specialization:                 16
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         #<closure>
+  Tower:                          #<closure>  (carries identity: not comparable across runs)
+  Residual:                       #<closure>  (carries identity: not comparable across runs)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: a traversal of a statically shaped list ==
+
+  Program:                        sample.ash, 8 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        14 nodes  (8 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       2 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 2
+
+Work
+  Source run:                     1
+  Tower run (depth 1):            13  (level 0: 1, level 1: 12)
+  Tower eval-cell derefs:         level 0: 1, level 1: 12
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   6
+  Specialization:                 16
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         #<closure>
+  Tower:                          #<closure>  (carries identity: not comparable across runs)
+  Residual:                       #<closure>  (carries identity: not comparable across runs)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: recursion on an unknown argument ==
+
+  Program:                        sample.ash, 20 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        26 nodes  (20 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       52 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 52
+
+Work
+  Source run:                     2
+  Tower run (depth 1):            26  (level 0: 2, level 1: 24)
+  Tower eval-cell derefs:         level 0: 2, level 1: 24
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   12
+  Specialization:                 68
+  Specialization points:          1  (2 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         #<closure>
+  Tower:                          #<closure>  (carries identity: not comparable across runs)
+  Residual:                       #<closure>  (carries identity: not comparable across runs)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: an accumulator too large for its budget ==
+
+  Program:                        sample.ash, 22 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        28 nodes  (22 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       165 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 165
+
+Work
+  Source run:                     2
+  Tower run (depth 1):            26  (level 0: 2, level 1: 24)
+  Tower eval-cell derefs:         level 0: 2, level 1: 24
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   12
+  Specialization:                 241
+  Specialization points:          1  (2 calls)
+  Generalizations:                1
+    rev(acc):                     inlining-depth, 6 nested calls to it were already being inlined
+  Residual run:                   1
+
+Outcome
+  Source:                         #<closure>
+  Tower:                          #<closure>  (carries identity: not comparable across runs)
+  Residual:                       #<closure>  (carries identity: not comparable across runs)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: an open-recursion group ==
+
+  Program:                        sample.ash, 29 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        35 nodes  (29 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       51 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     2
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 51
+
+Work
+  Source run:                     17
+  Tower run (depth 1):            137  (level 0: 17, level 1: 120)
+  Tower eval-cell derefs:         level 0: 17, level 1: 120
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   60
+  Specialization:                 56
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   25
+
+Outcome
+  Source:                         #<closure>
+  Tower:                          #<closure>  (carries identity: not comparable across runs)
+  Residual:                       #<closure>  (carries identity: not comparable across runs)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: dispatching on a Core node ==
+
+  Program:                        sample.ash, 9 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        15 nodes  (9 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       13 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     1
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 13
+
+Work
+  Source run:                     11
+  Tower run (depth 1):            71  (level 0: 11, level 1: 60)
+  Tower eval-cell derefs:         level 0: 11, level 1: 60
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   30
+  Specialization:                 11
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   15
+
+Outcome
+  Source:                         'App
+  Tower:                          'App  (agrees)
+  Residual:                       'App  (agrees)
+  Source output:                  none
+  Specialization output:          none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: observable output ==
+
+  Program:                        sample.ash, 5 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        11 nodes  (5 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       9 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 9
+
+Work
+  Source run:                     8
+  Tower run (depth 1):            68  (level 0: 8, level 1: 60)
+  Tower eval-cell derefs:         level 0: 8, level 1: 60
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   30
+  Specialization:                 8
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   12
+
+Outcome
+  Source:                         42
+  Tower:                          42  (agrees)
+  Residual:                       42  (agrees)
+  Source output:                  wrote "hi\n"
+  Specialization output:          none
+  Residual output:                wrote "hi\n"
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: a store operation ==
+
+  Program:                        sample.ash, 6 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        12 nodes  (6 + 1 x 6)
+  Materialized representation:    1 upper level, 49 global cells, 3 group cells
+  Residual:                       none: specialization failed
+
+Interpretation left in the residual
+  Not measured:                   sample.ash:1:23-38: stage error: `set during specialization (store splitting is not implemented)` is not supported by the staged evaluator
+
+Work
+  Source run:                     6
+  Tower run (depth 1):            78  (level 0: 6, level 1: 72)
+  Tower eval-cell derefs:         level 0: 6, level 1: 72
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   36
+  Specialization:                 4
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   none
+
+Outcome
+  Source:                         2
+  Tower:                          2  (agrees)
+  Residual:                       not produced: sample.ash:1:23-38: stage error: `set during specialization (store splitting is not implemented)` is not supported by the staged evaluator
+  Source output:                  none
+  Specialization output:          none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+

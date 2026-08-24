@@ -39,6 +39,7 @@ and primitive = {
   prim_name : string;
   prim_arity : arity;
   prim_class : Effect_class.t;
+  prim_observes : Observation.signature;
   prim_impl :
     call_site:Span.t ->
     level:int ->

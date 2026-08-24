@@ -53,6 +53,8 @@ let causes =
     Error.Duplicate_binder "x";
     Error.Inconsistent_pattern_binders { expected = [ "x" ]; actual = [ "y" ] };
     Error.End_of_input;
+    Error.Budget_exhausted
+      { what = "inlining-depth"; limit = 64; callee = Some "loop" };
   ]
 
 let test_phases () =
@@ -61,7 +63,7 @@ let test_phases () =
   check_string "the evaluate phase is named" "evaluate" (Error.phase_name Error.Evaluate)
 
 let test_causes () =
-  check_int "every cause is enumerated" 18 (List.length causes);
+  check_int "every cause is enumerated" 19 (List.length causes);
   check "cause messages are distinct" (distinct (List.map Error.cause_message causes));
   List.iter
     (fun cause ->

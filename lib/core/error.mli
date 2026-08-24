@@ -96,6 +96,17 @@ type cause =
           A program-level condition rather than a host failure: input is
           scripted rather than taken from the host, so this is as reproducible
           as any other error. *)
+  | Budget_exhausted of {
+      what : string;  (** The budget's name, e.g. ["inlining-depth"]. *)
+      limit : int;
+      callee : string option;
+          (** The function specialization gave up on, when one is named. *)
+    }
+      (** Specialization ran out of budget and had nothing left to generalize:
+          every argument of the call it was working on is already dynamic
+          (spec §7.5). Not a program error — the program is fine, and running it
+          is unaffected — but the specializer must say so rather than diverge.
+          The limits are deterministic counts, never wall time. *)
 
 type t = {
   phase : phase;

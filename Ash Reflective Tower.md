@@ -218,11 +218,15 @@ Fix the policy before the specializer exists:
 
 | Class | Primitives | Specialization behaviour |
 |-------|-----------|--------------------------|
-| **Pure** | arithmetic, comparison, immutable list ops, `Code` constructors | fold when all arguments are static |
+| **Pure** | arithmetic, comparison, immutable list ops, `Code` constructors | fold when everything the primitive *inspects* is static (see below) |
 | **Allocation / mutation** | `cell_new`, `deref`, `set` | residualize by default; static store only under an explicit store-splitting discipline (Phase 7) |
 | **Observable effect** | `print`, `read`, IO | **always residualize.** Never execute at specialization time. |
 | **Control** | `call/cc`, `resume`, `abort` | bespoke; residualize unless the entire control flow is static |
 | **Reflection** | `lift`, `run`, `up`, `reflect`, reifier application | bespoke; this is the classification target |
+
+"All arguments static" is the right rule for arithmetic and for `==`, and too strong for the immutable list operations. `head`, `tail`, `empty?`, `length`, and `list?` answer from a list's *spine*; `cons` looks at the shape of its tail and never at the value it conses; `list` looks at nothing. Requiring their elements to be static as well is what would make §7.3's discipline — the environment's *shape* is static while its *contents* are dynamic — unavailable to data, and with it the unrolling of any loop over a statically shaped list of dynamic values.
+
+So a primitive carries a second field beside its class: how much of each argument it inspects, one of *whole value*, *shape only*, or *unobserved*, defaulting to whole value. A pure primitive folds when its class permits it and nothing it inspects is dynamic. Class still dominates: no argument knowledge makes `print` foldable. (Recorded in ADR 0028; implemented as `Ash_core.Observation` and `Stage_value.may_fold`.)
 
 If you want compile-time logging, give it a separate primitive (`static_log`) that is *defined* to run at specialization time. Don't overload `print`.
 
@@ -729,6 +733,12 @@ the specializer cannot simply update its own `x`. It must emit both writes and *
 - **Budget.** Depth/size cutoff; on exceeding it, **generalize** (mark an argument dynamic) and retry.
 - **Instrument every generalization.** A program that collapses without generalizing is a much stronger result than one that does, and the report in §9 needs the count.
 
+**Done (task 6.2) — budget and generalization.** Two deterministic limits, never wall time: nested calls the unroller may follow into one function, and residual bindings specialization may emit. The size limit is the discriminating one, and the reason it is phrased in emitted bindings is that *an unrolling that is working folds, and emits nothing* — the corpus's deepest static unrolling is a 10,000-step loop that collapses to one literal and emits no bindings, while an unrolling going nowhere emits at every step. On pressure the call stops being inlined and becomes a specialization point, after giving up one more argument: the leftmost position that *differs* from the nearest enclosing call to the same function, because that is what the unrolling is following. The decision is sticky per function and monotone, so a function with *k* parameters generalizes at most *k* times and then must meet the memo table. Defaults leave the whole corpus alone and the criterion suite asserts zero generalizations across all 73 samples, which is this section's own standard. Reification is the one place that can only refuse: a closure reaching a dynamic position inside its own reified body is not a call, has no argument to give up, and raises `Budget_exhausted`. ADR 0032.
+
+**Done (task 6.1) — specialization points.** Function identity is the lambda together with the environment it closed over, both compared physically, so a `LetRec`-bound function's recursive call is the same function. Each argument projects to *known* (static all the way down, compared by value), *held* (constructor known, contents partly dynamic — compared by identity), or *unknown* (residual code). Known and held arguments are specialized into the residual function's body; unknown ones become its parameters.
+
+What this section does not say is *when* a call becomes a point, and that choice is the design. **Inlining stays the default; a call becomes a point only when its own key is already being inlined.** A key repeats only once unrolling has stopped making progress, so everything §7.4 step 1 collapsed still collapses unchanged — `power(3, x)` walks four different keys and creates no point. The point belongs to the call that *started* the inlining rather than the one that discovered the cycle, because discovery normally happens inside a dynamic conditional's branch and a residual function bound there is unreachable from the next call with the same key. A point is bound where it was created and never hoisted: its body may mention binders that let-insertion introduced earlier in that block. Recursion whose static projection *grows* still does not terminate; that is the budget above. ADR 0031.
+
 ### 7.6 The Futamura ladder
 
 Optional, cheap once the first works, and excellent writeup material:
@@ -774,10 +784,12 @@ Lazy materialization, `up`, reifiers, `reflect`, meta bindings, cross-level erro
 ### Phase 5 — Pure collapser `[3]` ← **second milestone**
 `maybe_lift`-parameterised staged evaluator, let-insertion, over the pure fragment only (§7.4 step 1). **Build the instrumentation counters now**, not later — §9's report depends on them.
 - **Done when:** `collapse(1, p)` for pure `p` behaves as `p` and contains **zero** Core-constructor dispatch and **zero** surviving `eval`-cell dereferences.
+- **Done:** 73 pure samples at depth 1 — the corpus's values and failures, plus eight whose residual is a function still to be applied — agree across source, tower, and residual runs, with zero surviving dereferences, evaluator calls, dispatch sites, `NamedVar` lookups, and reflection boundaries in every residual. The depth-1 tower performed 906,708 constructor dispatches and 2,125,589 evaluator-cell reads across those samples; the 250 residual nodes contain neither. (At the time this phase closed the suite held 71 samples, 906,684 dispatches, 2,125,537 cell reads and 142 residual nodes; task 6.1 added the two dynamically recursive samples, whose residuals keep a `LetRec` of the program's own.) `collapse(1, p)` here means *specialize `p`, and compare it against what the depth-1 tower did* — squashing the interposed evaluator itself is §7.4 step 5, and ADR 0030 records why that reading is the one this phase can carry. The criterion is falsifiable and shown to be: an `open fn` group and a runtime `code_view` both leave interpretation the measurement reports.
 
 ### Phase 6 — Depth and recursion `[2]`
 Memoization, generalization, budget. Arbitrary tower depths of ordinary programs.
 - **Done when:** `collapse(n, p) ≅α collapse(1, p)` for `n ∈ 1..5`, all `p` in the pure corpus, after let-flattening normalization. Write the normalizer carefully — a sloppy one makes the claim vacuous.
+- **In progress:** memoization and budgets are done (tasks 6.1 and 6.2, §7.5 above). Dynamically controlled recursion specializes to a residual `LetRec` instead of unrolling forever; recursion that never repeats a key is stopped by a budget that generalizes one argument at a time and reports each decision. The collapse report counts specialization points, the calls to them, and every generalization with its reason. The normalizer (6.3) and the depth comparison itself (6.4) remain.
 
 ### Phase 7 — Mutation and effects `[3]`
 Store splitting at dynamic joins; effect residualization per D7.

@@ -85,6 +85,9 @@ and primitive = {
   prim_arity : arity;
   prim_class : Effect_class.t;
       (** Exactly one class per primitive; see {!Effect_class} and spec §D7. *)
+  prim_observes : Observation.signature;
+      (** How much of each argument the primitive inspects; see
+          {!Observation}. Only the specializer reads it. *)
   prim_impl :
     call_site:Span.t ->
     level:int ->

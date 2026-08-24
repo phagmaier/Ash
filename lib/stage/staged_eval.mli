@@ -3,9 +3,18 @@
     In {!Mode.Identity} mode, this evaluator behaves as the standard production
     CPS evaluator.
 
-    In {!Mode.Lift} mode, pure primitives fold on static arguments, dynamic
+    In {!Mode.Lift} mode, a primitive folds when its {!Effect_class} permits it
+    and everything it inspects is static (see {!Stage_value.may_fold}), dynamic
     conditionals and dynamic applications residualize {!Value.Code}, and static
-    results are lifted at stage boundaries. *)
+    values crossing into residual code are reified: a closure into its lambda
+    syntax with a specialized body, a list into a residual [list] call over
+    reified elements, everything else through [lift].
+
+    Calls are inlined by default, which is what collapses recursion the
+    specializer can decide. A call whose key is already being inlined is a cycle
+    with no end, so it becomes a memoized specialization point instead: a
+    residual function bound by a [LetRec], parameterised on exactly the argument
+    positions nothing is known about. See {!Specialize}. *)
 
 open Ash_core
 open Ash_runtime

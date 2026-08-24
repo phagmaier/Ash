@@ -228,11 +228,22 @@ does not.
 
 | Class | Members | Specialization |
 |-------|---------|----------------|
-| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_name`, `code_splice`, `code_match`, `NamedVar`, `match_error`, `raise_at` | fold when every argument is static |
+| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_name`, `code_splice`, `code_match`, `NamedVar`, `match_error`, `raise_at` | fold when everything the primitive inspects is static |
 | allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
 | control | `callcc`, `resume`, `invoke`, `invoke_at` | never folded: capturing at specialization time captures the specializer, and invocation's class is its callee's |
 | reflection | `lift`, `run`, `reflect`, `meta_error`; later `up` | bespoke, and the classification target |
+
+The class says *whether* a primitive may run during specialization. A second
+field, `Ash_core.Observation`, says *how much of each argument* has to be known
+first, and it defaults to "all of it". Only the immutable-data group departs
+from that default: `cons` inspects the shape of its tail and nothing of its
+head, `head`/`tail`/`empty?`/`length`/`list?` inspect only their argument's own
+constructor, and `list` inspects nothing. That is what makes a list with a known
+spine and dynamic elements a usable static value — the specializer can walk it
+while the values it carries stay residual — without letting `==` compare
+elements it does not know. `Ash_stage.Stage_value.may_fold` is the one predicate
+that reads both fields.
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
 write events to it and read scripted lines from it, so a program's *trace* is a
@@ -740,8 +751,11 @@ steps for 67 program steps. What both print is stored in
 
 - **Values (`Ash_stage.Stage_value`):** static data are real values (`Value.value`),
   while dynamic data are `Code(Core.t)`. Named policy predicates (`is_static`,
-  `is_dynamic`, `is_purely_static`, `static_value`, `dynamic_code`) control
-  specialization choices.
+  `is_dynamic`, `is_purely_static`, `is_shape_static`, `static_value`,
+  `dynamic_code`, `may_fold`) control specialization choices. Data are
+  *partially* static: a list whose spine is known and whose elements are `Code`
+  is shape-static but not purely static, which is what lets a traversal of it
+  unroll while the elements stay residual.
 - **Modes (`Ash_stage.Mode`):** `Identity` mode evaluates terms as standard
   ground evaluation; `Lift` mode folds static computations and lifts static results
   at stage boundaries. Machines carry the mode of their evaluator wiring, and
@@ -749,13 +763,109 @@ steps for 67 program steps. What both print is stored in
 - **Evaluator (`Ash_stage.Staged_eval`):** a single CPS evaluator source supporting
   both `Identity` and `Lift` modes with open recursion across `eval`, `apply`, and
   `eval_list`. Pure primitives are stage-polymorphic (spec §D7): folding only
-  when arguments are recursively static and residualizing `Core.App` when any
-  nested value is dynamic. Residual calls retain the exact hygienic primitive
-  binding. Observable effects always residualize; Core `Set` is rejected in
-  Lift mode until Phase 7 supplies store splitting. Quotes retain their `Quote`
-  node, while closures are reified from lambda syntax with an isolated emission
-  buffer for each dynamic body—closures themselves remain outside `lift`'s
-  fixed domain.
+  when everything a primitive inspects is static and residualizing `Core.App`
+  otherwise. Residual calls retain the exact hygienic primitive binding.
+  Observable effects always residualize; Core `Set` is rejected in Lift mode
+  until Phase 7 supplies store splitting. Quotes retain their `Quote` node.
+- **Stage boundaries (`Staged_eval.reify_value`):** one conversion is used
+  wherever a value crosses into residual code. A closure is reified into its
+  lambda syntax, its parameters made dynamic and its body specialized in its own
+  emission buffer; a non-empty list is rebuilt as a residual `list` call over
+  reified elements; everything else is converted by `lift`. This is not the
+  `lift` primitive, which keeps the fixed §D6 domain and still refuses to
+  serialize a closure: the specializer holds a closure's syntax and environment
+  and a program does not.
+
+Recursion controlled by static data unrolls completely, so a staged
+`power(3, x)` becomes three multiplications and a traversal of a statically
+shaped list disappears into the arithmetic it performed.
+
+- **Specialization points (`Ash_stage.Specialize`):** recursion controlled by
+  *dynamic* data has no end to unroll to, so inlining is the default and a call
+  becomes a memoized specialization point only when its own key is already being
+  inlined. A key is the function's identity — its lambda and the environment it
+  closed over — plus a projection of each argument: fully static values and
+  partially static ones (a list with a known spine and unknown elements) are
+  specialized into the residual function's body, and residual code becomes a
+  parameter. The point belongs to the call that *started* the inlining, not the
+  one that found the cycle, so it is bound in a block the next call with the
+  same key can still reach; a point is bound by a `LetRec` where it was created
+  and never hoisted, because its body may mention binders that let-insertion
+  introduced earlier in that block. Because a key only repeats when unrolling
+  has stopped making progress, everything Phase 5 collapsed still collapses:
+  `power(3, x)` walks four different keys and creates no point at all. Mutual
+  recursion closes on one function, with its partner inlined into it. Recursion
+  whose static argument *grows* never repeats a key, and is stopped by the
+  budget instead. See
+  [`docs/decisions/0031-memoized-specialization-points.md`](docs/decisions/0031-memoized-specialization-points.md).
+- **Budgets and generalization (`Ash_stage.Specialize`):** two deterministic
+  limits — nested calls into one function, and residual bindings emitted. The
+  size limit is the discriminating one, because *an unrolling that is working
+  folds and emits nothing*: the corpus's deepest static unrolling is a
+  10,000-step loop that collapses to a single literal and emits no bindings,
+  while one going nowhere emits at every step. On pressure the call becomes a
+  specialization point, after giving up one more argument — the leftmost
+  position that *differs* from the nearest enclosing call to the same function,
+  because that is what the unrolling is following. Generalizing is sticky per
+  function and monotone, so a function with *k* parameters generalizes at most
+  *k* times and then must meet the memo table. Every decision is recorded with
+  its function, parameter, and reason, and printed by the collapse report. The
+  defaults leave the whole corpus alone, and the collapse criterion asserts zero
+  generalizations across all 73 samples — §7.5's point being that a program
+  which collapses *without* generalizing says more than one that does. The one
+  place the specializer can only refuse is reification: a closure that reaches a
+  dynamic position inside its own reified body is not a call and has no argument
+  to give up, so it raises `Budget_exhausted` naming the budget and the
+  function. See
+  [`docs/decisions/0032-specialization-budgets-and-generalization.md`](docs/decisions/0032-specialization-budgets-and-generalization.md).
+
+## The collapse report
+
+`Ash_collapse` (`ash.collapse`) turns collapsibility into something you can look
+at (spec §9.4):
+
+```sh
+opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1
+```
+
+One program, three runs, and one walk of what specialization left behind: the
+ground run (what the program means), the run at a stated tower depth (what
+interposed interpretation costs), specialization itself, and the residual run
+(what the collapsed program costs). Interpretation surviving in the residual is
+decided syntactically and by hygienic identity — `open_deref` applications are
+evaluator-group dereferences, an application of an `open_deref` is a surviving
+evaluator call, `code_view`/`code_match` are constructor dispatch, `NamedVar`
+nodes are lookups by printed name — so a local binder that happens to print
+`open_deref` is counted as nothing. Residual nodes are attributed to the source
+file their provenance points at, which is what makes "interpreter residue" mean
+something once the input contains an interpreter's text.
+
+Two things the report deliberately does not do. It does not call two runs
+equal when the answer carries identity: closure equality is identity, so it
+prints `carries identity: not comparable across runs` rather than comparing
+lambda syntax and calling it agreement. And it does not claim to have collapsed
+the tower: the residual is the program specialized on its own, so the tower
+figures are the measured cost that collapse is set against, and the report ends
+by saying exactly that. Erasing a level's interposed evaluator is Phase 9.
+
+`test/golden/collapse.expected` pins the report; `test/unit/collapse_test.ml`
+pins what its numbers mean. See
+[`docs/decisions/0029-the-collapse-report.md`](docs/decisions/0029-the-collapse-report.md).
+
+`test/laws/collapse_criterion_test.ml` is the milestone-2 claim itself: 73 pure
+samples at depth 1, each agreeing across the source, tower, and residual runs
+with zero surviving eval-cell dereferences, evaluator calls, constructor
+dispatch, `NamedVar` lookups, and reflection boundaries. Three things keep it
+from being a tautology — a closed pure program folds to a literal, and a literal
+trivially contains no dispatch. The premise is asserted (the tower run must have
+performed the interpretation the residual is claimed not to contain: 906,708
+dispatches and 2,125,589 cell reads, against 250 residual nodes). Eight samples
+do not fold to a literal, and are compared by applying source and residual to
+the same arguments; two of those keep a residual `LetRec` of their own, which is
+the program's recursion rather than an interpreter's. And the criterion is shown to be failable: an `open fn` group
+and a runtime `code_view` leave interpretation that the measurement reports, and
+those uncollapsed residuals are still checked to be correct. See
+[`docs/decisions/0030-what-the-pure-collapse-criterion-claims.md`](docs/decisions/0030-what-the-pure-collapse-criterion-claims.md).
 
 ## The differential corpus
 
@@ -772,8 +882,10 @@ lowered by the desugarer, which puts the parser and desugarer under the same
 comparison. Both halves cover recursion, closures, shadowing, lists, mutation,
 evaluation order, and failures.
 
-`corpus.ml` holds the programs and both comparisons read it: the oracle against
-the CPS evaluator, and the CPS evaluator against the self-interpreter. Sharing
+`corpus.ml` holds the programs and every comparison reads it: the oracle against
+the CPS evaluator, the CPS evaluator against the self-interpreter, and — for the
+pure half — the source program against its residual, which is how the staged
+evaluator's lift mode is held to the ground evaluator's semantics. Sharing
 one list is what keeps the second comparison from being run against easier
 programs than the first. The self-interpreter comparison adds output and control
 programs, which are the two areas the oracle refuses and the shared corpus

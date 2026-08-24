@@ -6,15 +6,52 @@ type binding = {
   span : Span.t;
 }
 
-type buffer = {
-  mutable bindings : binding list;
-}
+(* A block records what has to be bound around the expression it finally
+   produces, in the order the specializer produced it. Ordinary emissions are
+   [Let]s; a specialization point is a [LetRec] group, and it has to sit exactly
+   where it was created rather than being hoisted, because its body may mention
+   let-inserted binders that only exist from that position onwards. *)
+type item =
+  | Value_binding of binding
+  | Recursive_group of {
+      bindings : Core.rec_binding list;
+      span : Span.t;
+    }
 
-let create_buffer () = { bindings = [] }
+type buffer = { mutable items : item list }
 
-let binding_count buf = List.length buf.bindings
+let create_buffer () = { items = [] }
 
-let buffer_stack : buffer list ref = ref []
+let binding_count buf =
+  List.length
+    (List.filter
+       (function Value_binding _ -> true | Recursive_group _ -> false)
+       buf.items)
+
+let recursive_group_count buf =
+  List.length
+    (List.filter
+       (function Recursive_group _ -> true | Value_binding _ -> false)
+       buf.items)
+
+type stack = buffer list
+
+let buffer_stack : stack ref = ref []
+
+let stack () = !buffer_stack
+
+(* Residual bindings emitted during this specialization run. This is the size
+   signal the budget watches: a deep unrolling that folds away emits nothing,
+   while one that is not making progress emits at every step. *)
+let emitted = ref 0
+
+let emitted_count () = !emitted
+let reset_counts () = emitted := 0
+
+let with_stack installed f =
+  let saved = !buffer_stack in
+  buffer_stack := installed;
+  Fun.protect f ~finally:(fun () -> buffer_stack := saved)
 
 let current_buffer () =
   match !buffer_stack with
@@ -49,17 +86,36 @@ let emit ?name ?from node =
         in
         let binder_name = Option.value name ~default:"v" in
         let binder = Ident.fresh binder_name in
-        buf.bindings <- { binder; value = node; span } :: buf.bindings;
+        buf.items <- Value_binding { binder; value = node; span } :: buf.items;
+        incr emitted;
         Core.var ~span binder
 
 let emit_val ?name ?from node =
   Value.Code (emit ?name ?from node)
 
+let emit_letrec ?from bindings =
+  match bindings with
+  | [] -> ()
+  | _ :: _ -> (
+      match current_buffer () with
+      | None ->
+          invalid_arg
+            "Emit.emit_letrec: a specialization point needs an enclosing block"
+      | Some buf ->
+          let span =
+            match from with
+            | Some s -> Span.generated ~by:"stage/specialize" ~from:s
+            | None -> (List.hd bindings).Core.rec_span
+          in
+          buf.items <- Recursive_group { bindings; span } :: buf.items)
+
 let reify_block f =
   let buf = create_buffer () in
   let body = with_buffer buf f in
-  let emitted_bindings = List.rev buf.bindings in
   List.fold_right
-    (fun { binder; value; span } acc ->
-      Core.let_ ~span ~binder ~value ~body:acc)
-    emitted_bindings body
+    (fun item acc ->
+      match item with
+      | Value_binding { binder; value; span } ->
+          Core.let_ ~span ~binder ~value ~body:acc
+      | Recursive_group { bindings; span } -> Core.letrec ~span ~bindings ~body:acc)
+    (List.rev buf.items) body

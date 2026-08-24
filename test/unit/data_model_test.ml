@@ -222,6 +222,7 @@ let primitive_fixture =
     Value.prim_name = "+";
     prim_arity = Value.Exactly 2;
     prim_class = Effect_class.Pure;
+    prim_observes = Observation.whole_values;
     prim_impl =
       (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with

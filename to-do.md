@@ -15,35 +15,67 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 5 — pure collapser (milestone 2)
-- **Next:** 5.3 — stage pure higher-order Core, recursion, and immutable data
-- **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
-  `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass after a staging correctness review. **Task 5.2 remains complete**:
-  hygienic let-insertion now includes isolated residual lambda bodies and
-  guaranteed linear emission on duplication traps. Lift mode preserves Quote,
-  recursively detects dynamic data, retains exact primitive identities, rejects
-  Core Set pending store splitting, and cannot be requested on Identity wiring.
-  Identity mode again agrees with ground Code semantics.
-  Also intact: the static/dynamic value model and `maybe-lift` mode (5.1), lazy
-  tower (depths 0–5), the hygienic desugarer, `open fn` groups, the self-interpreter
+- **Phase:** 6 — depth and recursion control. 6.1 and 6.2 done.
+- **Next:** 6.3 — a semantics-preserving residual normalizer
+- **Last verified:** 2026-08-24 — `opam exec -- dune build @all`,
+  `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
+  `opam exec -- dune exec ash -- --demos`, and
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`
+  all pass. Task 6.1 removed the fragment's edge: recursion whose control the
+  specializer cannot decide now specializes to a memoized specialization point
+  and a residual `LetRec` instead of unrolling until the host stack runs out.
+  Task 6.2 covers what 6.1 cannot — recursion that never repeats a key — with a
+  budget that generalizes one argument at a time and records why. Inlining is
+  still the default and the defaults leave the whole corpus alone, so nothing
+  Phase 5 collapsed changed: the pre-existing collapse-report counters are
+  identical, and the criterion suite now asserts zero generalizations across all
+  73 samples.
+  **Milestone 2 remains done**, and the criterion now covers two more samples:
+  73 pure samples at depth 1 — the corpus's values and failures, plus eight
+  whose residual is a function, compared by application, two of them keeping a
+  residual `LetRec` of the program's own recursion — agree across the source,
+  tower, and residual runs, with zero surviving eval-cell dereferences,
+  evaluator calls, Core dispatch sites, `NamedVar` lookups, and reflection
+  boundaries in every residual. The depth-1 tower performed 906,708 constructor
+  dispatches and 2,125,589 evaluator-cell reads across those samples; the 250
+  residual nodes contain neither. The criterion is falsifiable and shown to be.
+  Also intact: the collapse report (5.4), the staged pure fragment (5.3),
+  hygienic let-insertion (5.2), the
+  static/dynamic value model and `maybe-lift` mode (5.1), lazy tower (depths
+  0–5), the hygienic desugarer, `open fn` groups, the self-interpreter
   (`lib/self/eval.ash`) at layers 1 and 2, the 49-primitive registry, the full
-  regression suite (unit, differential, laws, golden), and both packaged milestone demos.
+  regression suite (unit, differential, laws, golden), and both packaged
+  milestone demos.
 - **Blocker:** none
 
 Milestone 1 is done. The tower is real: a program can reach up and replace the
 evaluator running it, the replacement intercepts every nested step and not the
 level running it, and both of the spec's demos are packaged and pinned.
 
-Two things Phase 5 inherits. First, `Ash_tower.Depth` is the definition of
-"running at depth k" — levels that are actually interpreting, not merely
-materialized (ADR 0025) — and it is what 6.4 will compare residuals across.
-Second, `docs/progress/0001-depth-cost.md` is the baseline the collapser has to
-beat: one interposed level costs a flat 5x, so `fact(5)` is 162 steps of program
-and 590 000 steps of machinery at depth 5, none of it observable. Task 5.5's
-criterion — zero surviving Core dispatch and zero surviving eval-cell
-dereferences on pure depth-1 samples — is the claim that this is removable for
-the fragment where it can be.
+Milestone 2 is done. For the pure fragment, the interpretation is removable and
+the removal is measured rather than asserted: `ash --collapse` prints what a
+tower performs beside what the residual contains, and the law suite proves the
+two are what §8's Phase 5 asks for. The scope is exact and written down in ADR
+0030 — `collapse(1, p)` is *specialize `p`, and compare against what the depth-1
+tower did*, not *squash the tower*, which is §7.4 step 5 and task 9.1.
+
+Two things the rest of Phase 6 inherits. First, `Ash_tower.Depth` is the
+definition of "running at depth k" — levels that are actually interpreting, not
+merely materialized (ADR 0025) — and it is what 6.4 compares residuals across.
+Second, `docs/progress/0001-depth-cost.md` is the baseline: one interposed level
+costs a flat 5x, so `fact(5)` is 162 steps of program and 590 000 steps of
+machinery at depth 5, none of it observable; the collapse report reproduces
+those figures from the same counters.
+
+The fragment's edge is gone. 6.1 made recursion the specializer cannot see the
+end of terminate, by keying calls and tying the knot when a key repeats. 6.2
+covered the rest — recursion that never repeats a key, because an argument grows
+or a counter walks away from its base case — with a budget that generalizes one
+argument at a time. Termination now has an argument behind it rather than a
+hope: generalizing is sticky and monotone, so a function with *k* parameters is
+generalized at most *k* times, after which its key is constant and the next call
+must find the memo table. The one place the specializer can only refuse is
+closure reification, which is not a call and has nothing to generalize.
 
 ## Locked decisions
 
@@ -300,30 +332,51 @@ the fragment where it can be.
     and lambda bodies. Preserve operation count and evaluation order.
   - Accept: nested emission stays linear on duplication traps.
 
-- [ ] **5.3 Stage pure higher-order Core, recursion, and immutable data.**
+- [x] **5.3 Stage pure higher-order Core, recursion, and immutable data.**
   - Fold only fully static pure operations; residualize dynamic computation.
   - Accept: residual execution matches recursive/higher-order source programs.
 
-- [ ] **5.4 Implement initial collapse metrics and report.**
+- [x] **5.4 Implement initial collapse metrics and report.**
   - Count semantic/materialized/residual size, interpreter nodes, eval-cell
     dereferences, dispatch sites, `NamedVar` lookups, evaluator calls,
     generalizations, and reflection boundaries, with provenance/reasons.
   - Accept: human output has stable golden tests.
 
-- [ ] **5.5 Prove the pure Phase 5 criterion.**
+- [x] **5.5 Prove the pure Phase 5 criterion.**
   - Compare source, tower, and residual runs.
   - Accept: every depth-1 pure sample is equivalent with zero Core dispatch and
     zero surviving eval-cell dereferences.
 
 ## Phase 6 — depth and recursion control
 
-- [ ] **6.1 Implement memoized specialization points and residual `LetRec`.**
+- [x] **6.1 Implement memoized specialization points and residual `LetRec`.**
   - Key by function identity plus canonical static argument projection.
   - Accept: recursive programs specialize without infinite unrolling.
+  - The key is the lambda plus the environment it closed over, both compared
+    physically, and a projection of each argument: *known* (static all the way
+    down, compared by value), *held* (constructor known, contents partly
+    dynamic — compared by identity), *unknown* (residual code). Known and held
+    arguments are specialized into the residual function's body; unknown ones
+    become its parameters. Inlining stays the default and a call becomes a
+    point only when its own key is already being inlined, so everything Phase 5
+    collapsed still collapses unchanged. The point belongs to the call that
+    started the inlining, not the one that found the cycle, and is bound by a
+    `LetRec` where it was created rather than hoisted. ADR 0031.
 
-- [ ] **6.2 Implement specialization budgets and generalization.**
+- [x] **6.2 Implement specialization budgets and generalization.**
   - Progressively mark arguments dynamic on budget pressure; report every reason.
   - Accept: hostile recursive cases terminate with useful diagnostics.
+  - Two deterministic limits: nested calls the unroller may follow into one
+    function, and residual bindings emitted. The size limit is the
+    discriminating one because *an unrolling that is working folds and emits
+    nothing* — the corpus's deepest static unrolling is a 10,000-step loop that
+    collapses to one literal and emits no bindings. On pressure the call becomes
+    a specialization point after giving up the leftmost argument that differs
+    from the nearest enclosing call to the same function; the decision is sticky
+    per function and monotone, so *k* parameters means at most *k*
+    generalizations before the key is fixed. Reification is the one place that
+    can only refuse (`Error.Budget_exhausted`), because it is not a call and has
+    no argument to give up. ADR 0032.
 
 - [ ] **6.3 Implement a semantics-preserving residual normalizer.**
   - Alpha-canonicalize and flatten administrative lets without moving effects.
@@ -423,6 +476,325 @@ the fragment where it can be.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-24 — task 6.2
+
+- Completed: specialization budgets and generalization (spec §7.5), so the
+  recursion 6.1 cannot key — the kind that never repeats — terminates too.
+  - **Two deterministic limits**, never wall time: `max_inline_depth` (nested
+    calls the unroller has followed into *one* function, counted per function
+    identity) and `max_residual_bindings` (residual bindings emitted so far,
+    across every block).
+  - **Why the size limit is phrased in emitted bindings.** An unrolling that is
+    working folds, and emits nothing: the corpus's deepest static unrolling is a
+    10,000-step tail-recursive loop that collapses to one literal and emits no
+    bindings at all, while an unrolling going nowhere emits at every step. The
+    budget separates the two without a whistle, an embedding test, or any
+    analysis of the values involved.
+  - **Generalization picks the argument the unrolling is following**: the
+    leftmost position whose projection differs from the nearest enclosing call
+    to the same function, falling back to the leftmost still-known position.
+    One at a time, as §7.5 says — a `rev(xs, acc)` whose list shrinks while its
+    accumulator grows is driven by both, and needs both given up.
+  - **Sticky and monotone**, recorded against the function's identity. That is
+    the termination argument: *k* parameters means at most *k* generalizations,
+    after which the key is constant and the next call must meet the memo table.
+  - **Nothing left to give up is not an error**: a key that is already all
+    dynamic ties its own knot, so the pressure path always produces a point.
+    The one place specialization can only refuse is closure reification — a
+    closure reaching a dynamic position inside its own reified body is not a
+    call and has no argument to generalize — which raises the new
+    `Error.Budget_exhausted { what; limit; callee }`.
+  - **Defaults leave the corpus alone** (25,000 / 50,000), which
+    `collapse_criterion_test.ml` now asserts: zero generalizations across all 73
+    samples. §7.5's argument is that collapsing *without* generalizing is the
+    stronger result, so a budget that fired on a working program would weaken
+    every result for nothing.
+- Measurement: `Metrics.specialization.generalizations` stops being a hard-wired
+  zero and `generalization_reasons` carries each decision; the report prints
+  them under the count (`rev(acc): inlining-depth, 6 nested calls to it were
+  already being inlined`), at most six then "and N more".
+  `Metrics.measure`/`Collapse.report` take an optional `?budget`, restored
+  afterwards — the budget is configuration, not run state, and
+  `Specialize.reset` leaves it alone.
+- Tests: new `test/unit/stage_budget_test.ml` (growing accumulator, runaway
+  counter, size pressure, the self-passing closure that exhausts, and the
+  regression that the default budget generalizes nothing).
+  `test/laws/collapse_criterion_test.ml` asserts zero generalizations.
+  `test/unit/collapse_test.ml` measures a budgeted program and checks both
+  reasons, their order, and that they reach the rendered report, plus that the
+  configured budget is restored. `test/golden/collapse.expected` gains "an
+  accumulator too large for its budget". `test/unit/error_test.ml` enumerates
+  the new cause.
+- Documentation: ADR 0032; spec §7.5 carries a Done note and §8's Phase 6 an
+  updated in-progress note; README describes the budget and what it is watching.
+- Verified with OCaml 5.4.1 and Dune 3.24.2: `opam exec -- dune build @all`,
+  `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
+  `opam exec -- dune exec ash -- --demos`, and
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`
+  all pass. No prior figure moved: every existing sample generalizes nothing.
+- Known issues: the budget is not reachable from the CLI, so `--collapse` always
+  measures at the default — a `?budget` argument exists on `Metrics.measure` and
+  `Collapse.report` and the golden test uses it. The same key met in two
+  branches of a dynamic conditional still produces two residual functions (6.3).
+  Unchanged and expected: `open fn` dereferences and Core `Set` residualize
+  until Phase 7's store splitting, and reflective collapse is Phase 9.
+- Next: 6.3 — a semantics-preserving residual normalizer: alpha-canonicalize and
+  flatten administrative lets without moving effects, idempotent, and passing
+  effect counterexamples. It is what 6.4's cross-depth comparison rests on, and
+  §8's Phase 6 warns that a sloppy normalizer makes that claim vacuous.
+
+### 2026-08-24 — task 6.1
+
+- Completed: memoized specialization points and residual `LetRec` (spec §7.5),
+  so recursion the specializer cannot see the end of terminates.
+  - **The key** is the function's identity — its lambda together with the
+    environment it closed over, both compared physically, which is what makes a
+    `LetRec`-bound function's recursive call the same function — plus a
+    projection of each argument: `Known` (static all the way down, compared by
+    `Value.equal`), `Held` (constructor known, contents partly dynamic, compared
+    by identity), `Unknown` (residual code). Known and held arguments are
+    specialized into the residual function's body; unknown ones become its
+    parameters. `lib/stage/specialize.ml{,i}`.
+  - **The trigger is the design decision.** §7.5 says what to memoize, not when.
+    Inlining stays the default and a call becomes a specialization point only
+    when its own key is already being inlined. A key repeats only once unrolling
+    has stopped making progress, so `power(3, x)` walks four different keys and
+    creates no point, and a traversal of a static spine walks four different
+    `Held` lists — every Phase 5 result is unchanged, and the pre-existing
+    collapse-report counters are identical.
+  - **The point belongs to the call that started the inlining**, not the one
+    that discovered the cycle. Discovery normally happens inside a dynamic
+    conditional's branch, and a function bound there is unreachable from the
+    next call with the same key. `Specialize` records each entered call's
+    context — open emission blocks, visible point scopes, active calls — and
+    committing a point reinstalls it. The entered key is deliberately not active
+    inside, so the recursive call reaches the memo table and calls the point
+    being defined. That ties the knot, and it is why mutual recursion closes on
+    one function with its partner inlined into it.
+  - **Emission blocks now carry ordered items**, let-insertions and `LetRec`
+    groups, instead of a list of bindings (`lib/stage/emit.ml`). A point is
+    bound where it was created and never hoisted: its body may mention binders
+    that let-insertion introduced earlier in that block, and the partially
+    static values specialized into it may hold residual variables of that block.
+    A point's scope ends when its block does, so the two branches of a dynamic
+    conditional each get their own.
+  - `Identity` mode is untouched; all of this is inside the `Lift` branch of
+    `apply`.
+- Measurement: `Metrics.specialization` gains `specialization_points` and
+  `memoized_calls`, printed as `Specialization points: N (M calls)`. Zero is the
+  stronger result — it says every recursion in the program was decided at
+  specialization time — which is §7.5's argument for instrumenting
+  generalizations, one step earlier.
+- Tests: new `test/unit/stage_recursion_test.ml` (12 programs, all but the two
+  static-control regressions overflowed the host stack before this change, so termination is part of
+  the assertion; each residual is run against its source on several argument
+  lists). `test/laws/collapse_criterion_test.ml` gains two dynamically recursive
+  open samples, so the milestone-2 criterion now covers residuals containing a
+  `LetRec`: 73 samples, 250 residual nodes, still zero interpretation.
+  `test/golden/collapse.expected` gains the new report line and a
+  "recursion on an unknown argument" sample, which is where that counter is not
+  zero — the golden file's rule is that every counter is non-zero somewhere.
+- Documentation: ADR 0031; spec §7.5 carries a Done note and §8's Phase 6 an
+  in-progress note; §8's Phase 5 Done figures are updated to the grown suite
+  with the original figures kept alongside; README describes the strategy.
+- Verified with OCaml 5.4.1 and Dune 3.24.2: `opam exec -- dune build @all`,
+  `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
+  `opam exec -- dune exec ash -- --demos`, and
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`
+  all pass.
+- Known issues: recursion whose static projection *grows* still does not
+  terminate at specialization time (6.2); a recursive closure that passes itself
+  across a dynamic boundary each step likewise, because `reify_value` of a
+  closure is not itself a specialization point (6.2); the same key met in two
+  branches of a dynamic conditional produces two residual functions, which is
+  correct but larger than necessary (6.3). Unchanged and expected: `open fn`
+  dereferences and Core `Set` residualize until Phase 7's store splitting, and
+  reflective collapse is Phase 9.
+- Next: 6.2 — specialization budgets and generalization: a depth/size cutoff
+  that progressively marks arguments dynamic under budget pressure, reports
+  every reason, and makes hostile recursive cases terminate with useful
+  diagnostics. The `generalizations` field in `Metrics.specialization` and the
+  report line already exist and are wired to zero.
+
+### 2026-08-24 — task 5.5 (Phase 5 complete — milestone 2)
+
+- Completed: the pure Phase 5 criterion, as a law suite
+  (`test/laws/collapse_criterion_test.ml`) rather than a claim in prose.
+  - **What is proved, per sample, at depth 1:** the source run, the depth-1
+    tower run, and the residual run agree on value, on failure cause and
+    location, and on the observable trace; the residual contains zero surviving
+    eval-cell dereferences, evaluator calls, Core-constructor dispatch sites,
+    residualized `NamedVar` lookups, and reflection boundaries, and no nodes
+    from any other source; specialization left no output; and the residual costs
+    no more to run than the source.
+  - **Samples:** 71. The pure corpus's 44 values and 21 failures, plus 6 whose
+    value is a function of an argument the specializer does not have. A pure
+    program that fails is inside the claim: specialization may fold a certain
+    failure, but only into the failure the program actually has, at the place it
+    has it.
+  - **Three defences against tautology.** The premise is asserted — the tower
+    run must have performed the interpretation the residual is claimed not to
+    contain (906,684 dispatches and 2,125,537 cell reads across the suite,
+    against 142 residual nodes). The six function-valued samples are checked to
+    still be lambdas with non-trivial bodies and are compared by *applying*
+    source and residual to the same arguments, closure equality being identity.
+    And the criterion is falsifiable: the boundary section runs an `open fn`
+    group and a runtime `code_view`, requires the measurement to report the
+    interpretation they leave, and requires those uncollapsed residuals to still
+    be correct.
+  - Verified against deliberate violations before acceptance: a program with a
+    surviving `open_deref` fails the criterion, and a residual that folded to a
+    literal fails the "still computes" check.
+- Scope, recorded rather than assumed: ADR 0030 fixes what `collapse(1, p)`
+  means in Phase 5 — specialize `p`, and compare it against what the depth-1
+  tower did. Squashing the interposed evaluator itself needs the meta `eval`
+  binding to fold when the evaluator's identity is statically known, which is
+  §7.4 step 5 and task 9.1. The ADR also records the `Quote` prerequisite for
+  the first Futamura projection so it is not rediscovered.
+- Documentation: ADR 0030; spec §8's Phase 5 carries a Done note with the
+  figures; README documents the suite and what keeps it honest.
+- `Metrics.t` now carries the `globals` the measurement used, which is what a
+  caller needs to apply a residual function itself.
+- Verified with OCaml 5.4.1 and Dune 3.24.2 from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`,
+  `opam exec -- dune exec ash -- --demos`, and
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`
+  all pass.
+- Known issues: none inside the fragment. Outside it, unchanged and expected:
+  recursion driven by dynamic control does not terminate at specialization time
+  (6.1, 6.2); `open fn` dereferences and Core `Set` residualize until Phase 7's
+  store splitting; reflective collapse is Phase 9.
+- Next: 6.1 — memoized specialization points and residual `LetRec`, keyed by
+  function identity plus a canonical static-argument projection, so recursive
+  programs specialize without infinite unrolling.
+
+### 2026-08-24 — task 5.4
+
+- Completed: the initial collapse metrics and report (spec §9.4), as a new
+  library `ash.collapse` sitting above `ash.stage` and `ash.tower`.
+  - **One measurement, four numbers per program.** `Metrics.measure` runs the
+    program on the ground evaluator, at a stated tower depth, through the
+    specializer, and then runs the residual — sharing one tower's ground
+    globals and one buffered output stream, with counters cleared between
+    phases so each figure belongs to the phase it is printed under.
+  - **`Residue.survey` decides what interpretation survived, syntactically.**
+    `open_deref` applications are evaluator-group dereferences; an application
+    *of* an `open_deref` is a surviving evaluator call; `code_view`/`code_match`
+    are constructor dispatch; `NamedVar` nodes are lookups by printed name;
+    reflection-class applications are boundaries. Callees are resolved by
+    hygienic identity in the environment the residual will run in, so a local
+    binder printing `open_deref` counts as nothing.
+  - **Residue is attributed by provenance.** Residual nodes are grouped by the
+    source file their span ultimately points at, so "interpreter residue" is
+    nodes that came from some other program's text — the definition that will
+    still mean something when the input contains an interpreter.
+  - **Agreement is stated honestly or not at all.** A value carrying a closure,
+    continuation, reifier, environment, or cell cannot be compared across two
+    runs (closure equality is identity), so the report says so rather than
+    comparing lambda syntax and calling it agreement.
+  - **`Depth.interposed_term`** exposes the term interposed at each level, so
+    the per-level interpreter size the §9.1 figure multiplies by depth is
+    measured from what is actually installed.
+  - **CLI:** `ash --collapse FILE [--depth N]`, with `examples/fact.ash` as the
+    sample program.
+- Acceptance: `test/golden/collapse.expected` pins the report over nine samples
+  chosen so every counter is non-zero in at least one — full folding; the same
+  program at depths 0, 1, and 3; a residual that still depends on an unknown
+  argument; a traversal of a statically shaped list; an open-recursion group
+  (2 surviving dereferences); a `code_view` dispatch (1 surviving site);
+  observable output (source and residual print, specialization does not); and a
+  program outside the fragment (no residual, and the report says why).
+  `test/unit/collapse_test.ml` pins what the numbers mean, including the
+  hygiene of callee identification, residue across two source files, and the
+  invariants that level 0's cost does not depend on depth and that
+  specialization leaves no output.
+- Cross-check: the report's depth figures reproduce
+  `docs/progress/0001-depth-cost.md` exactly — 162 level-0 steps for `fact(5)`,
+  and 960, 4720, 23600 at levels 1, 2, and 3.
+- Decisions and documentation: ADR 0029 records what the report measures and
+  what it deliberately does not claim, including why heap words stay out of the
+  printed report (they vary with the OCaml runtime; `Metrics` still carries them
+  for task 10.4) and why classification is not attempted (task 10.2). README and
+  AGENTS document the command and its golden file; `examples/README.md` lists
+  the sample.
+- Known issues: none. The report is scoped, and says so in its own output: the
+  residual is the program specialized on its own, so the tower figures are the
+  cost collapse is set against rather than a cost this residual removed.
+  Erasing a level's interposed evaluator needs the meta `eval` binding to fold
+  when the evaluator's identity is statically known — Phase 9.1.
+- Next: 5.5 — prove the pure Phase 5 criterion: compare source, tower, and
+  residual runs, and show every depth-1 pure sample equivalent with zero Core
+  dispatch and zero surviving eval-cell dereferences. Expect one design
+  question first: `Quote` currently residualizes in lift mode, so a program the
+  specializer holds as syntax is dynamic to it, and a self-interpreter applied
+  to a known program would not fold. Deciding how a statically known `Code`
+  value differs from an unknown one is the substance of that task.
+
+### 2026-08-24 — task 5.3
+
+- Completed: staging of the pure fragment (spec §7.4 step 1) — higher-order
+  Core, recursion, and immutable data.
+  - **Partially static data.** A `Value.List` whose spine is known may carry
+    dynamic `Code` elements and is still a real static value.
+    `Stage_value.is_shape_static` names that condition; `is_purely_static` keeps
+    its old, stronger meaning.
+  - **Primitives declare what they inspect.** New `Ash_core.Observation`
+    (`Whole_value | Shape_only | Unobserved`, per argument position) is a field
+    on `Value.primitive`, defaulting to whole-value. `cons` observes only the
+    shape of its tail, `head`/`tail`/`empty?`/`length`/`list?` only their
+    argument's constructor, `list` nothing. One predicate,
+    `Stage_value.may_fold`, reads the effect class and the observation together:
+    *fold when the class permits it and nothing the primitive inspects is
+    dynamic*. Class still dominates — no argument knowledge folds `print` or
+    `cell_new`.
+  - **One boundary conversion.** `Staged_eval.reify_value` replaced
+    `lift_to_code` wherever a value crosses into residual code. It reifies a
+    closure into its lambda syntax with dynamic parameters and an isolated
+    `reify_block` body, rebuilds a non-empty list as a residual `list` call over
+    reified elements, and defers everything else to `lift`. The `lift`
+    primitive's §D6 domain is unchanged; §D6 already prescribed exactly this for
+    the specializer.
+  - **`apply_primitive` simplified.** The fold and residualize paths are now one
+    decision instead of a duplicated class match; residual provenance still
+    distinguishes `stage/prim` (foldable, arguments not known) from
+    `stage/residualize` (class forbids folding).
+- Acceptance:
+  - `test/differential/residual_test.ml` (new) stages all 44 pure corpus
+    programs and compares source execution with residual execution — value,
+    failure cause, and observable trace — and checks that specialization itself
+    leaves no output and that every residual is closed.
+  - `test/unit/stage_fragment_test.ml` (new) does the same for programs whose
+    result still depends on unknown arguments: `twice`, a closure crossing into
+    a dynamic call, one closure reified twice, a closure chosen by a dynamic
+    branch, a curried closure over a dynamic capture, a higher-order fold, a
+    static-exponent `power`, mutual recursion, `mapinc`/`append`/`rev` over
+    static spines of dynamic elements, and nested partially static data. Each
+    residual is applied to concrete arguments and must give the source's answer.
+    It also pins what must *not* fold (`==` over dynamic elements, `list?` and
+    `length` of unknown values) and unit-tests `may_fold` directly.
+  - Collapse actually happens, and is asserted, not assumed: `power(3, x)`
+    leaves three multiplications and no comparison; `mapinc(list(x, 7))` leaves
+    one addition and no `empty?`/`head`/`tail`/`cons`; `head(cons(x, nil))`
+    leaves the identity.
+- Decisions and documentation: ADR 0028 records partially static data, the
+  observation policy, and boundary reification. Spec §D7's "fold when all
+  arguments are static" is updated in the same change (§D6 needed no change and
+  is cited as confirming the closure decision). README documents the second
+  primitive field, the boundary conversion, and the new differential.
+- Known issues: recursion driven by *dynamic* control still does not terminate
+  at specialization time — that is 6.1's memoized specialization points and
+  residual `LetRec` plus 6.2's budgets, and is deliberately not preempted here.
+  Reifying one closure at several boundaries duplicates its body; 6.1 bounds it.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and
+  `opam exec -- dune exec ash -- --demos` all pass.
+- Next: 5.4 — initial collapse metrics and report: count semantic, materialized,
+  and residual size, interpreter nodes, eval-cell dereferences, dispatch sites,
+  `NamedVar` lookups, evaluator calls, generalizations, and reflection
+  boundaries, with provenance and reasons, behind stable golden tests.
 
 ### 2026-08-23 — staging correctness review fixes
 

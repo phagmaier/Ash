@@ -15,7 +15,7 @@ let span = Span.generated ~by ~from:Span.unknown
    Semantically it is the identity: it forwards all three arguments to the
    evaluator that was in the cell and adds nothing. Transparency is the claim
    that this is observationally true however many times it is stacked. *)
-let interpreter ~base =
+let interposed_lambda () =
   let base_name = Ident.fresh "base" in
   let e = Ident.fresh "e" in
   let r = Ident.fresh "r" in
@@ -25,9 +25,19 @@ let interpreter ~base =
       ~func:(Core.var ~span base_name)
       ~args:[ Core.var ~span e; Core.var ~span r; Core.var ~span k ]
   in
+  (base_name, Core.lambda ~params:[ e; r; k ] ~body)
+
+(* The same term the collapse report measures, so the size it multiplies by
+   depth is the size of what is actually interposed. *)
+let interposed_term () =
+  let _, lambda = interposed_lambda () in
+  Core.of_lambda ~span lambda
+
+let interpreter ~base =
+  let base_name, lambda = interposed_lambda () in
   Value.Closure
     {
-      Value.clo_lambda = Core.lambda ~params:[ e; r; k ] ~body;
+      Value.clo_lambda = lambda;
       clo_env = Env.extend [ (base_name, base) ] Value.empty_env;
       clo_name = Some (Ident.fresh "interpreter");
     }

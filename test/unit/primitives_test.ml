@@ -78,6 +78,7 @@ let identity_primitive =
     Value.prim_name = "identity";
     prim_arity = Value.Exactly 1;
     prim_class = Effect_class.Pure;
+    prim_observes = Observation.whole_values;
     prim_impl =
       (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with [ a ] -> k a | [] | _ :: _ :: _ -> k Value.Unit);

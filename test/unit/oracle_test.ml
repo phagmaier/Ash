@@ -292,6 +292,7 @@ let test_frozen () =
       Value.prim_name = "print";
       prim_arity = Value.Exactly 1;
       prim_class = Effect_class.Observable_effect;
+      prim_observes = Observation.whole_values;
       prim_impl =
         (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
           logged := args;

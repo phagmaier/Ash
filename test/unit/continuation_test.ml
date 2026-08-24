@@ -151,7 +151,7 @@ let test_one_shot () =
       | Error.Arity_error _ | Error.Unsupported _ | Error.Division_by_zero
       | Error.Meta_error _ | Error.Immutable_binding _ | Error.No_matching_clause _
       | Error.Duplicate_binder _ | Error.Open_code _ | Error.Unliftable_value _
-      | Error.Inconsistent_pattern_binders _ | Error.End_of_input ->
+      | Error.Inconsistent_pattern_binders _ | Error.End_of_input | Error.Budget_exhausted _ ->
           incr failures;
           Printf.printf "FAIL a second invocation reported the wrong cause: %s\n"
             (Error.to_string error)));

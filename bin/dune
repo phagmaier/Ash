@@ -1,4 +1,4 @@
 (executable
  (name main)
  (public_name ash)
- (libraries ash ash.examples))
+ (libraries ash ash.core ash.collapse ash.examples))

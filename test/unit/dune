@@ -21,7 +21,11 @@
   tower_test
   reifier_test
   up_test
-  stage_test)
- (libraries ash.core ash.syntax ash.runtime ash.tower ash.stage)
+  stage_test
+  stage_fragment_test
+  stage_recursion_test
+  stage_budget_test
+  collapse_test)
+ (libraries ash.core ash.syntax ash.runtime ash.tower ash.stage ash.collapse)
  (flags
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))

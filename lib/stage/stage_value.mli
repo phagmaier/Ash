@@ -23,6 +23,16 @@ val static_value : Value.value -> bool
 val is_purely_static : Value.value -> bool
 (** True iff the value and all its sub-elements (for lists) are static. *)
 
+val is_shape_static : Value.value -> bool
+(** True iff the value's own constructor is known at specialization time, which
+    is everything but dynamic {!Value.Code}. A list is shape-static even when
+    its elements are dynamic: its spine is a real spine. *)
+
+val may_fold : Value.primitive -> Value.value list -> bool
+(** True iff [primitive] may be applied during specialization to [arguments]:
+    its {!Effect_class} permits folding and every argument it inspects is known
+    to the depth it inspects (see {!Ash_core.Observation}). *)
+
 val dynamic_code : Value.value -> Core.t option
 (** Extract the {!Core.t} syntax from a dynamic {!Value.Code}, or [None]. *)
 

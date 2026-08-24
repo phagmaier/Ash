@@ -18,7 +18,14 @@ What each prints is stored in `test/golden/demos.expected` and compared by
 | File | What it shows |
 |------|---------------|
 | `tracing.ash` | Spec §5.3. A program reaches up and replaces the evaluator running it, mid-flight. The trace has one line per evaluated Core node: if open recursion (§D3) regressed, it would print a handful of lines and still return the right answer. |
+| `fact.ash` | The collapse report's sample program (spec §9.4). Nothing in it is unknown, so it folds to its answer: `--collapse` prints what the tower costs beside what the residual costs. |
 | `level_2_counting.ash` | Spec §5.6. Level 1 is made to interpret level 0, and level 2 then counts the work level 1 does. The ratio between the two counters is the per-level cost of a tower nobody has collapsed — the measurement Phase 5 exists to reduce. |
 
+`fact.ash` is not a demo — it is an ordinary program, run with:
+
+```sh
+opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1
+```
+
 Depth measurements for the same machinery are in
-`docs/progress/0001-depth-cost.md`.
+`docs/progress/0001-depth-cost.md`, and the report reproduces them.

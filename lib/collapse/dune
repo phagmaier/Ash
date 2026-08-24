@@ -1,0 +1,6 @@
+(library
+ (name ash_collapse)
+ (public_name ash.collapse)
+ (libraries ash.core ash.syntax ash.runtime ash.stage ash.tower)
+ (flags
+  (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))

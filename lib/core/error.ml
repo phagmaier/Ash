@@ -22,6 +22,7 @@ type cause =
   | Duplicate_binder of string
   | Inconsistent_pattern_binders of { expected : string list; actual : string list }
   | End_of_input
+  | Budget_exhausted of { what : string; limit : int; callee : string option }
 
 type t = { phase : phase; span : Span.t; level : int option; cause : cause }
 
@@ -106,6 +107,13 @@ let message ~show_ids cause =
       Printf.sprintf "pattern alternatives must bind the same names: expected %s, found %s"
         (names expected) (names actual)
   | End_of_input -> "no input left to read"
+  | Budget_exhausted { what; limit; callee } ->
+      Printf.sprintf
+        "specialization exhausted its %s budget of %d%s, and every argument is already dynamic"
+        what limit
+        (match callee with
+        | Some name -> Printf.sprintf " while specializing `" ^ name ^ "`"
+        | None -> "")
 
 let cause_message cause = message ~show_ids:false cause
 
@@ -150,6 +158,10 @@ let cause_equal a b =
       List.equal String.equal x.expected y.expected
       && List.equal String.equal x.actual y.actual
   | End_of_input, End_of_input -> true
+  | Budget_exhausted x, Budget_exhausted y ->
+      String.equal x.what y.what
+      && Int.equal x.limit y.limit
+      && Option.equal String.equal x.callee y.callee
   | ( ( Unbound_ident _ | Unbound_name _ | Ambiguous_name _ | Unfilled_binding _
       | Open_code _ | Unliftable_value _
       | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
@@ -157,7 +169,7 @@ let cause_equal a b =
       | Continuation_reuse _ | Meta_error _ | Immutable_binding _
       | No_matching_clause _
       | Duplicate_binder _
-      | Inconsistent_pattern_binders _ | End_of_input ),
+      | Inconsistent_pattern_binders _ | End_of_input | Budget_exhausted _ ),
       _ ) ->
       false
 

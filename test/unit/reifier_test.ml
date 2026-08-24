@@ -202,7 +202,7 @@ let test_continuation_is_one_shot () =
         | Error.Unsupported _ | Error.Division_by_zero | Error.Meta_error _
         | Error.Immutable_binding _ | Error.No_matching_clause _
         | Error.Duplicate_binder _ | Error.Inconsistent_pattern_binders _
-        | Error.End_of_input ->
+        | Error.End_of_input | Error.Budget_exhausted _ ->
             false);
       check "the reuse names the level whose control was captured"
         (error.Error.level = Some 0)
