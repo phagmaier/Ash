@@ -46,6 +46,7 @@ and primitive = {
     lift:lifter ->
     run:runner ->
     reflect:reflector ->
+    meta:meta_reader ->
     value list ->
     (value -> answer) ->
     answer;
@@ -57,6 +58,14 @@ and runner = call_site:Span.t -> Core.t -> (value -> answer) -> answer
 
 and reflector =
   call_site:Span.t -> code:Core.t -> env:env -> cont:value -> (value -> answer) -> answer
+
+and meta_reader = call_site:Span.t -> meta_query -> value
+
+and meta_query =
+  | Below_eval_cell
+  | Below_apply_cell
+  | Below_global_env
+  | Tower_depth
 
 and arity = Exactly of int | At_least of int
 

@@ -25,8 +25,9 @@ opam exec -- dune runtest
 opam exec -- dune exec ash -- --help
 ```
 
-The CLI is only a bootstrap shell at present. Follow the first unchecked task in
-`to-do.md` to continue implementation.
+The CLI also runs the packaged milestone demos — `ash --demos` to list them,
+`ash --demo tracing` and `ash --demo level-2-counting` to run one. Follow the
+first unchecked task in `to-do.md` to continue implementation.
 
 ## Repository layout
 
@@ -37,11 +38,12 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, precedence parser, and desugarer |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
 | `lib/self/` | `ash.self`: the self-interpreter written in Ash (`eval.ash`) and the real-Code layer harness |
-| `lib/tower/` | `ash.tower`: independently stateful levels, one-step lazy materialization, and the level neighbourhood the up/down protocol reads |
+| `lib/tower/` | `ash.tower`: independently stateful levels, one-step lazy materialization, the level neighbourhood the up/down protocol reads, and the depth harness the laws run on |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
+| `examples/` | `ash.examples`: the packaged milestone demos, as Ash source embedded at build time |
 | `test/unit/` | module-level behaviour tests |
 | `test/differential/` | oracle/CPS and CPS/self-interpreter comparisons on one shared corpus |
-| `test/laws/` | semantic invariants — currently open recursion at the Ash level, including at depth |
+| `test/laws/` | semantic invariants — open recursion at the Ash level, and the §5.7 tower laws at depths 0–5 |
 | `test/golden/` | pinned token streams, diagnostics, and reports |
 | `docs/decisions/` | numbered architecture decision records |
 | `docs/progress/` | experiment and reproducibility notes |
@@ -332,6 +334,7 @@ occurrence through it. Hygiene is therefore not a pass that runs afterwards — 
 | `` `{ e } `` / `${x}` | `Quote` of a hygienic template; pure `code_splice` calls at holes |
 | `Lit(p)`, `App(p,p)`, … | guarded `code_view` followed by ordinary nested patterns |
 | `` `{ ${p} … } `` pattern | alpha-aware `code_match`, then ordinary patterns over captures |
+| `up { E }` | a `Reifier` applied to nothing, its body binding the meta names and ending in `resume(cont, E)` |
 
 Adjacent `fn` declarations in one statement list form a single `LetRec` group, so
 mutual recursion is written by writing it, and a statement list ending in a
@@ -628,6 +631,108 @@ the base program. A machine with no tower installed refuses both reifier
 application and `reflect` rather than materializing a level no tower knows
 about. See
 [`docs/decisions/0023-reifiers-and-the-up-down-protocol.md`](docs/decisions/0023-reifiers-and-the-up-down-protocol.md).
+
+## `up` and the meta bindings
+
+`up { … }` is the surface form of that protocol. It is sugar, and the sugar is
+visible in the golden output: a reifier applied to no arguments — there are none
+to reify, only a level to reach — whose body binds the meta names of spec §5.2
+and ends in `resume(cont, E)`, which is why the level below resumes with the
+body's value unless the body resumed it earlier itself.
+
+| Name | What it is |
+|------|------------|
+| `exp` | the call the sugar expanded to, as `Code`: what the level below was evaluating |
+| `env` | the level below's environment at the `up` |
+| `cont` | its one-shot continuation |
+| `eval`, `apply` | the level below's open-recursion cells |
+| `global` | the level below's own global environment |
+| `level` | the relative level of the body, so an `up` body is 1 and a nested one is 2 |
+| `resume`, `meta_error` | ordinary globals, needing nothing added |
+
+`eval` and `apply` are bound exactly the way an `open fn` group's members are:
+reading one is `open_deref` and assigning to one is `open_set`. So
+
+```ash
+up {
+  let base = eval
+  eval := fn(e, r, k) -> { print(show(e)); base(e, r, k) }
+}
+fib(3)
+```
+
+writes through the cell the level below already dereferences on every step. The
+replacement is *persistent*: it outlives the `up` that installed it, it wraps
+whatever was there before rather than replacing it, and because §D3 makes every
+recursive evaluator call a cell dereference it intercepts every nested node, not
+the outermost one. It does not intercept the level running it — a replacement
+that was its own interpreter would not survive its first step.
+
+`tower_depth()` is the separate, deliberate opt-in of §D9: `level` is relative
+and says nothing about the tower, while `tower_depth()` reports how many levels
+are materialized. A program that calls it is depth-sensitive by construction,
+which is what lets the collapse report detect depth sensitivity syntactically.
+
+Behind the bindings are five Reflection primitives — `meta_eval`, `meta_apply`,
+`meta_global`, `tower_level`, and `tower_depth` — because each answers a question
+about *which machine is asking*, which only the applying evaluator knows. Read at
+the base program, the first three refuse in the same words `reflect` does: there
+is no level below. See
+[`docs/decisions/0024-up-and-the-meta-bindings.md`](docs/decisions/0024-up-and-the-meta-bindings.md).
+
+## Depth, and the tower laws
+
+`Ash_tower.Depth` runs a program under a tower of a stated depth. Depth here
+means levels that are *actually interpreting*: `Depth.interpose` writes an Ash
+closure — `fn(e, r, k) -> base(e, r, k)`, semantically the identity — into a
+level's evaluator cell, exactly as `up { eval := … }` does from inside the
+language, so every step of that level becomes a term the level above evaluates.
+
+The alternative definition, "levels that are materialized", would make the
+transparency law vacuous: a materialized level whose cell is untouched runs the
+identical host function with identical counters, by construction. See
+[`docs/decisions/0025-what-tower-depth-means.md`](docs/decisions/0025-what-tower-depth-means.md).
+
+`test/laws/tower_laws_test.ml` proves the §5.7 laws over that, at depths 0–5, on
+the same corpus `test/differential/` uses plus observable-output programs:
+
+| Law | How it is tested |
+|-----|------------------|
+| Transparency | 96 programs at depths 0–5: same value, same failure (cause, span, phase, level), same effects in the same order. Level 0's own step count is invariant too, which is stronger than the law asks. |
+| Open recursion | A patched evaluator's interception count is large, grows with nesting, and does not depend on the tower's depth. |
+| Reifier identity | Value, effect order, closure, and two failure shapes; nontermination by a counted Ash step cap. |
+| Level independence | The counter moves for level 0's work and not for level 1's own body. |
+| Error propagation | Ownership plus non-resumption — Core has no handler form, so that is what "catchable at *n+1*" means here. |
+| One-shot | A continuation stored in a shared cell, resumed, then invoked again. |
+| Depth observation | `tower_level()` is 0 at every depth; `tower_depth()` is the depth. |
+
+Overlay discipline is the one §5.7 law still open; it needs `meta_with`, which is
+Phase 8. Timing, host stack, resource exhaustion, and gensym counters are
+excluded per §D9 — and the exclusion is a test, not a silence: the suite asserts
+that top-of-tower work *does* vary with depth.
+
+Cost is `steps × 5^depth` for this harness, so depth is budgeted in counted Ash
+steps rather than wall time; one corpus program stops at depth 2 and says so.
+[`docs/progress/0001-depth-cost.md`](docs/progress/0001-depth-cost.md) has the
+numbers.
+
+## Demos
+
+Two packaged demos, both Ash programs in `examples/`, embedded at build time so
+the CLI and the golden test cannot run different source:
+
+```sh
+opam exec -- dune exec ash -- --demos
+opam exec -- dune exec ash -- --demo tracing
+opam exec -- dune exec ash -- --demo level-2-counting
+```
+
+`tracing` is spec §5.3: a program replaces the evaluator running it and prints
+one line per evaluated Core node — 59 of them for `fib(3)`, which is the visible
+form of invariant OR. `level-2-counting` is §5.6: level 1 is made to interpret
+level 0, and level 2 counts what level 1 then does, reporting 715 interpreter
+steps for 67 program steps. What both print is stored in
+`test/golden/demos.expected`.
 
 ## The differential corpus
 

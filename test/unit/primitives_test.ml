@@ -79,7 +79,7 @@ let identity_primitive =
     prim_arity = Value.Exactly 1;
     prim_class = Effect_class.Pure;
     prim_impl =
-      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with [ a ] -> k a | [] | _ :: _ :: _ -> k Value.Unit);
   }
 
@@ -111,7 +111,9 @@ let expected_classification =
     ("callcc", control); ("resume", control); ("invoke", control);
     ("invoke_at", control);
     ("lift", reflection); ("run", reflection); ("reflect", reflection);
-    ("meta_error", reflection);
+    ("meta_error", reflection); ("meta_eval", reflection);
+    ("meta_apply", reflection); ("meta_global", reflection);
+    ("tower_level", reflection); ("tower_depth", reflection);
   ]
 
 let sorted_names names = List.sort String.compare names
@@ -180,7 +182,8 @@ let test_classification () =
        (Primitives.by_class Effect_class.Control));
   check "reflection contains staging, closed-code execution, and the tower protocol"
     (List.equal String.equal
-       [ "lift"; "run"; "reflect"; "meta_error" ]
+       [ "lift"; "run"; "reflect"; "meta_error"; "meta_eval"; "meta_apply";
+         "meta_global"; "tower_level"; "tower_depth" ]
        (Primitives.by_class Effect_class.Reflection));
 
   check "an unregistered name has no class" (Primitives.class_of "nope" = None);
@@ -232,6 +235,7 @@ let test_arity () =
                     ~lift:(fun ~call_site:_ _ -> Core.lit ~span:sp Constant.Unit)
                     ~run:(fun ~call_site:_ _ k -> k Value.Unit)
                     ~reflect:(fun ~call_site:_ ~code:_ ~env:_ ~cont:_ k -> k Value.Unit)
+                    ~meta:(fun ~call_site:_ _ -> Value.Unit)
                     args (fun v -> v))
             with
             | Ok _ ->
@@ -262,6 +266,9 @@ type expectation =
       (** A primitive that accepts every value: a call that must succeed. *)
   | Always_fails of (Value.value list * Error.cause) list
       (** A primitive whose job is to fail, whatever it is given. *)
+
+let no_level_below what =
+  Error.Unsupported { what; by = "the base program, which has no level below it" }
 
 let type_expectations =
   let n = Value.Num 1 and s = Value.Str "x" and b = Value.Bool true in
@@ -380,6 +387,23 @@ let type_expectations =
         ] );
     ( "meta_error",
       Always_fails [ ([ s ], Error.Meta_error "x") ] );
+    (* The three questions about the level below have no answer at the base
+       program, and refusing is the same refusal [reflect] gives from the other
+       direction: there is nothing down there to name. *)
+    ( "meta_eval",
+      Always_fails
+        [ ([], no_level_below "eval") ] );
+    ( "meta_apply",
+      Always_fails
+        [ ([], no_level_below "apply") ] );
+    ( "meta_global",
+      Always_fails
+        [ ([], no_level_below "global") ] );
+    (* Both level readings answer at the base program, and both answer 0 there:
+       [level] is relative and the base program is 0 by definition, and a tower
+       nobody has reflected on has materialized nothing. *)
+    ("tower_level", Total []);
+    ("tower_depth", Total []);
   ]
 
 let test_type_errors () =

@@ -24,7 +24,8 @@ let type_error ~span ~level ~expected value =
    The body runs under the identity continuation, so a reifier that never
    invokes the continuation it was handed does not return to level [n] at all:
    its value is the answer of the run. That is what "level n never resumes"
-   means operationally, and [up] (task 4.3) is the sugar that always resumes. *)
+   means operationally, and [up] is the sugar that always resumes, because its
+   expansion ends in [resume(cont, E)]. *)
 let shift_up machine ~exp ~env ~reifier k =
   let level = Machine.level machine in
   match Machine.above machine with
@@ -64,6 +65,27 @@ let reflect_down machine ~call_site ~code ~env ~cont k =
   | Some lower ->
       Machine.eval lower code env (fun value ->
           Machine.apply machine ~call_site cont [ value ] k)
+
+(* The upward half's questions, as opposed to its transfer (spec §5.2). [up]
+   binds [eval], [apply], and [global] to things that belong to the level below
+   the one its body runs at, and [tower_depth()] to a fact about the tower. A
+   primitive cannot find any of them: the registry is shared by every level
+   (ADR 0017), so only the applying machine knows which level it is. *)
+let meta_view machine ~call_site query =
+  let level = Machine.level machine in
+  let below what =
+    match Machine.below machine with
+    | Some lower -> lower
+    | None ->
+        fail ~span:call_site ~level
+          (Error.Unsupported
+             { what; by = "the base program, which has no level below it" })
+  in
+  match query with
+  | Value.Below_eval_cell -> Value.Cell (Machine.meta_eval_cell (below "eval"))
+  | Value.Below_apply_cell -> Value.Cell (Machine.meta_apply_cell (below "apply"))
+  | Value.Below_global_env -> Value.Environment (Machine.global_env (below "global"))
+  | Value.Tower_depth -> Value.Num (Machine.tower_depth machine)
 
 (* Every recursive call below goes through [Machine], never directly to one of
    these functions: that is what makes a replaced cell intercept the next step
@@ -222,6 +244,7 @@ let apply_default machine ~call_site callee arguments k =
           ~run:(fun ~call_site node k -> run_code machine ~call_site node k)
           ~reflect:(fun ~call_site ~code ~env ~cont k ->
             reflect_down machine ~call_site ~code ~env ~cont k)
+          ~meta:(fun ~call_site query -> meta_view machine ~call_site query)
           arguments k
   | Value.Reifier _ ->
       (* Reification needs the unevaluated call expression, which [eval] has and

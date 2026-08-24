@@ -83,6 +83,12 @@ let constructs =
       "fn classify(n) = {\n  let values = [n, n + 1]\n  choose(values)(0)\n}" );
     ( "pipelines",
       "xs |> map(double) |> sum" );
+    ( "§5.3 the tracing demo",
+      "up {\n\
+      \  let base = eval\n\
+      \  eval := fn(e, r, k) -> { print(show(e)); base(e, r, k) }\n\
+      }\n\
+      fib(3)" );
     ( "§4.2 documented length",
       "fn length(xs) =\n\
       \  match xs {\n\
@@ -138,6 +144,9 @@ let malformed =
     "x y";
     "${x}";
     "match x {}";
+    (* [up] takes a block, not an expression: how far to the right an
+       unbraced body would extend is exactly what blocks settle. *)
+    "up 1";
   ]
 
 let malformed_patterns =

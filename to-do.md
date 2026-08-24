@@ -15,33 +15,33 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 4 — lazy tower (milestone 1)
-- **Next:** 4.3 — implement `up` and all meta bindings
+- **Phase:** 5 — pure collapser (milestone 2)
+- **Next:** 5.1 — add static/dynamic values and a `maybe-lift` evaluator mode
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass with the reifier up/down protocol on top of lazy adjacent-level
-  materialization, per-level cloned globals and evaluator machines, separate
-  materialized/expanded size metrics, the hygienic
-  desugarer, `open fn` groups, the
-  Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
-  44-primitive registry (including source-preserving self-evaluation operations,
-  fixed-domain `lift`, closed-code `run`, and the `reflect`/`resume`/`meta_error`
-  tower protocol), the
-  desugar/continuation/reifier/parser/lexer/Core/runtime suites, the
-  open-recursion law suite including patching at depth, and three differential
-  comparisons over the shared 91-program corpus (73 Core, 18 surface):
-  oracle/CPS, CPS/layer 1, and layers 0/1/2
+  pass from a removed `_build` in about 31 s, with **Phase 4 complete**: lazy
+  level materialization, reifiers and the up/down protocol, surface `up { … }`
+  with the full §5.2 meta bindings, the §5.7 law suite at depths 0–5, and the two
+  packaged milestone demos. Also intact: the hygienic desugarer, `open fn`
+  groups, the Ash self-interpreter (`lib/self/eval.ash`) at layers 1 and 2, the
+  49-primitive registry, the desugar/continuation/reifier/up/parser/lexer/Core/
+  runtime suites, three differential comparisons over the shared 91-program
+  corpus (73 Core, 18 surface), and the golden parser/lexer/desugar/demo output
 - **Blocker:** none
 
-Task 4.2 connects reification to that tower. Applying a reifier happens in
-`eval`'s `App` case, so arguments stay unevaluated; the call, environment, and
-one-shot continuation become values and the body runs on the adjacent level's
-machine in the environment the reifier was written in. `reflect` drops back
-down, `resume` transfers to a captured continuation, and `meta_error` fails at
-the level running it. Every evaluator error now carries the level of the machine
-that raised it. Phase 3's real-Code self-interpreter, staging, source
-preservation, full error comparison, and layer/open-recursion coverage remain
-intact.
+Milestone 1 is done. The tower is real: a program can reach up and replace the
+evaluator running it, the replacement intercepts every nested step and not the
+level running it, and both of the spec's demos are packaged and pinned.
+
+Two things Phase 5 inherits. First, `Ash_tower.Depth` is the definition of
+"running at depth k" — levels that are actually interpreting, not merely
+materialized (ADR 0025) — and it is what 6.4 will compare residuals across.
+Second, `docs/progress/0001-depth-cost.md` is the baseline the collapser has to
+beat: one interposed level costs a flat 5x, so `fact(5)` is 162 steps of program
+and 590 000 steps of machinery at depth 5, none of it observable. Task 5.5's
+criterion — zero surviving Core dispatch and zero surviving eval-cell
+dereferences on pure depth-1 samples — is the claim that this is removable for
+the fragment where it can be.
 
 ## Locked decisions
 
@@ -249,20 +249,42 @@ intact.
     correct level ownership.
   - Accept: identity reifier evaluates effects once; errors reach only level n+1.
 
-- [ ] **4.3 Implement `up` and all meta bindings.**
+- [x] **4.3 Implement `up` and all meta bindings.**
   - Bind `exp`, `env`, `cont`, evaluator cells, `global`, resume/error helpers,
     relative `level`, and explicit `tower_depth()`.
   - Accept: persistent evaluator replacement intercepts arbitrary AST depth and
     does not change the evaluator running its own level.
+  - `up { E }` is a reifier applied to no arguments, its body ending in
+    `resume(cont, E)`; Core is untouched. `eval` and `apply` are bound the way an
+    `open fn` member is, so they are `open_deref`/`open_set` on the level below's
+    real group cell and a replacement is persistent and composes. Materializing a
+    cell is observationally inert, and a replacement runs on the machine above the
+    cell — running it on its own would make it its own interpreter. Five
+    Reflection primitives back the readings, and `tower_depth()` reports the
+    materialized depth. ADR 0024 records all of it, including why `eval_list` is
+    deliberately not a third cell.
 
-- [ ] **4.4 Complete tower law tests except overlays.**
+- [x] **4.4 Complete tower law tests except overlays.**
   - Cover transparency at depths 0–5, OR, reifier identity, level independence,
     error propagation, one-shot enforcement, and depth observation.
   - Explicitly exclude timing, host stack, resources, and gensym counters.
+  - Depth had no meaning the project could test: materialized-but-untouched
+    levels are observationally the default evaluator by construction, so
+    transparency over them would be vacuous. `Ash_tower.Depth` therefore
+    interposes a real Ash identity interpreter at every level below the stated
+    depth. `test/laws/tower_laws_test.ml` runs the whole differential corpus plus
+    observable-output programs — 96 in all — at depths 0–5, budgeted in counted
+    steps. ADR 0025 records the definition and the alternatives;
+    `docs/progress/0001-depth-cost.md` records what a level costs.
 
-- [ ] **4.5 Package tracing and level-2 counting demos.**
+- [x] **4.5 Package tracing and level-2 counting demos.**
   - Store expected output and expose reproducible CLI commands.
   - Accept: tracing logs every node and level 2 counts level-1 evaluator work.
+  - `examples/tracing.ash` and `examples/level_2_counting.ash`, embedded into
+    `ash.examples` by a dune rule the way `lib/self/eval.ash` is, so the CLI and
+    the golden test cannot run different source. `ash --demo NAME` runs one and
+    `ash --demos` lists them; `test/golden/demos.expected` stores exactly what
+    the command prints, through the one renderer both use.
 
 ## Phase 5 — pure collapser (milestone 2)
 
@@ -399,6 +421,142 @@ intact.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — tasks 4.4 and 4.5 (Phase 4 complete)
+
+- Completed: the §5.7 law suite at depth, and both packaged demos.
+  - **What "depth" means.** The project could not express "run this at depth k":
+    `Tower.run` runs at level 0 and nothing ran a program underneath n levels.
+    The obvious fix — materialize k levels — is vacuous, because ADR 0022's
+    laziness and ADR 0024's inertness fast path make an untouched level
+    observationally the default evaluator by construction; transparency over it
+    would pass on the day the tower was deleted. `Ash_tower.Depth` instead
+    interposes an Ash closure `fn(e, r, k) -> base(e, r, k)` into each level's
+    evaluator cell, the way `up { eval := … }` does, so every step of a level is
+    a term the level above evaluates. It reads before writing, so depths stack.
+    It lives in `ash.tower`, not in a test, because 5.5 and 6.4 both need it, and
+    is built in Core because `ash.tower` cannot see `ash.syntax`. ADR 0025.
+  - **`test/laws/tower_laws_test.ml`.** Transparency over 96 programs at depths
+    0–5 — the whole differential corpus, pulled in by a `copy_files#` rule so the
+    laws cannot come to test an easier set than `test/differential/` does, plus
+    five observable-output programs the corpus lacks. Compared: value, failure
+    cause/span/phase/level, and the exact effect sequence. Also depth
+    observation, OR at depth, level independence, reifier identity, error
+    propagation, one-shot enforcement, and the excluded observations.
+  - **Two findings worth keeping.** Level 0's own step count is *invariant* under
+    depth — 162 at depth 0 and at depth 5 for `fact(5)` — so interposition
+    changes who does the base program's work, not how much there is; this is
+    asserted for every corpus program. And one interposed level costs a flat 5x,
+    so cost is `steps × 5^depth`; `docs/progress/0001-depth-cost.md` records the
+    tables and is explicit that 5 is a floor for the smallest possible
+    interpreter, not the constant per-level factor §9 deleted.
+  - **A gap pinned rather than closed.** A primitive's own argument diagnostics
+    still carry no tower level (ADR 0023 deferred it). Two law fixtures had to
+    use evaluator-raised failures instead, and a test now asserts the current
+    behaviour so that closing the gap is a visible change.
+  - **Demos.** `examples/tracing.ash` and `examples/level_2_counting.ash`,
+    embedded into the new `ash.examples` by a dune rule, the way
+    `lib/self/eval.ash` already is. `ash --demo NAME` and `ash --demos`.
+    `test/golden/demos.expected` stores what the command prints, through the same
+    renderer, and ends with the two acceptance numbers computed from the runs.
+- Acceptance: tracing prints **59 lines for `fib(3)`** — one per evaluated Core
+  node, which is invariant OR made visible; a regression to a direct
+  self-reference would print a handful and still return 2. Level-2 counting
+  reports **715 interpreter steps for 67 program steps**, level 2 counting what
+  level 1 does while it interprets level 0, having first made level 1 interpret
+  at all. Both are pinned.
+- Decision and documentation: ADR 0025 records the definition of depth, the two
+  rejected alternatives, why the interposed interpreter must have no effect of
+  its own, and why excluded observations are asserted rather than omitted. The
+  §5.7 checkboxes in `Ash Reflective Tower.md` are updated — six of seven marked,
+  each naming what discharges it; overlay discipline stays open for Phase 8.
+  README gains "Depth, and the tower laws" and "Demos" sections plus layout and
+  build-command updates; AGENTS.md names the demo command; `examples/README.md`
+  documents both programs.
+- Known issues: unchanged from 4.3 — the `apply` cell carries no call site,
+  `eval_list` is not a meta binding, and surface `reifier(…) -> …` has no parser
+  support, so the reifier-identity law is written in Core notation. New: one
+  corpus program (a 310 019-step loop) exceeds the 20 000 000-step depth budget
+  above depth 2 and is reported rather than silently skipped. `dune runtest` is
+  now ~31 s from clean, almost all of it transparency at depths 3–5.
+- Verified with OCaml 5.4.1 and Dune 3.24.2, from a removed `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all pass, as do
+  `opam exec -- dune exec ash -- --demo tracing`,
+  `--demo level-2-counting`, and the focused
+  `test/laws/tower_laws_test.exe`, `test/unit/up_test.exe`,
+  `test/unit/reifier_test.exe`, and `test/laws/open_recursion_test.exe`.
+- Next: 5.1 — static/dynamic values and a `maybe-lift` evaluator mode. Static
+  data are real values, dynamic data are `Code(Core)`, and one evaluator source
+  supports both identity and lifting modes; ordinary evaluation and
+  constant-folding tests must both pass.
+
+### 2026-08-23 — task 4.3
+
+- Completed: `up` and every meta binding of spec §5.2.
+  - `Surface.Up` is new; the parser accepts `up` followed by a block and nothing
+    else, so `up 1` is a parse error naming the missing brace. Core is unchanged.
+  - `Desugar.lower_up` expands `up { E }` to `App(Reifier(exp, env, cont), [])`
+    whose body binds `eval = meta_eval()`, `apply = meta_apply()`,
+    `global = meta_global()`, `level = tower_level()` and ends in
+    `resume(cont, E)`. The reifier's own parameters carry the printed names the
+    spec gives them, so a body writes `exp`/`env`/`cont` hygienically. `resume`
+    and `meta_error` are ordinary globals and needed nothing.
+  - `eval` and `apply` are bound with `open_cell = true`, so reading one lowers
+    to `open_deref` and `eval := f` to `open_set` — the same lowering `open fn`
+    members get (ADR 0015). The cell is the level below's real group cell:
+    `Machine.meta_eval_cell` / `meta_apply_cell` create it on demand, memoize it,
+    and install a dispatcher in the machine's own group cell.
+  - Creating a cell is observationally inert: it holds a wrapper around the
+    evaluator installed at that moment, and the dispatcher compares physical
+    identity, so an untouched cell runs the original host function with the same
+    counters and the same constant-stack tail calls. A replacement runs on the
+    machine *above* the cell, because it was written there; running it on its own
+    machine is non-terminating, which is the sharpest statement of the level
+    split. `let base = eval` closes over the evaluator, not the cell, so a second
+    replacement wraps the first rather than recursing into itself.
+  - New: `Value.meta_query`/`meta_reader` and a fifth primitive callback `~meta`;
+    `Machine.levels.level_tower_depth`, a thunk the tower installs; five
+    Reflection primitives `meta_eval`, `meta_apply`, `meta_global`,
+    `tower_level`, `tower_depth`. The registry is 49 primitives. `tower_depth()`
+    reports the *materialized* depth, since unmaterialized levels are
+    observationally indistinguishable from the default (ADR 0022).
+- Acceptance: `test/unit/up_test.ml` proves the §5.3 replacement keeps the
+  program's answer (12) while intercepting far past the outermost node, that each
+  extra level of nesting costs strictly more intercepted steps with a constant
+  increment, and that level 1's own body evaluation is *not* intercepted (the
+  counter moves by less than the body's own node count while `up { … }` computes
+  10). It also covers resumption and one-step materialization, laziness for
+  ordinary code, `exp`/`env`/`cont`/`global`, `level` at 0/1/2, `tower_depth()`
+  at 0/1/2, persistence and composition of two replacements, the `apply` cell,
+  the inertness of untouched cells, `meta_error` at level 1, and both refusals
+  without a tower.
+- Decision and documentation: ADR 0024 records the expansion, the block-only
+  body, cells over rebinding, the inertness fast path, the upper-machine rule,
+  the `meta_query` protocol, the materialized reading of `tower_depth()`, the
+  `apply` cell's missing call site as a declared boundary, and why `eval_list` is
+  not exposed as a third cell. README gains an `up` section and a desugaring
+  table row; `Desugar`, `Machine`, `Value`, `Primitives`, `Tower`, and
+  `Evaluator` documentation agree. No spec semantics changed.
+- Known issues: the `apply` cell's protocol carries no call site, so a
+  replacement that falls back to the default attributes the application to the
+  fallback's own site. `eval_list` is not a meta binding; §5.2's table does not
+  name it, and the default `eval_list` calls `Machine.eval` per element, so a
+  replaced `eval` still sees every argument. Surface `reifier(…) -> …` still has
+  no parser support — only `up` does — so §5.4's `my_if` is written in Core
+  notation for now.
+- Verified with OCaml 5.4.1 and Dune 3.24.2, the full suite from a removed
+  `_build`:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all pass, as do the focused
+  `opam exec -- dune exec test/unit/up_test.exe`,
+  `test/unit/reifier_test.exe`, `test/unit/primitives_test.exe`, and
+  `test/laws/open_recursion_test.exe`. The full suite retains 91 oracle/CPS
+  programs, 99 self-interpreter programs at layer 1, and 98 at layer 2.
+- Next: 4.4 — complete tower law tests except overlays (transparency at depths
+  0-5, OR, reifier identity, level independence, error propagation, one-shot
+  enforcement, depth observation), explicitly excluding timing, host stack,
+  resources, and gensym counters.
 
 ### 2026-08-23 — task 4.2
 

@@ -211,7 +211,7 @@ let rec check_source_spans expression =
       check_source_spans binary.left;
       check_source_spans binary.right
   | Surface.Assignment assignment -> check_source_spans assignment.assignment_value
-  | Surface.Group grouped -> check_source_spans grouped
+  | Surface.Group grouped | Surface.Up grouped -> check_source_spans grouped
   | Surface.Match match_ ->
       check_source_spans match_.scrutinee;
       List.iter
@@ -256,12 +256,13 @@ let test_spans () =
       | Surface.Literal _ | Surface.Name _ | Surface.Binding _ | Surface.Named_function _
       | Surface.Function _ | Surface.Call _ | Surface.Block _ | Surface.Conditional _
       | Surface.List_literal _ | Surface.Unary _ | Surface.Binary _ | Surface.Assignment _
-      | Surface.Group _ | Surface.Match _ | Surface.Quote _ | Surface.Splice _ ->
+      | Surface.Group _ | Surface.Match _ | Surface.Quote _ | Surface.Splice _
+      | Surface.Up _ ->
           check "the body keeps its two statements" false)
   | Surface.Literal _ | Surface.Name _ | Surface.Binding _ | Surface.Function _
   | Surface.Call _ | Surface.Block _ | Surface.Conditional _ | Surface.List_literal _
   | Surface.Unary _ | Surface.Binary _ | Surface.Assignment _ | Surface.Group _
-  | Surface.Match _ | Surface.Quote _ | Surface.Splice _ ->
+  | Surface.Match _ | Surface.Quote _ | Surface.Splice _ | Surface.Up _ ->
       check "the declaration keeps its shape" false
 
 let test_errors () =

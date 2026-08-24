@@ -64,7 +64,8 @@ let required_primitives =
     "+"; "-"; "*"; "/"; "%"; "<"; "<="; ">"; ">="; "=="; "!="; "not"; "cons";
     "list"; "list?"; "empty?"; "head"; "tail"; "code?"; "code_view";
     "code_splice"; "code_match"; "match_error"; "open_cell"; "open_deref";
-    "open_set";
+    "open_set"; "resume"; "meta_eval"; "meta_apply"; "meta_global";
+    "tower_level";
   ]
 
 let fail ~span cause = Error.raise_cause ~phase:Error.Desugar ~span cause
@@ -86,6 +87,7 @@ let by_list = "desugar/list"
 let by_match = "desugar/match"
 let by_open = "desugar/open"
 let by_quote = "desugar/quote"
+let by_up = "desugar/up"
 
 let bind_name ?(open_cell = false) scope ~assignable name ident =
   { scope with lexical = Names.add name { ident; assignable; open_cell } scope.lexical }
@@ -353,6 +355,7 @@ let rec lower mode scope (node : Surface.t) =
           Core.set ~span ~target:ident
             ~value:(lower mode scope assignment_value))
   | Surface.Group inner -> lower mode scope inner
+  | Surface.Up body -> lower_up mode scope ~span ~body
   | Surface.Match { Surface.scrutinee; clauses } ->
       lower_match mode scope ~span ~scrutinee ~clauses
   | Surface.Quote quoted -> (
@@ -406,9 +409,74 @@ and lower_pipeline mode scope ~span ~left ~right =
   | Surface.Literal _ | Surface.Name _ | Surface.Binding _ | Surface.Named_function _
   | Surface.Function _ | Surface.Block _ | Surface.Conditional _
   | Surface.List_literal _ | Surface.Unary _ | Surface.Binary _ | Surface.Assignment _
-  | Surface.Group _ | Surface.Match _ | Surface.Quote _ | Surface.Splice _ ->
+  | Surface.Group _ | Surface.Match _ | Surface.Quote _ | Surface.Splice _
+  | Surface.Up _ ->
       gen by_pipe
         (Core.app ~span ~func:(lower mode scope right) ~args:[ piped ])
+
+(* {1 Reflection}
+
+   [up { E }] is sugar and the primitive it is sugar for is a reifier (spec
+   §5.4): a call whose arguments are not evaluated, whose body runs one level up,
+   and which is handed the call, the environment, and the continuation of the
+   level it suspended. So [up] is a reifier applied to nothing at all — there are
+   no arguments to reify, only a level to reach — with three things added.
+
+   Its own three parameters are bound under the printed names spec §5.2 gives
+   them, so the body writes [exp], [env], and [cont] and gets hygienic
+   identities. The remaining bindings are the four questions only the machine
+   running the body can answer, so each is a call rather than a constant: [eval]
+   and [apply] are the level below's group cells, [global] its global
+   environment, and [level] the relative level of the body itself (§D9).
+   [resume] and [meta_error] need nothing added — they are ordinary globals.
+
+   [eval] and [apply] are bound exactly the way an [open fn] group's members are:
+   reading one is [open_deref] and assigning to one is [open_set], so
+   [eval := tracing(eval)] writes through the cell the level below already
+   dereferences on every step, and the replacement is persistent. That is the
+   whole of §5.3, and it is not a mechanism of its own — it is the same cell
+   discipline §D3 already requires, reached from one level up.
+
+   The expansion ends in [resume(cont, E)], which is step 4 of §5.2: the level
+   below resumes with the body's value. A body that resumes explicitly earlier
+   never reaches it, and a body that fails never resumes at all. *)
+and lower_up mode scope ~span ~body =
+  let exp = Ident.fresh "exp" in
+  let env = Ident.fresh "env" in
+  let cont = Ident.fresh "cont" in
+  let eval = Ident.fresh "eval" in
+  let apply = Ident.fresh "apply" in
+  let global = Ident.fresh "global" in
+  let level = Ident.fresh "level" in
+  let inner =
+    bind_names scope ~assignable:false
+      [ ("exp", exp); ("env", env); ("cont", cont); ("global", global);
+        ("level", level) ]
+  in
+  let inner =
+    bind_names ~open_cell:true inner ~assignable:true
+      [ ("eval", eval); ("apply", apply) ]
+  in
+  let reader name =
+    gen by_up (Core.app ~span ~func:(primitive scope ~by:by_up ~span name) ~args:[])
+  in
+  let bind binder value rest =
+    gen by_up (Core.let_ ~span ~binder ~value ~body:rest)
+  in
+  let resumed =
+    call_primitive scope ~by:by_up ~span "resume"
+      [ gen by_up (Core.var ~span cont); lower mode inner body ]
+  in
+  let reifier_body =
+    bind eval (reader "meta_eval")
+      (bind apply (reader "meta_apply")
+         (bind global (reader "meta_global")
+            (bind level (reader "tower_level") resumed)))
+  in
+  gen by_up
+    (Core.app ~span
+       ~func:(gen by_up (Core.reifier ~span ~exp ~env ~cont ~body:reifier_body))
+       ~args:[])
 
 (* {1 Statements}
 
@@ -474,7 +542,7 @@ and lower_function_group mode scope ~span ~open_group ~group ~rest =
         | Surface.Call _ | Surface.Block _ | Surface.Conditional _
         | Surface.List_literal _ | Surface.Unary _ | Surface.Binary _
         | Surface.Assignment _ | Surface.Group _ | Surface.Match _ | Surface.Quote _
-        | Surface.Splice _ ->
+        | Surface.Splice _ | Surface.Up _ ->
             invalid_arg "Desugar.lower_function_group: not a named function")
       group
   in

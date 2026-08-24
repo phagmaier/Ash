@@ -53,6 +53,10 @@ let rec install_levels (tower : t) level =
         (match find_level tower (index - 1) with
         | Some below -> Some (Level.machine below)
         | None -> None);
+      (* Read when asked, never stored: materialization is lazy, so the depth a
+         level reports has to be the tower's depth now rather than its depth when
+         the level was created. *)
+      level_tower_depth = (fun () -> materialized tower);
     }
 
 and materialize_above (tower : t) ~level =

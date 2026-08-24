@@ -564,13 +564,15 @@ Counting the steps the level-1 evaluator takes while interpreting your program. 
 
 ### 5.7 Laws to test
 
-- [ ] **Transparency** — a program using no reflective operator produces identical values and identical observable effects at tower depth 0 and depth *k*, for all *k*. (Excluding the resource channels named in D9.)
-- [x] **Open recursion (OR)** — patching `eval` intercepts *every* recursive evaluation step, at arbitrary AST depth. Test in Phase 2. *(Done: `test/laws/open_recursion_test.ml`, including with the patched interpreter itself being interpreted.)*
-- [ ] **Reifier identity** — `id` above is observationally `fn(x) -> x`, including for effectful and non-terminating arguments.
-- [ ] **Level independence** — mutating `eval` at level *n+1* affects levels ≤ *n* and not level *n+1*'s own execution.
-- [ ] **Overlay discipline** — a continuation captured inside a `meta_with` extent and invoked outside it sees the overlay; the ambient meta-context is unaffected.
-- [ ] **Error propagation** — an error at level *n* is catchable at level *n+1* and only there.
-- [ ] **One-shot enforcement** — second invocation of a continuation raises, rather than silently corrupting.
+All but the overlay law are tested in `test/laws/tower_laws_test.ml`, at depths 0–5. "Depth *k*" there means *k* levels that are actually interpreting — each one running an identity interpreter written in Ash — because a level that is merely materialized is observationally the default evaluator by construction and would make transparency vacuous (ADR 0025).
+
+- [x] **Transparency** — a program using no reflective operator produces identical values and identical observable effects at tower depth 0 and depth *k*, for all *k*. (Excluding the resource channels named in D9.) *(Done: 96 programs — the whole differential corpus plus observable-output cases — at depths 0–5. Level 0's own step count is invariant too, which is stronger than the law asks.)*
+- [x] **Open recursion (OR)** — patching `eval` intercepts *every* recursive evaluation step, at arbitrary AST depth. Test in Phase 2. *(Done: `test/laws/open_recursion_test.ml`, including with the patched interpreter itself being interpreted; and at tower depth in `tower_laws_test.ml`, where the number of intercepted steps is shown not to depend on the tower's depth.)*
+- [x] **Reifier identity** — `id` above is observationally `fn(x) -> x`, including for effectful and non-terminating arguments. *(Done: value, effect order, closure, and two failure shapes; nontermination by a counted Ash step cap, never by wall time.)*
+- [x] **Level independence** — mutating `eval` at level *n+1* affects levels ≤ *n* and not level *n+1*'s own execution. *(Done, at depths 0–2. The negative half is the sharp one: a replacement that intercepted its own level would not return from its first step.)*
+- [ ] **Overlay discipline** — a continuation captured inside a `meta_with` extent and invoked outside it sees the overlay; the ambient meta-context is unaffected. *(Phase 8; `meta_with` does not exist yet.)*
+- [x] **Error propagation** — an error at level *n* is catchable at level *n+1* and only there. *(Done as ownership plus non-resumption: Core has no handler form, so "catchable at *n+1*" is observed as the error being attributed to *n+1* and level *n* never resuming. A primitive's own argument diagnostics still carry no level — ADR 0023 deferred that deliberately, and a test pins the current behaviour.)*
+- [x] **One-shot enforcement** — second invocation of a continuation raises, rather than silently corrupting. *(Done, across the level boundary and at depth: the continuation is stored in a cell the level below shares, so it outlives the transfer.)*
 
 ---
 

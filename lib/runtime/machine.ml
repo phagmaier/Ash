@@ -9,6 +9,8 @@ type t = {
   mutable eval_list_cell : eval_list_fn;
   mutable global_env : Value.env;
   mutable levels : levels option;
+  mutable meta_eval : Value.cell option;
+  mutable meta_apply : Value.cell option;
   mutable steps : int;
   mutable eval_calls : int;
   mutable apply_calls : int;
@@ -22,6 +24,7 @@ and levels = {
   level_index : int;
   level_above : unit -> t;
   level_below : t option;
+  level_tower_depth : unit -> int;
 }
 
 and eval_fn = t -> Core.t -> Value.env -> cont -> Value.answer
@@ -35,6 +38,8 @@ let create ~eval ~apply ~eval_list =
     eval_list_cell = eval_list;
     global_env = Value.empty_env;
     levels = None;
+    meta_eval = None;
+    meta_apply = None;
     steps = 0;
     eval_calls = 0;
     apply_calls = 0;
@@ -93,6 +98,152 @@ let above machine =
 
 let below machine =
   match machine.levels with None -> None | Some levels -> levels.level_below
+
+let tower_depth machine =
+  match machine.levels with None -> 0 | Some levels -> levels.level_tower_depth ()
+
+(* {1 The Ash-visible face of the group cells}
+
+   [up] binds [eval] and [apply] to cells (spec §5.2), and a cell is an ordinary
+   Ash value: the meta level reads the current evaluator out of one, and writes a
+   replacement into it. Nothing here is a second mechanism — the cell {e is} the
+   group cell, seen from Ash rather than from OCaml.
+
+   Two properties have to hold, and they decide the shape of the code below.
+
+   Materializing a cell must be observationally inert: [up] asks for both cells
+   whether or not its body touches them, so a level whose cell exists but still
+   holds the evaluator it started with runs exactly the host function it ran
+   before, with the same counters and the same host stack behaviour. That is the
+   [==] fast path.
+
+   And the replacement is written at level [n + 1], so level [n + 1]'s machine is
+   what evaluates it. Running it on the machine whose cell holds it would make it
+   its own interpreter and diverge on the first step. *)
+
+let meta_fail ~call_site ~level cause =
+  Error.raise_cause ~phase:Error.Evaluate ~span:call_site ~level cause
+
+let meta_type_error ~call_site ~level ~expected value =
+  meta_fail ~call_site ~level
+    (Error.Unexpected { found = Value.type_phrase value; expected })
+
+let meta_arity_error ~call_site ~level ~name arguments =
+  meta_fail ~call_site ~level
+    (Error.Arity_error
+       { callee = Some name; expected = "3"; actual = List.length arguments })
+
+(* The evaluator that was installed when the cell was created, wrapped as a
+   value. It closes over that function rather than over the cell, because
+   [let base = eval; eval := wrap(base)] must reach the evaluator that was there:
+   a wrapper that re-read the cell would call itself. *)
+let default_eval_value machine base =
+  Value.Primitive
+    {
+      Value.prim_name = "eval";
+      prim_arity = Value.Exactly 3;
+      prim_class = Effect_class.Reflection;
+      prim_impl =
+        (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+          match args with
+          | [ code; environment; cont ] -> (
+              match (code, environment) with
+              | Value.Code node, Value.Environment env ->
+                  base machine node env (fun value ->
+                      apply ~call_site cont [ value ] k)
+              | Value.Code _, other ->
+                  meta_type_error ~call_site ~level ~expected:"an environment" other
+              | other, _ -> meta_type_error ~call_site ~level ~expected:"code" other)
+          | _ -> meta_arity_error ~call_site ~level ~name:"eval" args);
+    }
+
+let default_apply_value machine base =
+  Value.Primitive
+    {
+      Value.prim_name = "apply";
+      prim_arity = Value.Exactly 3;
+      prim_class = Effect_class.Reflection;
+      prim_impl =
+        (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+          match args with
+          | [ callee; arguments; cont ] -> (
+              match arguments with
+              (* The call site of the original application is not among the three
+                 arguments spec §5.2 gives [apply], so a replacement that falls
+                 back to the default attributes it to where the fallback was
+                 written. Declared boundary, not an oversight: widening the cell's
+                 protocol to carry a span would change what a meta level has to
+                 accept. *)
+              | Value.List spread ->
+                  base machine ~call_site callee spread (fun value ->
+                      apply ~call_site cont [ value ] k)
+              | other ->
+                  meta_type_error ~call_site ~level ~expected:"a list of arguments"
+                    other)
+          | _ -> meta_arity_error ~call_site ~level ~name:"apply" args);
+    }
+
+let meta_eval_cell machine =
+  match machine.meta_eval with
+  | Some cell -> cell
+  | None ->
+      let base = machine.eval_cell in
+      let default = default_eval_value machine base in
+      let cell = Value.cell default in
+      machine.meta_eval <- Some cell;
+      machine.eval_cell <-
+        (fun machine node env k ->
+          match Value.cell_contents cell with
+          (* Untouched: run exactly what this level ran before the cell existed. *)
+          | Some replacement when replacement == default -> base machine node env k
+          | Some replacement ->
+              let upper =
+                match above machine with Some upper -> upper | None -> machine
+              in
+              let span = Core.span node in
+              apply upper ~call_site:span replacement
+                [
+                  Value.Code node;
+                  Value.Environment env;
+                  (* This level's continuation, one-shot like every other (§D4).
+                     A replacement that never invokes it abandons this level, the
+                     same way an unresumed reifier does. *)
+                  Value.Continuation
+                    (Value.continuation ~capture:span ~level:(level machine) k);
+                ]
+                (fun answer -> answer)
+          (* [Value.cell] creates the cell filled and [open_set] only ever fills
+             it, so this is unreachable; falling back keeps it total. *)
+          | None -> base machine node env k);
+      cell
+
+let meta_apply_cell machine =
+  match machine.meta_apply with
+  | Some cell -> cell
+  | None ->
+      let base = machine.apply_cell in
+      let default = default_apply_value machine base in
+      let cell = Value.cell default in
+      machine.meta_apply <- Some cell;
+      machine.apply_cell <-
+        (fun machine ~call_site callee arguments k ->
+          match Value.cell_contents cell with
+          | Some replacement when replacement == default ->
+              base machine ~call_site callee arguments k
+          | Some replacement ->
+              let upper =
+                match above machine with Some upper -> upper | None -> machine
+              in
+              apply upper ~call_site replacement
+                [
+                  callee;
+                  Value.List arguments;
+                  Value.Continuation
+                    (Value.continuation ~capture:call_site ~level:(level machine) k);
+                ]
+                (fun answer -> answer)
+          | None -> base machine ~call_site callee arguments k);
+      cell
 let set_global_env machine env = machine.global_env <- env
 let global_env machine = machine.global_env
 

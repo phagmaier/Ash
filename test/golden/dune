@@ -39,3 +39,17 @@
  (alias runtest)
  (action
   (diff desugar.expected desugar.output)))
+
+(executable
+ (name demos_golden)
+ (libraries ash.core ash.examples)
+ (flags
+  (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
+
+(rule
+ (with-stdout-to demos.output (run ./demos_golden.exe)))
+
+(rule
+ (alias runtest)
+ (action
+  (diff demos.expected demos.output)))

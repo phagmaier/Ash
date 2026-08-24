@@ -1,0 +1,23 @@
+(library
+ (name ash_examples)
+ (public_name ash.examples)
+ (libraries ash.core ash.syntax ash.runtime ash.tower)
+ (flags
+  (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
+
+; The demos are Ash programs, so they live in `.ash` files the parser sees as
+; ordinary source, and are embedded here rather than read from disk at run time:
+; a demo that could not find its own source would be a worse failure than one
+; whose output has drifted. Same rule, and same reason, as `lib/self/dune`.
+(rule
+ (target sources.ml)
+ (deps tracing.ash level_2_counting.ash)
+ (action
+  (with-stdout-to
+   %{target}
+   (progn
+    (echo "(* Generated from the .ash files by the rule in examples/dune. *)\nlet tracing = {ash|")
+    (cat tracing.ash)
+    (echo "|ash}\n\nlet level_2_counting = {ash|")
+    (cat level_2_counting.ash)
+    (echo "|ash}\n")))))

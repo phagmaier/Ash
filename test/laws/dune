@@ -1,5 +1,12 @@
-(test
- (name open_recursion_test)
- (libraries ash.core ash.syntax ash.runtime ash.self)
+(tests
+ (names open_recursion_test tower_laws_test)
+ (libraries ash.core ash.syntax ash.runtime ash.self ash.tower)
  (flags
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
+
+; The transparency law is a claim about programs, so it is made over the same
+; programs every other comparison in this repository uses. Copying the module
+; rather than restating it is what stops the law suite from quietly testing an
+; easier corpus than `test/differential/` does.
+(copy_files#
+ (files ../differential/corpus.ml))

@@ -36,8 +36,14 @@
       which requires Code to have no unresolved lexical dependencies and
       evaluates it in the current level's explicit global environment, [reflect],
       which drops one level to evaluate Code there and resume a continuation
-      captured there, and [meta_error], which fails at the level running it. All
-      are evaluator-dependent and need bespoke specialization rules.
+      captured there, [meta_error], which fails at the level running it, and the
+      five readers behind [up]'s meta bindings (spec §5.2): [meta_eval] and
+      [meta_apply], the level below's group cells; [meta_global], its global
+      environment; [tower_level], the relative level of the caller; and
+      [tower_depth], the one explicitly depth-sensitive observation of §D9. All
+      are evaluator-dependent and need bespoke specialization rules: each
+      answers a question about {e which machine is asking}, which is precisely
+      what a specializer running somewhere else may not answer.
 
     {1 Open recursion}
 
@@ -56,12 +62,15 @@
 
     One registry serves the whole tower: the primitive {e values} are shared, so
     a primitive cannot know its level and is told it by the evaluator applying
-    it. Three primitives need it. [callcc] stamps the captured continuation with
-    the level it resumes, [meta_error] fails at the level that ran it, and
-    [raise_at] attributes an interpreted level's failure to the level running the
-    interpreter. [reflect] needs more than the number — the machine below — and
-    gets it as a callback for the same reason. [up] is sugar over a reifier and
-    arrives in task 4.3.
+    it. Four primitives need the number itself. [callcc] stamps the captured
+    continuation with the level it resumes, [meta_error] fails at the level that
+    ran it, [raise_at] attributes an interpreted level's failure to the level
+    running the interpreter, and [tower_level] answers with it. [reflect] needs
+    more than the number — the machine below — and gets it as a callback for the
+    same reason; [meta_eval], [meta_apply], [meta_global], and [tower_depth] read
+    a second callback for the same reason again. [up] itself is not a primitive:
+    it is surface sugar over a reifier whose body is extended with those
+    readers.
 
     {1 Errors}
 

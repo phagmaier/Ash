@@ -107,7 +107,8 @@ and apply ~span callee arguments =
            evaluator does rather than a restriction it enforces.
 
            The oracle evaluates the base program and nothing else, so its level
-           is 0 and there is no level below it to reflect into. *)
+           is 0, there is no level below it to reflect into, and it has no
+           tower to answer a meta binding about. *)
         primitive.Value.prim_impl ~call_site:span ~level:0
           ~apply:(fun ~call_site callee arguments k ->
             k (apply ~span:call_site callee arguments))
@@ -115,6 +116,7 @@ and apply ~span callee arguments =
           ~run:(fun ~call_site _ _ -> unsupported ~span:call_site "run")
           ~reflect:(fun ~call_site ~code:_ ~env:_ ~cont:_ _ ->
             unsupported ~span:call_site "reflect")
+          ~meta:(fun ~call_site _ -> unsupported ~span:call_site "meta bindings")
           arguments
           (fun value -> value)
   | Value.Reifier _ -> unsupported ~span "reifier"

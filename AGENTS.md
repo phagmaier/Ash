@@ -44,7 +44,9 @@ opam exec -- dune runtest
 opam exec -- dune exec ash -- --help
 ```
 
-Keep one compile, full-test, and CLI-smoke command current here and in `README.md`.
+Keep one compile, full-test, and CLI-smoke command current here and in
+`README.md`. The packaged milestone demos are `dune exec ash -- --demo NAME`;
+`test/golden/demos.expected` stores what each prints.
 
 ## Semantic invariants
 

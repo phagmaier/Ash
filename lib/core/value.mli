@@ -92,6 +92,7 @@ and primitive = {
     lift:lifter ->
     run:runner ->
     reflect:reflector ->
+    meta:meta_reader ->
     value list ->
     (value -> answer) ->
     answer;
@@ -126,10 +127,17 @@ and primitive = {
           registry is shared by the whole tower (ADR 0017), so only the applying
           evaluator knows which level is running.
 
+          [meta] is the upward half of the same protocol: it answers the
+          questions [up]'s meta bindings ask about the level {e below} the
+          caller — its evaluator-group cells as Ash cells, its global
+          environment — and the depth of the tower the caller sits in. Like
+          [reflect] it must come from the applying evaluator, because only the
+          machine knows which level it is.
+
           [level] is the tower level that evaluation belongs to, counted from
           the base program (spec §D9). A primitive that captures a continuation
           or raises needs it, because the same shared primitive value runs at
-          every level. Primitives that need none of this ignore all five
+          every level. Primitives that need none of this ignore all six
           arguments. *)
 }
 
@@ -151,6 +159,25 @@ and reflector =
     the caller's own applier, so one-shot enforcement is the ordinary one. The
     callback fails at [call_site] when there is no level below, which is what
     reflecting from the base program means. *)
+
+and meta_reader = call_site:Span.t -> meta_query -> value
+(** Read one fact about the caller's place in the tower (spec §5.2). The three
+    [Below_] queries fail at [call_site] when there is no level below, exactly as
+    {!reflector} does; {!Tower_depth} always answers. *)
+
+and meta_query =
+  | Below_eval_cell
+      (** The [eval] cell of the level below, as an Ash cell. Reading it yields a
+          callable [(Code, Env, Cont) -> Ans]; writing to it replaces that
+          level's evaluator persistently, and every later step of that level goes
+          through the new one (spec §D3). *)
+  | Below_apply_cell  (** Likewise for [apply], as [(Fn, List, Cont) -> Ans]. *)
+  | Below_global_env  (** The level below's own cloned global environment. *)
+  | Tower_depth
+      (** How many levels above the base program are materialized. This is the
+          one deliberately depth-sensitive observation of §D9: [level] is
+          relative and says nothing about the tower, while this says how deep the
+          tower actually is. *)
 
 and arity = Exactly of int | At_least of int
 

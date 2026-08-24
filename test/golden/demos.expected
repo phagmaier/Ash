@@ -1,0 +1,82 @@
+Ash packaged tower demos — golden output
+Regenerate with `dune runtest --auto-promote`; reproduce with `ash --demo NAME`.
+
+== tracing ==
+§5.3 — a program rewrites the evaluator running it
+
+output (59 line(s)):
+  'App
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'App
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'App
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'Var
+
+value: 2
+levels materialized: 1
+
+== level-2-counting ==
+§5.6 — level 2 counts the work level 1 does
+
+output (0 line(s)):
+
+value: [2, 67, 715]
+levels materialized: 2
+
+acceptance
+  tracing logs every node, not only the outermost: 59 lines
+  level 2 counts level 1's work: 715 interpreter steps for 67 program steps
+  the level-1 evaluator costs 10.67x the program it runs

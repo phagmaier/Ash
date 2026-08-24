@@ -83,6 +83,10 @@ type levels = {
           call and returning the same one afterwards. *)
   level_below : t option;
       (** The machine of level [level_index - 1]. [None] at the base program. *)
+  level_tower_depth : unit -> int;
+      (** How many levels above the base program the tower has materialized, read
+          when asked rather than stored, because materialization is lazy and this
+          is the one observation of §D9 that is allowed to see it. *)
 }
 
 val set_levels : t -> levels -> unit
@@ -98,6 +102,36 @@ val above : t -> t option
 
 val below : t -> t option
 (** The level this one interprets, or [None] at the base program. *)
+
+val tower_depth : t -> int
+(** The tower's materialized depth, or 0 when no neighbourhood is installed.
+    This is what [tower_depth()] answers: the explicit, syntactically detectable
+    opt-in to depth sensitivity of spec §D9, as opposed to the relative {!level}
+    every program sees. *)
+
+(** {1 The group cells as Ash values}
+
+    [up] binds [eval] and [apply] to {e cells} (spec §5.2): the meta level reads
+    the current evaluator out of one and writes a replacement into it, using the
+    ordinary [open_deref]/[open_set] operations an [open fn] group already uses.
+    These are not a second mechanism beside {!set_eval} — the cell is this
+    machine's group cell, seen from Ash.
+
+    Both are created on demand and memoized, and creating one is observationally
+    inert: while the cell still holds the evaluator it was created with, this
+    machine runs exactly the host function it ran before, with the same counters.
+    A replacement runs on the machine {e above} this one, because that is where
+    it was written; running it here would make it its own interpreter. *)
+
+val meta_eval_cell : t -> Value.cell
+(** This machine's [eval] cell. Its contents is a callable
+    [(Code, Env, Cont) -> Ans]. *)
+
+val meta_apply_cell : t -> Value.cell
+(** This machine's [apply] cell. Its contents is a callable
+    [(Fn, List, Cont) -> Ans]: the call site of the original application is not
+    part of the protocol, so a replacement that falls back to the default
+    attributes it to the fallback's own call site. *)
 
 val group_cell_count : t -> int
 (** Number of independently replaceable open-recursion cells owned by this

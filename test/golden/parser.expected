@@ -75,6 +75,16 @@ Required surface constructs
   =>
 (|> (|> xs (call map double)) sum)
 
+== §5.3 the tracing demo ==
+  | up {
+  |   let base = eval
+  |   eval := fn(e, r, k) -> { print(show(e)); base(e, r, k) }
+  | }
+  | fib(3)
+  =>
+(up (block (let base eval) (:= eval (fn (params e r k) (block (call print (call show e)) (call base e r k))))))
+(call fib 3)
+
 == §4.2 documented length ==
   | fn length(xs) =
   |   match xs {
@@ -138,6 +148,7 @@ Parser diagnostics
   x y                          golden.ash:1:3-4: parse error: expected end of input, found the name `y`
   ${x}                         golden.ash:1:1-3: parse error: expected a splice inside a quotation, found the start of a splice `${`
   match x {}                   golden.ash:1:10-11: parse error: expected a match clause, found `}`
+  up 1                         golden.ash:1:4-5: parse error: expected `{`, found an integer literal
   x :: x                       golden.ash:1:6-7: parse error: `x` is bound twice in the same binder list
   x | y                        golden.ash:1:5-6: parse error: pattern alternatives must bind the same names: expected {x}, found {y}
   Foo(x)                       golden.ash:1:1-4: parse error: `Foo` is not a Core form

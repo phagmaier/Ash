@@ -29,6 +29,8 @@ Derived sugar, one construct at a time
   let a = `{ 1 }; `{ ${a} + 2 }            => (let a (quote (lit 1)) (app (var code_splice) (quote (app (var +) (var splice) (lit 2))) (quote (var splice)) (var a)))
   match `{ 1 } { Lit(n) -> n; _ -> 0 }     => (let scrutinee (quote (lit 1)) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (lit 0))) (if (app (var code?) (var scrutinee)) (let code_view1 (app (var code_view) (var scrutinee)) (if (app (var list?) (var code_view1)) (if (app (var empty?) (var code_view1)) (app (var next_clause)) (let head1 (app (var head) (var code_view1)) (let tail1 (app (var tail) (var code_view1)) (if (app (var ==) (var head1) (lit 'Lit)) (if (app (var list?) (var tail1)) (if (app (var empty?) (var tail1)) (app (var next_clause)) (let head2 (app (var head) (var tail1)) (let tail2 (app (var tail) (var tail1)) (let n (var head2) (if (app (var list?) (var tail2)) (if (app (var empty?) (var tail2)) (var n) (app (var next_clause))) (app (var next_clause))))))) (app (var next_clause))) (app (var next_clause)))))) (app (var next_clause)))) (app (var next_clause)))))
   match `{ 1 + 0 } { `{ ${a} + 0 } -> a; _ -> `{ 0 } } => (let scrutinee (quote (app (var +) (lit 1) (lit 0))) (let next_clause (lam () (let next_clause (lam () (app (var match_error) (var scrutinee))) (quote (lit 0)))) (let code_match1 (app (var code_match) (quote (app (var +) (var splice) (lit 0))) (var scrutinee) (quote (var splice))) (if (app (var list?) (var code_match1)) (if (app (var empty?) (var code_match1)) (app (var next_clause)) (let head1 (app (var head) (var code_match1)) (let tail1 (app (var tail) (var code_match1)) (if (app (var list?) (var head1)) (if (app (var empty?) (var head1)) (app (var next_clause)) (let head2 (app (var head) (var head1)) (let tail2 (app (var tail) (var head1)) (let a (var head2) (if (app (var list?) (var tail2)) (if (app (var empty?) (var tail2)) (if (app (var list?) (var tail1)) (if (app (var empty?) (var tail1)) (var a) (app (var next_clause))) (app (var next_clause))) (app (var next_clause))) (app (var next_clause))))))) (app (var next_clause)))))) (app (var next_clause))))))
+  up { 1 }                                 => (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (lit 1))))))))
+  up { eval := eval }                      => (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (app (var open_set) (var eval) (app (var open_deref) (var eval))))))))))
 
 --------------------------------------------------------------------------
 Documented programs
@@ -81,6 +83,16 @@ Documented programs
   =>
 (let c (lit 0) (letrec ((bump (lam () (set c (app (var +) (var c) (lit 1)))))) (let _ (app (var bump)) (var c))))
 
+== §5.3 the tracing demo ==
+  | fn fib(n) = if n < 2 then n else fib(n - 1) + fib(n - 2)
+  | up {
+  |   let base = eval
+  |   eval := fn(e, r, k) -> { print(code_view(e)); base(e, r, k) }
+  | }
+  | fib(3)
+  =>
+(letrec ((fib (lam (n) (if (app (var <) (var n) (lit 2)) (var n) (app (var +) (app (var fib) (app (var -) (var n) (lit 1))) (app (var fib) (app (var -) (var n) (lit 2)))))))) (let _ (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (let base (app (var open_deref) (var eval)) (app (var open_set) (var eval) (lam (e r k) (let _ (app (var print) (app (var code_view) (var e))) (app (var base) (var e) (var r) (var k))))))))))))) (app (var fib) (lit 3))))
+
 --------------------------------------------------------------------------
 Provenance: which rewrite invented which node
 --------------------------------------------------------------------------
@@ -93,6 +105,7 @@ Provenance: which rewrite invented which node
   true && false                            desugar/and
   match 1 { _ -> 2 }                       desugar/match
   `{ ${`{ 1 }} }                           desugar/quote
+  up { 1 }                                 desugar/up
 
 --------------------------------------------------------------------------
 Diagnostics

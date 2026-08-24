@@ -233,21 +233,21 @@ let make ~name ~arity ~cls impl =
 
 let nullary name cls impl =
   let arity = Value.Exactly 0 in
-  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
       match args with
       | [] -> k (impl ~span:call_site)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let unary name cls impl =
   let arity = Value.Exactly 1 in
-  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
       match args with
       | [ a ] -> k (impl ~span:call_site a)
       | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let binary name cls impl =
   let arity = Value.Exactly 2 in
-  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
       match args with
       | [ a; b ] -> k (impl ~span:call_site a b)
       | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
@@ -298,7 +298,7 @@ let pure =
     unary "length" Effect_class.Pure (fun ~span a ->
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
-      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k -> k (Value.List args));
+      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k -> k (Value.List args));
     (* The one type test Ash has. The self-interpreter needs it because its
        value domain distinguishes an interpreted closure — a list carrying a
        private tag — from an interpreted scalar, and every other list operation
@@ -331,7 +331,7 @@ let pure =
     unary "code_name" Effect_class.Pure (fun ~span value ->
         Value.Str (Ident.name (code_variable ~span value)));
     make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | [ template; marker; replacement ] ->
             let template = code ~span:call_site template in
@@ -342,7 +342,7 @@ let pure =
             wrong_arity ~span:call_site ~name:"code_splice"
               ~arity:(Value.Exactly 3) args);
     make ~name:"code_match" ~arity:(Value.At_least 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | template :: subject :: markers ->
             let template = code ~span:call_site template in
@@ -373,7 +373,7 @@ let pure =
        node rather than at the helper call in [eval.ash]. The descriptor is a
        closed protocol, not an arbitrary host exception escape hatch. *)
     make ~name:"raise_at" ~arity:(Value.Exactly 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ args _k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args _k ->
         match args with
         | [ site; descriptor ] ->
             (* An interpreted level fails where the ground evaluator would, so
@@ -463,7 +463,7 @@ let observable io =
 let control =
   [
     make ~name:"callcc" ~arity:(Value.Exactly 1) ~cls:Effect_class.Control
-      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | [ receiver ] ->
             (* [k] is the continuation of the [callcc] call itself, so invoking
@@ -483,7 +483,7 @@ let control =
        exactly one argument. The continuation it transfers to ignores the
        continuation of this call: [resume] does not return. *)
     make ~name:"resume" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | [ cont; value ] ->
             apply ~call_site (continuation ~span:call_site cont) [ value ] k
@@ -504,7 +504,7 @@ let control =
        does not, residualizes it. That is the same treatment [callcc] gets, and
        for the same reason. *)
     make ~name:"invoke" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | [ callee; arguments ] ->
             apply ~call_site callee (items ~span:call_site arguments) k
@@ -514,7 +514,7 @@ let control =
        supplied as Code. This is the source-preserving application path used by
        the real-Code self-interpreter. *)
     make ~name:"invoke_at" ~arity:(Value.Exactly 3) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | [ site; callee; arguments ] ->
             let call_site = source_span ~span:call_site site in
@@ -530,18 +530,28 @@ let control =
    construction environment or its caller's lexical frame. [reflect] and
    [meta_error] delegate for a sharper reason: one registry serves every level
    (ADR 0017), so the primitive values are shared and only the applying
-   evaluator knows which level is running. [up] is sugar over a reifier and
-   arrives in task 4.3. *)
+   evaluator knows which level is running. [up] is sugar over a reifier and the
+   five [meta_*]/[tower_*] readers below. *)
+(* A nullary reader of the evaluator's [meta] callback. Nullary rather than a
+   name-taking [meta("eval")] so that each question is a distinct registered
+   primitive with its own class and its own site in a residual program. *)
+let meta_reader name query =
+  make ~name ~arity:(Value.Exactly 0) ~cls:Effect_class.Reflection
+    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta args k ->
+      match args with
+      | [] -> k (meta ~call_site query)
+      | _ :: _ -> wrong_arity ~span:call_site ~name ~arity:(Value.Exactly 0) args)
+
 let reflection =
   [
     make ~name:"lift" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift ~run:_ ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift ~run:_ ~reflect:_ ~meta:_ args k ->
         match args with
         | [ value ] -> k (Value.Code (lift ~call_site value))
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"lift" ~arity:(Value.Exactly 1) args);
     make ~name:"run" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run ~reflect:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run ~reflect:_ ~meta:_ args k ->
         match args with
         | [ value ] -> run ~call_site (code ~span:call_site value) k
         | [] | _ :: _ :: _ ->
@@ -552,7 +562,7 @@ let reflection =
        identity function — the argument is evaluated once, on the level that
        wrote it, with that level's effects in that order. *)
     make ~name:"reflect" ~arity:(Value.Exactly 3) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect ~meta:_ args k ->
         match args with
         | [ subject; env; cont ] ->
             reflect ~call_site
@@ -567,7 +577,7 @@ let reflection =
        specialization would report the failure at whatever level the specializer
        happened to run at, which is the same mistake D7 names for [print]. *)
     make ~name:"meta_error" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ args _k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args _k ->
         match args with
         | [ message ] ->
             Error.raise_cause ~phase:Error.Evaluate ~span:call_site ~level
@@ -575,6 +585,33 @@ let reflection =
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"meta_error" ~arity:(Value.Exactly 1)
               args);
+    (* The rest of [up]'s meta bindings (spec §5.2). Each is a question about the
+       level below the one asking, so each is a level-crossing observation and
+       none can be folded: the answer depends on which machine ran the call, and
+       a specializer that answered from its own position would name the wrong
+       level's evaluator.
+
+       [meta_eval] and [meta_apply] answer with the level below's group cells
+       themselves, not copies, which is what makes [eval := f] persistent: every
+       dereference that level has already written reads the new value. *)
+    meta_reader "meta_eval" Value.Below_eval_cell;
+    meta_reader "meta_apply" Value.Below_apply_cell;
+    meta_reader "meta_global" Value.Below_global_env;
+    (* The level a term is being evaluated at, counted from the base program, so
+       the base program always answers 0 (§D9). This is the relative numbering
+       that keeps depth out of the invariance claim. *)
+    make ~name:"tower_level" ~arity:(Value.Exactly 0) ~cls:Effect_class.Reflection
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+        match args with
+        | [] -> k (Value.Num level)
+        | _ :: _ ->
+            wrong_arity ~span:call_site ~name:"tower_level" ~arity:(Value.Exactly 0)
+              args);
+    (* And the deliberate opt-in of §D9: how deep the tower actually is. A
+       program that calls this is depth-sensitive by construction, which is the
+       point — the collapse report can detect it syntactically instead of having
+       to prove it. *)
+    meta_reader "tower_depth" Value.Tower_depth;
   ]
 
 let build io dereferences =

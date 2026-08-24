@@ -54,6 +54,7 @@ and shape =
   | Match of match_expression
   | Quote of t
   | Splice of splice
+  | Up of t
 
 and binding = {
   binding_kind : binding_kind;
@@ -208,7 +209,7 @@ and quotation_pattern_binders expression =
   | Binary binary ->
       quotation_pattern_binders binary.left @ quotation_pattern_binders binary.right
   | Assignment assignment -> quotation_pattern_binders assignment.assignment_value
-  | Group grouped | Quote grouped -> quotation_pattern_binders grouped
+  | Group grouped | Quote grouped | Up grouped -> quotation_pattern_binders grouped
   | Match match_ ->
       quotation_pattern_binders match_.scrutinee
       @ List.concat_map

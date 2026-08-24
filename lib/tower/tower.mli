@@ -10,7 +10,13 @@
     so a level is told what is above and below it as it is created. Reifier
     application reads that to shift up, and [reflect] reads it to drop back down;
     creating a level is still the only thing that allocates one. [up] and the
-    meta bindings are sugar over the same protocol and arrive in task 4.3. *)
+    meta bindings are sugar over that same protocol: they materialize nothing on
+    their own, and they read the tower's depth through the same record.
+
+    The one thing a level can observe about the tower as a whole is how deep it
+    currently is, which is what [tower_depth()] answers. It is read through a
+    thunk rather than stored, because a level created before the tower grew must
+    still report the tower it is in now. *)
 
 open Ash_core
 

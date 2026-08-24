@@ -63,6 +63,9 @@ and shape =
   | Match of match_expression
   | Quote of t
   | Splice of splice
+  | Up of t
+      (** [up { … }]: the body evaluates one level up, with the meta bindings of
+          spec §5.2 in scope, and the level below resumes with its value. *)
 
 and binding = {
   binding_kind : binding_kind;

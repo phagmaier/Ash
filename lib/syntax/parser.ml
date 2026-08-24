@@ -169,7 +169,7 @@ and parse_assignment state =
       | Surface.Literal _ | Surface.Binding _ | Surface.Named_function _ | Surface.Function _
       | Surface.Call _ | Surface.Block _ | Surface.Conditional _ | Surface.List_literal _
       | Surface.Unary _ | Surface.Binary _ | Surface.Assignment _ | Surface.Group _
-      | Surface.Match _ | Surface.Quote _ | Surface.Splice _ ->
+      | Surface.Match _ | Surface.Quote _ | Surface.Splice _ | Surface.Up _ ->
           Error.raise_cause ~phase:Error.Parse ~span:target.Surface.span
             (Error.Unexpected
                {
@@ -399,12 +399,13 @@ and parse_primary state =
   | Token.Fn -> parse_function state
   | Token.If -> parse_conditional state
   | Token.Match -> parse_match state
+  | Token.Up -> parse_up state
   | Token.Lbrace -> parse_block state
   | Token.Lbracket -> parse_list state
   | Token.Lparen -> parse_group_or_unit state
   | Token.Quote_open -> parse_quote_expression state
   | Token.Splice_open -> parse_splice_expression state
-  | Token.Let | Token.Var | Token.Then | Token.Else | Token.Open | Token.Up
+  | Token.Let | Token.Var | Token.Then | Token.Else | Token.Open
   | Token.Meta_with | Token.Reifier | Token.Pipe_forward | Token.Or | Token.And | Token.Eq
   | Token.Ne | Token.Lt | Token.Le | Token.Gt | Token.Ge | Token.Cons | Token.Plus
   | Token.Minus | Token.Star | Token.Slash | Token.Percent | Token.Bang | Token.Assign
@@ -429,6 +430,17 @@ and parse_conditional state =
   let alternative = parse_expression state in
   Surface.make ~span:(Span.join opening.Token.span alternative.Surface.span)
     (Surface.Conditional { condition; consequent; alternative })
+
+(* [up { … }] (spec §5.2). The braces are required rather than optional: the body
+   is a statement list — the tracing demo is [let base = eval] followed by an
+   assignment — and an [up] whose body were an expression would have to decide
+   how far to the right it extends, which is exactly the ambiguity blocks exist
+   to settle. The body is kept as a block so that its span, and its statement
+   structure, survive into the desugarer unchanged. *)
+and parse_up state =
+  let opening = expect state Token.Up in
+  let body = parse_block state in
+  Surface.make ~span:(Span.join opening.Token.span body.Surface.span) (Surface.Up body)
 
 and parse_match state =
   let opening = expect state Token.Match in

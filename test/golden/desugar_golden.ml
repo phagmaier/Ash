@@ -78,12 +78,14 @@ let sugar =
     "let a = `{ 1 }; `{ ${a} + 2 }";
     "match `{ 1 } { Lit(n) -> n; _ -> 0 }";
     "match `{ 1 + 0 } { `{ ${a} + 0 } -> a; _ -> `{ 0 } }";
+    "up { 1 }";
+    "up { eval := eval }";
   ]
 
 let provenance =
   [
     "1 + 2"; "1; 2"; "let x = 1"; "fn f() = 1"; "open fn f() = 1"; "[1]";
-    "true && false"; "match 1 { _ -> 2 }"; "`{ ${`{ 1 }} }";
+    "true && false"; "match 1 { _ -> 2 }"; "`{ ${`{ 1 }} }"; "up { 1 }";
   ]
 
 let errors =
@@ -122,6 +124,13 @@ let () =
     "match [7] {\n  [x] | x :: [] -> x + 1\n  _ -> 0\n}";
   show_program "closure-visible mutation"
     "var c = 0\nfn bump() = c := c + 1\nbump()\nc";
+  show_program "§5.3 the tracing demo"
+    "fn fib(n) = if n < 2 then n else fib(n - 1) + fib(n - 2)\n\
+     up {\n\
+    \  let base = eval\n\
+    \  eval := fn(e, r, k) -> { print(code_view(e)); base(e, r, k) }\n\
+     }\n\
+     fib(3)";
 
   heading "Provenance: which rewrite invented which node";
   List.iter show_provenance provenance;

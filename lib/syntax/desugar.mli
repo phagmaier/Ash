@@ -27,6 +27,8 @@
     `{ e }                  Quote template, plus pure code_splice calls for holes
     Lit(p), App(p,p), ...   guarded code_view plus ordinary nested patterns
     `{ ${p} ... }           alpha-aware code_match plus nested hole patterns
+    up { E }               a Reifier applied to nothing, its body binding the
+                           meta names and ending in resume(cont, E)
     v}
 
     Adjacent [fn] declarations in one statement list form a single [LetRec]
@@ -65,7 +67,18 @@
 
     List, constructor, and quasiquote patterns are refutable on a wrong value
     shape. Constructor patterns destructure immutable [Code] through [code_view];
-    quasiquotes use alpha-aware [code_match]. *)
+    quasiquotes use alpha-aware [code_match].
+
+    {1 Reflection}
+
+    [up { E }] lowers to the reifier it is sugar for (spec §5.2). Its body binds
+    [exp], [env], and [cont] — the reifier's own three parameters, under the
+    printed names the spec gives them — plus [eval], [apply], [global], and
+    [level], each a call of the primitive that answers it, because only the
+    machine running the body knows. [eval] and [apply] are bound the way [open fn]
+    members are, so [eval := f] is [open_set] on the level below's group cell and
+    the replacement is persistent. [resume] and [meta_error] need nothing added:
+    they are ordinary globals. *)
 
 open Ash_core
 

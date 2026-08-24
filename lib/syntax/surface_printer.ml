@@ -41,6 +41,7 @@ let rec to_string expression =
       parenthesized ":="
         [ assignment.assignment_target.text; to_string assignment.assignment_value ]
   | Surface.Group grouped -> parenthesized "group" [ to_string grouped ]
+  | Surface.Up body -> parenthesized "up" [ to_string body ]
   | Surface.Match match_ ->
       parenthesized "match"
         (to_string match_.scrutinee
