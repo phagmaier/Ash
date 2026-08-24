@@ -5,6 +5,9 @@
 - **Task:** 3.1
 - **Amends:** 0013 (quotation and code patterns now lower)
 
+Task 3.5's [ADR 0021](0021-real-code-self-interpreter.md) subsequently completes
+the encoding retirement scheduled by this record.
+
 ## Context
 
 Task 3.1 requires quotation, splicing, constructor patterns, and quasiquote

@@ -36,7 +36,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `lib/core/` | `ash.core`: spans, constants, hygienic identifiers, the Core AST, values, environments, and errors |
 | `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, precedence parser, and desugarer |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
-| `lib/self/` | `ash.self`: the self-interpreter written in Ash (`eval.ash`), its Core-to-data encoding, and the harness that runs it |
+| `lib/self/` | `ash.self`: the self-interpreter written in Ash (`eval.ash`) and the real-Code layer harness |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `test/differential/` | oracle/CPS and CPS/self-interpreter comparisons on one shared corpus |
@@ -225,10 +225,10 @@ does not.
 
 | Class | Members | Specialization |
 |-------|---------|----------------|
-| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_splice`, `code_match`, `NamedVar`, `match_error` | fold when every argument is static |
+| pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_name`, `code_splice`, `code_match`, `NamedVar`, `match_error`, `raise_at` | fold when every argument is static |
 | allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
-| control | `callcc`, `invoke` | never folded: capturing at specialization time captures the specializer, and `invoke`'s class is its callee's |
+| control | `callcc`, `invoke`, `invoke_at` | never folded: capturing at specialization time captures the specializer, and invocation's class is its callee's |
 | reflection | `lift`, `run`; later `reflect`, `up`, and reifier application | bespoke, and the classification target |
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
@@ -374,10 +374,9 @@ everything behind `match` — keeps the same positions and records the rewrite, 
 `Span.source_span` still points diagnostics at user text while `Span.generators`
 says which rewrite produced the node. Quotation, splicing, Core constructor
 patterns, and quasiquote patterns now lower through immutable pure Code
-operations. The self-interpreter deliberately continues to use its Phase 2 data
-encoding until task 3.5, after closed-code `run` and the rest of the Code
-foundation can support replacing the encoding without weakening the existing
-layer tests. See
+operations. The Phase 2 data encoding has now been retired: the self-interpreter
+reads real Code, so quoted child nodes retain both identity and spans across a
+level. See
 [`docs/decisions/0013-hygienic-desugaring-to-core.md`](docs/decisions/0013-hygienic-desugaring-to-core.md).
 
 ## Closed Code and `run`
@@ -414,6 +413,22 @@ as generated provenance. A rejection points at that call and identifies the
 offending leaf's one-based path through nested lists, so a closure inside item 2
 of item 3 is distinguishable from a direct closure argument. See
 [`docs/decisions/0020-fixed-lift-domain.md`](docs/decisions/0020-fixed-lift-domain.md).
+
+The staging regression runs the spec's generator directly:
+
+```ash
+fn power(n, x) =
+  if n == 0 then `{ 1 }
+  else `{ ${x} * ${power(n - 1, x)} }
+
+let pow5 = `{ fn(y) -> ${power(5, `{ y })} }
+run(pow5)(2) # 32
+```
+
+The resulting lambda is closed relative to the level globals and
+alpha-equivalent to five multiplications by its own parameter. The documented
+quasiquote simplifier is also exercised end to end for `+ 0`, `* 1`, `* 0`,
+recursive application simplification, and fallthrough.
 
 ## Continuations
 
@@ -462,7 +477,7 @@ member — inside the group and after it — as `open_deref` of that cell, and e
 
 ```ash
 open fn eval(e, r, k) = …          # every `eval`, `apply`, `eval_list` below
-open fn apply(f, vs, k) = …        # is a dereference of this level's cell
+open fn apply(f, vs, k, site) = …  # is a dereference of this level's cell
 open fn eval_list(es, r, k) = …
 
 let base = eval                    # the function the cell holds
@@ -488,18 +503,16 @@ interpreter residue. See
 `lib/self/eval.ash` is a CPS evaluator for the eleven Core forms, written in Ash,
 open-recursive, and parallel to the host evaluator in `lib/runtime`. It is the
 centre of the project, and every line in it is paid for once per tower level.
-`ash.self` is the harness: `Encode` writes a Core term as data, and `Self` lowers
-the interpreter with the ordinary parser and desugarer, runs it on the ground
-evaluator, and applies what it exports.
+`ash.self` is the harness: `Self` lowers the interpreter with the ordinary parser
+and desugarer, quotes the subject as real Code, writes its Code-keyed primitive
+global frame into the layer term, and runs that term on the ground evaluator.
+`Ash_self.Encode` has been deleted.
 
-Quotation did not exist when Phase 2 built the interpreter, so the interpreted
-program still arrives as tagged lists —
-`['app, func, args]`, `['lam, params, body]`, and an identifier as `[name, id]`,
-printed name plus unique id, so hygiene survives the encoding. Dispatch is an
-`if` chain over the form tag rather than the constructor patterns spec §6 sketches,
-which likewise did not lower in Phase 2. Task 3.1 now supplies both capabilities
-without changing this transport; task 3.5 owns converting the interpreter to
-real Code, constructor dispatch, and cross-level spans, then deleting `Encode`.
+The interpreter dispatches directly with all eleven constructor patterns:
+`Lit`, `Var`, `NamedVar`, `Lam`, `App`, `Let`, `LetRec`, `If`, `Set`, `Quote`,
+and `Reifier`. Identifier fields are one-node `Var` Code values, retaining exact
+hygienic identity without exposing allocation IDs. `code_name` exposes only the
+printed component needed for explicit `NamedVar` lookup.
 
 Interpreted scalars, lists, cells, and primitives represent themselves, so a
 primitive can be handed one directly. The three things the interpreted level
@@ -510,24 +523,23 @@ rather than shapes.
 
 Nothing here is a host escape hatch. The interpreted level receives exactly the
 globals a level-0 run receives, and everything it cannot do itself it does by
-applying those same primitives through `invoke`, which is why its arity, type,
+applying those same primitives through `invoke_at`, which is why its arity, type,
 and arithmetic diagnostics are the host's rather than a restatement of them. The
 one primitive it cannot delegate is `callcc`, since the host would capture the
 interpreter's continuation instead of the program's; the interpreted level builds
 its own one-shot continuation, marked used before transfer.
 
-Two boundaries are declared rather than smoothed over: an encoded term carries no
-spans, so a failure raised at the interpreted level is reported inside
-`eval.ash`, and a failure this level detects itself — an arity mismatch on an
-interpreted closure, a reused continuation, an unbound identifier, reifier
-application — reports as `No_matching_clause` naming the condition, because Ash
-cannot construct a structured error. See
-[`docs/decisions/0016-the-ash-self-interpreter.md`](docs/decisions/0016-the-ash-self-interpreter.md).
+`invoke_at` attributes delegated application failures to the subject `App`, and
+`raise_at` accepts a closed structured-cause protocol for failures the
+interpreter detects itself. Both use the span retained by Code, so the host and
+self-interpreter now agree on cause, phase, level, and source location across the
+full differential failure corpus. See
+[`docs/decisions/0021-real-code-self-interpreter.md`](docs/decisions/0021-real-code-self-interpreter.md).
 
 ## Layers
 
 `Self.interpreting t` is the Core term that interprets `t` — the interpreter
-applied to the encoded program and the encoded globals, with both written *into*
+applied to quoted Code and Code-keyed globals, with both written *into*
 the term rather than passed beside it. The result is an ordinary Core term, so it
 is itself something a further layer can interpret, and layer *n* is *n*
 applications of one function:
@@ -539,7 +551,7 @@ layer 2   … which runs the interpreter, which runs the program
 ```
 
 Every layer answers the same value and leaves the same trace. That is a stronger
-statement than layer 1's agreement alone: layer 2 only passes if the encoding
+statement than layer 1's agreement alone: layer 2 only passes if Code transport
 survives being applied to the interpreter's own lowering, and if a primitive
 handed down two levels is still something the bottom level can apply. The second
 of those is why a primitive crosses **unwrapped** — a wrapped one would arrive at
@@ -574,8 +586,8 @@ the CPS evaluator, and the CPS evaluator against the self-interpreter. Sharing
 one list is what keeps the second comparison from being run against easier
 programs than the first. The self-interpreter comparison adds output and control
 programs, which are the two areas the oracle refuses and the shared corpus
-therefore cannot exercise; it compares value, cause, and trace but not location,
-for the reason given above.
+therefore cannot exercise; it compares value, cause, location, error context,
+and trace.
 
 A third comparison runs the same corpus at layers 0, 1, and 2. Layer 2 costs the
 product of two interpretations, so which programs it runs is decided by a
@@ -587,9 +599,9 @@ is printed so a change in either direction is visible.
 The oracle's refusals are checked too, as a boundary rather than as agreement:
 quotation, reifiers, `callcc`, observable effects, and cells are all outside the
 pure corpus by construction, and a change that quietly moved that line would fail
-here. The self-interpreter has a boundary of its own, checked the same way:
-applying a reifier needs the level above, and a quotation answers an encoded term
-where the host answers `Code`.
+here. Applying a reifier remains a declared boundary until Phase 4 supplies the
+level above; quotation is no longer a representation boundary, and both the host
+and self-interpreter answer the same alpha-equivalent Code.
 
 ## Development workflow
 

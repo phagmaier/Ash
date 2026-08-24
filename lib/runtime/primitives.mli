@@ -11,9 +11,10 @@
     Registered so far:
 
     - {!Ash_core.Effect_class.Pure} — integer arithmetic, comparison, equality,
-      immutable lists, code construction/observation, [list?], and
-      [match_error], the failure a desugared [match] falls through to. Foldable
-      once every argument is static.
+      immutable lists, code construction/observation (including [code_name]),
+      [list?], [match_error], and source-directed [raise_at]. Foldable once every
+      argument is static; the last two deterministically raise rather than
+      return.
     - {!Ash_core.Effect_class.Allocation_or_mutation} — [cell_new], [deref],
       [cell_set], and the open-recursion trio [open_cell], [open_deref],
       [open_set]. Residualized until Phase 7's store splitting says otherwise.
@@ -24,10 +25,10 @@
     - {!Ash_core.Effect_class.Control} — [callcc], which reifies the current
       continuation as a one-shot value and hands it to its argument, and
       [invoke], which applies a callee to an argument list whose length is only
-      known at run time. Neither is ever folded automatically: capturing during
-      specialization would capture the specializer's continuation, and [invoke]'s
-      class is its callee's, which no amount of knowledge about its arguments
-      settles.
+      known at run time, and [invoke_at], its source-preserving self-interpreter
+      form. None is folded automatically: capturing during specialization would
+      capture the specializer's continuation, and invocation's class is its
+      callee's, which no amount of knowledge about its arguments settles.
 
     - {!Ash_core.Effect_class.Reflection} — [lift], which converts only the fixed
       liftable domain to Code using level-hygienic list construction, and [run],
@@ -54,8 +55,9 @@
     the same wherever it comes from, and it is checked again inside the primitive
     because an implementation is a total function. Argument types are checked by
     the primitive, left to right, matching the order Ash evaluates arguments in,
-    and reported at the call site, which is the only location a primitive
-    has. *)
+    and reported at the call site. [invoke_at] and [raise_at] deliberately use
+    the span of a Code argument instead, so an interpreted failure points into
+    the subject program rather than the evaluator helper. *)
 
 open Ash_core
 

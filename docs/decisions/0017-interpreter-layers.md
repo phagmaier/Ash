@@ -1,6 +1,7 @@
 # 0017 — Composing layers of the self-interpreter
 
-- **Status:** accepted
+- **Status:** accepted; its temporary data transport is superseded by
+  [0021](0021-real-code-self-interpreter.md)
 - **Date:** 2026-08-23
 - **Task:** 2.3
 - **Amends:** 0016 (the interpreted representation of a primitive)

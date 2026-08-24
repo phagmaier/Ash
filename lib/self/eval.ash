@@ -1,42 +1,13 @@
-# The CPS Core evaluator, written in Ash. Spec §6; to-do tasks 2.1 and 2.2.
+# The CPS Core evaluator, written in Ash. Spec §6.
 #
-# This is the centre of the project, so every line here is paid for once per
-# tower level. It is kept parallel to the host evaluator in `lib/runtime`: same
-# eleven forms, same order of evaluation, same one-shot discipline, and the same
-# open-recursive group. Where the two differ, the difference is written down.
+# A subject is real Code. Constructor patterns expose its eleven Core forms,
+# preserving every child node's hygienic identities and source span. The
+# interpreter's environments therefore use one-node Var Code as keys; printed
+# lookup is explicit through code_name, just as NamedVar is explicit in Core.
 #
-# What a Core term looks like here
-# --------------------------------
-# A term is a tagged list, built by `Ash_self.Encode`. Quotation is Phase 3, so
-# the interpreted program arrives as ordinary Ash data rather than as `Code`:
-#
-#   ['lit, c]            ['var, x]              ['named_var, "s"]
-#   ['lam, params, body] ['app, func, args]     ['quote, q]
-#   ['let, x, e, body]   ['letrec, bindings, b] ['if, c, t, f]
-#   ['set, x, e]         ['reifier, params, body]
-#
-# An identifier is `[name, id]`: printed name plus unique id, never a string
-# alone, so hygiene survives the encoding (spec §D1). A `letrec` binding is
-# `[name, lam-node]`.
-#
-# What an interpreted value looks like here
-# -----------------------------------------
-# Scalars, lists, cells, and primitives are represented by themselves, so a
-# primitive can be handed one directly and arithmetic needs no marshalling.
-# Closures, reifiers, and continuations — the three this level constructs — are
-# lists whose head is TAG, a cell this file allocates and nothing else can reach.
-# An interpreted program cannot forge one: it has no way to name TAG, and every
-# cell it can allocate is a different cell.
-#
-# A primitive stays a primitive rather than being wrapped, and that is what lets
-# this interpreter run under itself. Wrapped, the primitive a level below hands
-# down would arrive as that level's wrapper — a list, not something applicable —
-# and the second layer would have nothing it could call. Unwrapped, `invoke`
-# reaches the same primitive however many levels it passed through.
-#
-# Each closure and reifier carries a fresh cell as its identity, so `==` on two
-# of them compares places rather than shapes, which is what the host means by
-# "two closures with the same body are still two closures".
+# Scalars, lists, cells, Code, and primitives represent themselves. Closures,
+# reifiers, and continuations constructed by this interpreted level are lists
+# headed by the private TAG cell, so an interpreted program cannot forge them.
 
 let TAG = cell_new('interpreted_value)
 
@@ -45,49 +16,55 @@ fn nth(xs, n) = if n == 0 then head(xs) else nth(tail(xs), n - 1)
 fn tagged?(v) = list?(v) && !empty?(v) && head(v) == TAG
 fn tag_of(v) = nth(v, 1)
 
-fn clo(params, body, r) = [TAG, 'clo, params, body, r, cell_new('identity)]
-fn reif(params, body, r) = [TAG, 'reif, params, body, r, cell_new('identity)]
-fn cont(k) = [TAG, 'cont, k, cell_new(false)]
+# A closure's final field is [] for an anonymous lambda and [binder] for a
+# LetRec member. Keeping the binder lets arity diagnostics name recursive and
+# surface-named functions exactly as the ground evaluator does.
+fn clo(params, body, r, name) =
+  [TAG, 'clo, params, body, r, cell_new('identity), name]
 
-# Ash has no way to build a structured error: a cause carries a span, and the
-# encoding carries none until `Code` does (Phase 3). A failure this level
-# detects itself therefore says what happened and stops, rather than pretending
-# to be the diagnostic the host would have written. Failures the host detects —
-# every primitive's arity, type, and division error — come through unchanged.
-fn die(what) = match_error(what)
+fn reif(params, body, r) =
+  [TAG, 'reif, params, body, r, cell_new('identity)]
 
-# Environments: a list of frames, innermost first; a frame is a list of
-# `[identifier, cell]`. Values are reached through cells, so an assignment is
-# visible to every closure that already captured the binding.
+# The used cell contains [] before use and [application-Code] afterwards. This
+# both enforces one-shot transfer and preserves the first-use span for a reuse
+# diagnostic.
+fn cont(k, capture) = [TAG, 'cont, k, cell_new([]), capture]
+
+# Environments are lists of frames, innermost first; frames are lists of
+# [identifier-Code, cell] pairs. Identity comparison on Code is alpha-aware and
+# compares free variables by exact hygienic identity.
 
 fn frame_find(f, x) =
   if empty?(f) then 'miss
   else if head(head(f)) == x then nth(head(f), 1)
   else frame_find(tail(f), x)
 
-fn lookup(r, x) =
-  if empty?(r) then die(['unbound, x])
+fn lookup(r, x, site) =
+  if empty?(r) then raise_at(site, ['unbound_ident, x])
   else {
     let found = frame_find(head(r), x)
-    if found == 'miss then lookup(tail(r), x) else found
+    if found == 'miss then lookup(tail(r), x, site) else found
   }
 
-# `named_var` resolves by printed name against whatever environment it is given.
-# Two bindings in one frame that print alike have no non-arbitrary answer, and
-# choosing by allocation order would make the gensym counter observable, so the
-# ambiguity is reported instead.
-fn frame_find_by_name(f, s) =
-  if empty?(f) then 'miss
-  else if head(head(head(f))) == s then
-    if frame_find_by_name(tail(f), s) == 'miss then nth(head(f), 1)
-    else die(['ambiguous, s])
-  else frame_find_by_name(tail(f), s)
-
-fn lookup_by_name(r, s) =
-  if empty?(r) then die(['unbound_name, s])
+fn frame_matches_by_name(f, s) =
+  if empty?(f) then []
   else {
-    let found = frame_find_by_name(head(r), s)
-    if found == 'miss then lookup_by_name(tail(r), s) else found
+    let binding = head(f)
+    let rest = frame_matches_by_name(tail(f), s)
+    if code_name(head(binding)) == s then binding :: rest else rest
+  }
+
+fn binding_idents(bindings) =
+  if empty?(bindings) then []
+  else head(head(bindings)) :: binding_idents(tail(bindings))
+
+fn lookup_by_name(r, s, site) =
+  if empty?(r) then raise_at(site, ['unbound_name, s])
+  else {
+    let matches = frame_matches_by_name(head(r), s)
+    if empty?(matches) then lookup_by_name(tail(r), s, site)
+    else if length(matches) == 1 then nth(head(matches), 1)
+    else raise_at(site, ['ambiguous_name, s, binding_idents(matches)])
   }
 
 fn bind(r, x, c) = [[x, c]] :: r
@@ -104,99 +81,101 @@ fn placeholders(bs) =
 
 fn prealloc(r, bs) = placeholders(bs) :: r
 
-# Allocate every cell, then fill each with a closure over the extended
-# environment. Evaluating a lambda calls nothing, so no cell can be read while
-# it still holds the placeholder.
 fn fill(r, bs) =
   if empty?(bs) then {}
   else {
-    let b = head(bs)
-    let lam = nth(b, 1)
-    cell_set(lookup(r, head(b)), clo(nth(lam, 1), nth(lam, 2), r))
+    let binding = head(bs)
+    let name = head(binding)
+    match nth(binding, 1) {
+      Lam(params, body) ->
+        cell_set(lookup(r, name, name), clo(params, body, r, [name]))
+    }
     fill(r, tail(bs))
   }
 
-fn assign(r, x, w) = cell_set(lookup(r, x), w)
+fn assign(r, x, w, site) = cell_set(lookup(r, x, site), w)
 
-# The group. Every occurrence of `eval`, `apply`, and `eval_list` below is a
-# dereference of this level's cell, which is what `open` means (spec §D3): a
-# meta level that replaces one of them intercepts every nested step, not just
-# the entry. No name in this group is ever captured directly by a closure.
+# Every recursive occurrence of eval/apply/eval_list dereferences its current
+# open-group cell. apply carries the whole application Code as well as the
+# callee and values so every diagnostic is attributed to the interpreted
+# program rather than this file.
 
-open fn eval(e, r, k) = {
-  let form = head(e)
-  if form == 'lit then k(nth(e, 1))
-  else if form == 'var then k(deref(lookup(r, nth(e, 1))))
-  else if form == 'named_var then k(deref(lookup_by_name(r, nth(e, 1))))
-  else if form == 'quote then k(nth(e, 1))
-  else if form == 'lam then k(clo(nth(e, 1), nth(e, 2), r))
-  else if form == 'reifier then k(reif(nth(e, 1), nth(e, 2), r))
-  else if form == 'if then
-    eval(nth(e, 1), r, fn(b) ->
-      if b then eval(nth(e, 2), r, k) else eval(nth(e, 3), r, k))
-  else if form == 'let then
-    eval(nth(e, 2), r, fn(v) -> eval(nth(e, 3), bind(r, nth(e, 1), cell_new(v)), k))
-  else if form == 'letrec then {
-    let bs = nth(e, 1)
-    let inner = prealloc(r, bs)
-    fill(inner, bs)
-    eval(nth(e, 2), inner, k)
+open fn eval(e, r, k) =
+  match e {
+    Lit(c) -> k(c)
+    Var(x) -> k(deref(lookup(r, x, e)))
+    NamedVar(s) -> k(deref(lookup_by_name(r, s, e)))
+    Quote(q) -> k(q)
+    Lam(params, body) -> k(clo(params, body, r, []))
+    Reifier(params, body) -> k(reif(params, body, r))
+    If(condition, consequent, alternative) ->
+      eval(condition, r, fn(value) ->
+        if value == true then eval(consequent, r, k)
+        else if value == false then eval(alternative, r, k)
+        else raise_at(condition, ['unexpected, value, "a boolean"]))
+    Let(name, value, body) ->
+      eval(value, r, fn(result) ->
+        eval(body, bind(r, name, cell_new(result)), k))
+    LetRec(bindings, body) -> {
+      let inner = prealloc(r, bindings)
+      fill(inner, bindings)
+      eval(body, inner, k)
+    }
+    Set(name, value) ->
+      eval(value, r, fn(result) -> k(assign(r, name, result, e)))
+    App(func, args) ->
+      eval(func, r, fn(callee) ->
+        if tagged?(callee) && tag_of(callee) == 'reif then
+          raise_at(e, ['unsupported, "reifier application", "the ground evaluator"])
+        else eval_list(args, r, fn(values) -> apply(callee, values, k, e)))
   }
-  else if form == 'set then
-    eval(nth(e, 2), r, fn(w) -> k(assign(r, nth(e, 1), w)))
-  else if form == 'app then
-    eval(nth(e, 1), r, fn(f) ->
-      if tagged?(f) && tag_of(f) == 'reif then die(['reifier_application, e])
-      else eval_list(nth(e, 2), r, fn(vs) -> apply(f, vs, k)))
-  else die(['unknown_form, e])
-}
 
-open fn apply(f, vs, k) =
-  # Not one of the three callables this level constructs: a primitive, or
-  # something that is not callable at all. `callcc` is the one primitive this
-  # level cannot delegate — the level below would capture the interpreter's
-  # continuation instead of the interpreted program's — and it is recognized by
-  # value rather than by name, so a program that renames it is still caught and a
-  # program that shadows it with its own function is not. Everything else is
-  # applied below, so its arity, type, and arithmetic diagnostics are the ones a
-  # level-0 run would give, and anything uncallable is refused in those words.
+open fn apply(f, vs, k, site) =
+  # A primitive stays unwrapped across levels. callcc is the one primitive this
+  # level cannot delegate because the lower evaluator would capture the
+  # interpreter's continuation rather than the interpreted program's.
   if !tagged?(f) then
     if f == callcc then
-      if length(vs) != 1 then die(['arity, 1, length(vs)])
-      else apply(head(vs), [cont(k)], k)
-    else k(invoke(f, vs))
+      if length(vs) != 1 then raise_at(site, ['arity, ["callcc"], 1, length(vs)])
+      else apply(head(vs), [cont(k, site)], k, site)
+    else k(invoke_at(site, f, vs))
   else {
     let what = tag_of(f)
-    if what == 'clo then
-      if length(nth(f, 2)) != length(vs) then
-        die(['arity, length(nth(f, 2)), length(vs)])
-      else eval(nth(f, 3), extend(nth(f, 4), nth(f, 2), vs), k)
+    if what == 'clo then {
+      let params = nth(f, 2)
+      if length(params) != length(vs) then {
+        let stored_name = nth(f, 6)
+        let callee =
+          if empty?(stored_name) then [] else [code_name(head(stored_name))]
+        raise_at(site, ['arity, callee, length(params), length(vs)])
+      }
+      else eval(nth(f, 3), extend(nth(f, 4), params, vs), k)
+    }
     else if what == 'cont then
-      if length(vs) != 1 then die(['arity, 1, length(vs)])
+      if length(vs) != 1 then
+        raise_at(site, ['arity, ["continuation"], 1, length(vs)])
       else {
         let used = nth(f, 3)
-        # Marked before the transfer, so a continuation reached again through
-        # its own resumption is caught rather than looping (spec §D4).
-        if deref(used) then die(['continuation_reuse, f])
+        if !empty?(deref(used)) then
+          raise_at(site,
+            ['continuation_reuse, nth(f, 4), head(deref(used))])
         else {
-          cell_set(used, true)
+          cell_set(used, [site])
           nth(f, 2)(head(vs))
         }
       }
-    # Applying a reifier runs one level up. There is no level above yet; the
-    # tower is task 4.2.
-    else die(['reifier_application, f])
+    else raise_at(site,
+      ['unsupported, "reifier application", "the ground evaluator"])
   }
 
-# Left to right, with the tail evaluated inside the head's continuation, so the
-# order does not change when an argument captures control.
+# Left to right, with the tail inside the head's continuation so captured
+# control cannot change argument order.
 open fn eval_list(es, r, k) =
   if empty?(es) then k([])
   else eval(head(es), r, fn(v) -> eval_list(tail(es), r, fn(vs) -> k(v :: vs)))
 
-# The interface the level below calls. `prims` is a list of `[identifier, op]`,
-# one per primitive of that level, which becomes the interpreted program's single
-# global frame — the same bindings a level-0 run is given.
+# A level receives one [identifier-Code, primitive] pair per global. It gets a
+# single global frame, exactly like the ground evaluator.
 fn globals_frame(prims) =
   if empty?(prims) then []
   else {
@@ -204,9 +183,6 @@ fn globals_frame(prims) =
     [head(p), cell_new(nth(p, 1))] :: globals_frame(tail(prims))
   }
 
-# An interpreted closure has no host counterpart, so it is reported as its tag
-# rather than handed back as a list the host would compare structurally. Scalars,
-# lists, cells, and primitives are already themselves.
 fn reveal(v) =
   if tagged?(v) then tag_of(v)
   else if list?(v) then reveal_list(v)

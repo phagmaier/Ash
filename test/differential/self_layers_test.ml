@@ -1,7 +1,7 @@
 (* Layer agreement (to-do task 2.3).
 
    `Self.interpreting` turns a Core term into another Core term — the
-   interpreter applied to the encoded program and the encoded globals — so the
+   interpreter applied to real Code and Code-keyed globals — so the
    result is itself something a further layer can interpret. That gives a ladder:
 
      layer 0   the ground evaluator runs the program
@@ -10,7 +10,7 @@
 
    Every layer must answer the same thing and leave the same trace. That is the
    iteration half of task 2.3, and it is a stronger statement than layer 1's
-   agreement alone: layer 2 only works if the encoding survives being applied to
+   agreement alone: layer 2 only works if Code transport survives being applied to
    the interpreter's own lowering, and if a primitive handed down two levels is
    still something the bottom level can apply.
 
@@ -40,29 +40,12 @@ type outcome = { result : (Value.value, Error.t) result; trace : Io.event list }
 
 let attempt f = match f () with value -> Ok value | exception Error.Ash_error e -> Error e
 
-(* Failures the interpreted level detects itself rather than delegating; the same
-   boundary `self_host_test.ml` names, reached the same way at every layer. Here
-   it is enough that both layers diagnose it themselves, which is what comparing
-   causes only when the interpreted one is not a self-diagnosis amounts to. *)
-let self_diagnosed error =
-  match error.Error.cause with
-  | Error.No_matching_clause _ -> true
-  | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Ambiguous_name _
-  | Error.Unfilled_binding _ | Error.Open_code _ | Error.Unliftable_value _
-  | Error.Unexpected_character _
-  | Error.Unterminated _
-  | Error.Unexpected _ | Error.Unknown_form _ | Error.Malformed_form _
-  | Error.Arity_error _ | Error.Division_by_zero | Error.Continuation_reuse _
-  | Error.Immutable_binding _ | Error.Unsupported _ | Error.Duplicate_binder _
-  | Error.Inconsistent_pattern_binders _ | Error.End_of_input ->
-      false
-
 let difference ~reference ~compared a b =
   match (a.result, b.result) with
-  | Ok x, Ok y when not (Value.equal (Encode.reveal x) y) ->
+  | Ok x, Ok y when not (Value.equal (Self.reveal x) y) ->
       Some
         (Printf.sprintf "value: %s gave %s, %s gave %s" reference
-           (Value.to_string (Encode.reveal x))
+           (Value.to_string (Self.reveal x))
            compared (Value.to_string y))
   | Ok x, Error e ->
       Some
@@ -72,13 +55,22 @@ let difference ~reference ~compared a b =
       Some
         (Printf.sprintf "%s failed where %s gave %s: %s" reference compared
            (Value.to_string y) (Error.to_string e))
-  | Error x, Error y
-    when (not (Error.cause_equal x.Error.cause y.Error.cause)) && not (self_diagnosed y) ->
+  | Error x, Error y when not (Error.cause_equal x.Error.cause y.Error.cause) ->
       Some
         (Printf.sprintf "cause: %s said %s, %s said %s" reference
            (Error.cause_message x.Error.cause)
            compared
            (Error.cause_message y.Error.cause))
+  | Error x, Error y when not (Span.equal x.Error.span y.Error.span) ->
+      Some
+        (Printf.sprintf "location: %s reported %s, %s reported %s" reference
+           (Span.to_string x.Error.span) compared (Span.to_string y.Error.span))
+  | Error x, Error y
+    when x.Error.phase <> y.Error.phase
+         || not (Option.equal Int.equal x.Error.level y.Error.level) ->
+      Some
+        (Printf.sprintf "error context: %s said %s, %s said %s" reference
+           (Error.to_string x) compared (Error.to_string y))
   | (Ok _ | Error _), (Ok _ | Error _) ->
       if List.equal Io.event_equal a.trace b.trace then None
       else
@@ -137,7 +129,7 @@ let agree_surface name source =
       Printf.printf "FAIL %s\n  did not lower: %s\n" name (Error.to_string error)
   | Ok term -> compare_layers name term ~globals ~io
 
-(* Output and control again, because they are the two things the encoding is
+(* Output and control again, because they are the two things layer transport is
    most likely to lose on the way down a second level: an effect has to reach the
    one stream through two interpreters, and a capture has to happen at the layer
    that owns the continuation rather than at either of the ones below it. *)
@@ -150,7 +142,7 @@ let extra =
      "(app (var callcc) (lam (k) (app (var +) (lit 1) (app (var k) (lit 10)))))");
     ("control: an unused capture",
      "(app (var callcc) (lam (k) (app (var +) (lit 1) (lit 2))))");
-    (* A closure crossing two encodings still has no host counterpart, and every
+    (* A closure crossing two layers still has no host counterpart, and every
        layer must say so the same way. *)
     ("a returned closure", "(lam (x) (var x))");
     ("a list of closures", "(app (var list) (lam (x) (var x)) (lit 1))");

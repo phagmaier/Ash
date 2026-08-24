@@ -94,6 +94,68 @@ let code_variable ~span value =
              expected = "code containing a variable";
            })
 
+let integer ~span value = number ~span value
+
+let source_span ~span value = Core.span (code ~span value)
+
+let code_variables ~span value =
+  List.map (code_variable ~span) (items ~span value)
+
+let optional_callee ~span value =
+  match value with
+  | Value.List [] -> None
+  | Value.List [ Value.Str name ] -> Some name
+  | Value.List (_ :: _ :: _) | Value.List [ (Value.Num _ | Value.Bool _ | Value.Sym _
+    | Value.Unit | Value.List _ | Value.Closure _ | Value.Reifier _
+    | Value.Continuation _ | Value.Environment _ | Value.Cell _ | Value.Code _
+    | Value.Primitive _) ] ->
+      type_error ~span ~expected:"an empty list or a one-string list" value
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+  | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
+  | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
+      type_error ~span ~expected:"an empty list or a one-string list" value
+
+let source_error_cause ~span descriptor =
+  match items ~span descriptor with
+  | [ Value.Sym "unbound_ident"; identity ] ->
+      (Error.Unbound_ident (code_variable ~span identity), None)
+  | [ Value.Sym "unbound_name"; Value.Str name ] -> (Error.Unbound_name name, None)
+  | [ Value.Sym "ambiguous_name"; Value.Str name; candidates ] ->
+      ( Error.Ambiguous_name { name; candidates = code_variables ~span candidates },
+        None )
+  | [ Value.Sym "arity"; callee; expected; actual ] ->
+      ( Error.Arity_error
+          {
+            callee = optional_callee ~span callee;
+            expected = string_of_int (integer ~span expected);
+            actual = integer ~span actual;
+          },
+        None )
+  | [ Value.Sym "unexpected"; found; Value.Str expected ] ->
+      (Error.Unexpected { found = Value.type_phrase found; expected }, None)
+  | [ Value.Sym "continuation_reuse"; captured; first_used ] ->
+      ( Error.Continuation_reuse
+          {
+            captured = source_span ~span captured;
+            first_used = source_span ~span first_used;
+          },
+        Some 0 )
+  | [ Value.Sym "unsupported"; Value.Str what; Value.Str by ] ->
+      (Error.Unsupported { what; by }, None)
+  | Value.Sym tag :: _ ->
+      fail ~span
+        (Error.Unexpected
+           {
+             found = Printf.sprintf "an unknown source-error descriptor `%s`" tag;
+             expected = "a supported source-error descriptor";
+           })
+  | [] | Value.Num _ :: _ | Value.Bool _ :: _ | Value.Str _ :: _ | Value.Unit :: _
+  | Value.List _ :: _ | Value.Closure _ :: _ | Value.Reifier _ :: _
+  | Value.Continuation _ :: _ | Value.Environment _ :: _ | Value.Cell _ :: _
+  | Value.Code _ :: _ | Value.Primitive _ :: _ ->
+      type_error ~span ~expected:"a source-error descriptor headed by a symbol"
+        descriptor
+
 (* A destructured Core node uses ordinary Ash values for literals and strings,
    and [Code] for every syntactic component. Binder identities are represented
    as one-node [Var] code values; this keeps the value domain small while making
@@ -245,6 +307,8 @@ let pure =
               false));
     unary "code_view" Effect_class.Pure (fun ~span value ->
         code_view (code ~span value));
+    unary "code_name" Effect_class.Pure (fun ~span value ->
+        Value.Str (Ident.name (code_variable ~span value)));
     make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
       (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
         match args with
@@ -283,6 +347,14 @@ let pure =
        failure the program would certainly have reached. *)
     unary "match_error" Effect_class.Pure (fun ~span value ->
         fail ~span (Error.No_matching_clause (Value.to_string value)));
+    (* The self-interpreter carries a subject node as Code. When it detects an
+       evaluator error itself, [raise_at] anchors the structured cause at that
+       node rather than at the helper call in [eval.ash]. The descriptor is a
+       closed protocol, not an arbitrary host exception escape hatch. *)
+    binary "raise_at" Effect_class.Pure (fun ~span site descriptor ->
+        let cause, level = source_error_cause ~span descriptor in
+        Error.raise_cause ~phase:Error.Evaluate
+          ~span:(source_span ~span site) ?level cause);
   ]
 
 (* The store. Residualized by default: running [cell_set] during specialization
@@ -395,6 +467,18 @@ let control =
             apply ~call_site callee (items ~span:call_site arguments) k
         | [] | [ _ ] | _ :: _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"invoke" ~arity:(Value.Exactly 2) args);
+    (* As [invoke], but the spread application is attributed to a Core node
+       supplied as Code. This is the source-preserving application path used by
+       the real-Code self-interpreter. *)
+    make ~name:"invoke_at" ~arity:(Value.Exactly 3) ~cls:Effect_class.Control
+      (fun ~call_site ~apply ~lift:_ ~run:_ args k ->
+        match args with
+        | [ site; callee; arguments ] ->
+            let call_site = source_span ~span:call_site site in
+            apply ~call_site callee (items ~span:call_site arguments) k
+        | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"invoke_at"
+              ~arity:(Value.Exactly 3) args);
   ]
 
 (* Evaluator-dependent operations. [lift] delegates Code construction because a

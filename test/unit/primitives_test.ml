@@ -102,12 +102,13 @@ let expected_classification =
     ("==", pure); ("!=", pure); ("not", pure);
     ("cons", pure); ("head", pure); ("tail", pure); ("empty?", pure);
     ("length", pure); ("list", pure); ("list?", pure);
-    ("code?", pure); ("code_view", pure); ("code_splice", pure);
-    ("code_match", pure); ("NamedVar", pure); ("match_error", pure);
+    ("code?", pure); ("code_view", pure); ("code_name", pure);
+    ("code_splice", pure); ("code_match", pure); ("NamedVar", pure);
+    ("match_error", pure); ("raise_at", pure);
     ("cell_new", mutating); ("deref", mutating); ("cell_set", mutating);
     ("open_cell", mutating); ("open_deref", mutating); ("open_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
-    ("callcc", control); ("invoke", control);
+    ("callcc", control); ("invoke", control); ("invoke_at", control);
     ("lift", reflection); ("run", reflection);
   ]
 
@@ -173,7 +174,7 @@ let test_classification () =
   (* Control and reflection are evaluator-dependent and get bespoke rules. *)
   check "control is capture and run-time application"
     (List.equal String.equal
-       [ "callcc"; "invoke" ]
+       [ "callcc"; "invoke"; "invoke_at" ]
        (Primitives.by_class Effect_class.Control));
   check "reflection contains staging and closed-code execution"
     (List.equal String.equal [ "lift"; "run" ]
@@ -297,6 +298,9 @@ let type_expectations =
     ("list?", Total [ n ]);
     ("code?", Total [ n ]);
     ("code_view", Rejects [ ([ n ], "a number", "code") ]);
+    ( "code_name",
+      Rejects
+        [ ([ n ], "a number", "code"); ([ code_lit ], "code containing lit", "code containing a variable") ] );
     ( "code_splice",
       Rejects
         [
@@ -320,6 +324,14 @@ let type_expectations =
           ([ n ], Error.No_matching_clause "1");
           ([ Value.List [] ], Error.No_matching_clause "[]");
         ] );
+    ( "raise_at",
+      Always_fails
+        [
+          ( [ code_lit;
+              Value.List
+                [ Value.Sym "unexpected"; n; Value.Str "a boolean" ] ],
+            Error.Unexpected { found = "a number"; expected = "a boolean" } );
+        ] );
     ("cell_new", Total [ n ]);
     ("deref", Rejects [ ([ n ], "a number", "a cell") ]);
     ("cell_set", Rejects [ ([ n; n ], "a number", "a cell") ]);
@@ -337,6 +349,12 @@ let type_expectations =
        the call. *)
     ( "invoke",
       Rejects [ ([ Value.Primitive identity_primitive; n ], "a number", "a list") ] );
+    ( "invoke_at",
+      Rejects
+        [
+          ([ n; Value.Primitive identity_primitive; Value.List [] ], "a number", "code");
+          ([ code_lit; Value.Primitive identity_primitive; n ], "a number", "a list");
+        ] );
     ("lift", Total [ n ]);
     ("run", Rejects [ ([ n ], "a number", "code") ]);
   ]
@@ -464,6 +482,9 @@ let test_code_primitives () =
        (apply (primitive "code?") [ Value.Code literal ]));
   check "code? rejects other shapes without raising"
     (Value.equal (Value.Bool false) (apply (primitive "code?") [ Value.Num 1 ]));
+  check "code_name exposes only a variable's printed component"
+    (Value.equal (Value.Str "x")
+       (apply (primitive "code_name") [ Value.Code variable ]));
   (match apply (primitive "NamedVar") [ Value.Str "dynamic" ] with
   | Value.Code node ->
       check "NamedVar constructs the explicit reflective Core form"
@@ -476,6 +497,46 @@ let test_code_primitives () =
   | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
   | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
       check "NamedVar returns Code" false)
+
+let test_source_preserving_primitives () =
+  let registry = Primitives.create () in
+  let primitive name =
+    match Primitives.find registry name with
+    | Some found -> found
+    | None -> invalid_arg (Printf.sprintf "missing primitive `%s`" name)
+  in
+  let source =
+    Span.make
+      ~start:(Span.position ~file:"subject.ash" ~line:4 ~column:3 ~offset:20)
+      ~stop:(Span.position ~file:"subject.ash" ~line:4 ~column:9 ~offset:26)
+  in
+  let site = Value.Code (Core.lit ~span:source Constant.Unit) in
+  let expect_at_source name expected thunk =
+    match attempt thunk with
+    | Ok value ->
+        incr failures;
+        Printf.printf "FAIL %s returned %s instead of failing\n" name
+          (Value.to_string value)
+    | Error error ->
+        check (name ^ " preserves the subject location")
+          (Span.equal source error.Error.span);
+        check (name ^ " preserves the structured cause")
+          (Error.cause_equal expected error.Error.cause)
+  in
+  expect_at_source "raise_at"
+    (Error.Unexpected { found = "a number"; expected = "a boolean" })
+    (fun () ->
+      apply (primitive "raise_at")
+        [
+          site;
+          Value.List
+            [ Value.Sym "unexpected"; Value.Num 1; Value.Str "a boolean" ];
+        ]);
+  expect_at_source "invoke_at"
+    (Error.Arity_error { callee = Some "identity"; expected = "1"; actual = 0 })
+    (fun () ->
+      apply (primitive "invoke_at")
+        [ site; Value.Primitive identity_primitive; Value.List [] ])
 
 (* Allocation and mutation *)
 
@@ -651,6 +712,7 @@ let () =
   test_arity ();
   test_type_errors ();
   test_code_primitives ();
+  test_source_preserving_primitives ();
   test_cells ();
   test_output ();
   test_input ();

@@ -15,35 +15,30 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 3 — code and staging foundations
-- **Next:** 3.4 — add staged-power and simplifier regressions
+- **Phase:** 4 — lazy tower (milestone 1)
+- **Next:** 4.1 — implement lazy machine/level materialization
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
   pass with the hygienic desugarer, `open fn` groups, the
   Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
-  38-primitive registry (including the five pure Code operations and reflective
-  fixed-domain `lift` plus closed-code `run`), the
+  41-primitive registry (including source-preserving self-evaluation operations,
+  fixed-domain `lift`, and closed-code `run`), the
   desugar/continuation/parser/lexer/Core/runtime suites, the open-recursion law
   suite including patching at depth, and three differential comparisons over the
   shared 91-program corpus (73 Core, 18 surface): oracle/CPS, CPS/layer 1, and
   layers 0/1/2
 - **Blocker:** none
 
-Phase 2 is complete. `open fn` is a surface binding form that lowers to
-open-recursion cells; the CPS Core evaluator is written in Ash and agrees with
-the host evaluator; and it runs under itself, with every layer agreeing and each
-layer's `eval` cell governing exactly the evaluation that layer performs. Task
-3.1 supplies hygienic `Code`, quotation/splicing, and both constructor and
-quasiquote patterns. The self-interpreter deliberately retains its Phase 2 data
-encoding until task 3.5, after 3.2–3.4 complete the Code foundation; that task
-owns both declared boundaries rather than changing the layer tests during 3.1.
-Task 3.2 adds deterministic closedness analysis and executes accepted Code on
-the active open-recursive machine using only its explicit level-global
-environment; caller lexical frames never cross the stage boundary.
-Task 3.3 adds exhaustive fixed-domain lifting: scalars, unit, immutable lists,
-and Code cross into Code, while executable/context/store values fail with a
-structured origin path. Lifted lists refer to the active level's exact hygienic
-`list` global rather than residualizing a printed-name lookup.
+Phase 3 is complete. Hygienic quotation/splicing, constructor and quasiquote
+patterns, deterministic closed-code `run`, and the exhaustive fixed `lift`
+domain are implemented. The documented staged power produces closed,
+alpha-correct Code and answers 32; the quasiquote simplifier cases pass. The Ash
+self-interpreter now consumes real Code and dispatches on all eleven Core
+constructor patterns; the Phase 2 `Ash_self.Encode` transport is deleted. Code
+spans cross each interpreter layer, source-directed primitive application and a
+closed structured-error protocol make host/self failures agree on cause and
+location, and the layer and open-recursion law suites retain their Phase 2
+coverage.
 
 ## Locked decisions
 
@@ -227,11 +222,11 @@ structured origin path. Lifted lists refer to the active level's exact hygienic
     continuations, environments, and cells with origin-aware errors.
   - Accept: nested lifting and every rejection category have focused tests.
 
-- [ ] **3.4 Add staged-power and simplifier regressions.**
+- [x] **3.4 Add staged-power and simplifier regressions.**
   - Accept: `pow5(2) == 32`; generated code is closed/alpha-correct; quasiquote
     simplifier cases match the spec.
 
-- [ ] **3.5 Retire `Ash_self.Encode` in favour of `Code`.**
+- [x] **3.5 Retire `Ash_self.Encode` in favour of `Code`.**
   - Rewrite `lib/self/eval.ash` to dispatch on Core constructor patterns over
     real Code, after 3.2–3.4 establish closed execution and the complete Code
     regression surface. Delete the temporary encoding rather than growing it.
@@ -401,6 +396,66 @@ structured origin path. Lifted lists refer to the active level's exact hygienic
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 3.5 and Phase 3 complete
+
+- Completed 3.5: the self-interpreter consumes real Code.
+  - `Self.interpreting` writes the subject as `Quote term` and materializes only
+    a Code-keyed primitive-global frame. `Ash_self.Encode` is deleted;
+    comparison-only identity abstraction now lives as `Self.reveal`.
+  - `lib/self/eval.ash` dispatches directly on all eleven Core constructor
+    patterns. Identifier fields remain one-node Var Code, so ordinary lookup is
+    exact-identity lookup and `code_name` exposes only the printed component for
+    explicit `NamedVar` resolution.
+  - The open-recursive Ash `apply` member carries the whole application Code.
+    Control primitive `invoke_at` delegates with that node's span; Pure
+    `raise_at` implements the closed structured protocol for errors detected by
+    the interpreter. Named closure arity and continuation capture/first-use
+    evidence now match the host.
+- Acceptance: `self_host_test.ml` removes the four-error exemption and compares
+  cause, span, phase, and level for every failure. It also checks quotation as
+  common Code, a synthetic-span unbound variable, `NamedVar`, reifier refusal,
+  and continuation reuse. `self_layers_test.ml` makes the same complete error
+  comparison at depth; `open_recursion_test.ml` patches the four-argument
+  `apply`; `primitives_test.ml` pins all three new operations and their
+  source-directed failures.
+- Decision and documentation: ADR 0021 records real-Code/global transport, the
+  printed-name boundary, source-directed application/error protocols, and the
+  registry growth from 38 to 41. It amends ADRs 0009 and 0016–0018; spec §6,
+  the Phase 3 roadmap, README, library docs, and this checklist agree.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/differential/self_host_test.exe`,
+  `opam exec -- dune exec test/differential/self_layers_test.exe`,
+  `opam exec -- dune exec test/laws/open_recursion_test.exe`,
+  `opam exec -- dune exec test/unit/primitives_test.exe`, and
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `git diff --check` all pass. The
+  full suite retains 91 oracle/CPS programs, 99 self-interpreter programs at
+  layer 1, and 98 at layer 2.
+- Known issues: none within Phase 3. `raise_at` records continuation level 0,
+  the only runtime level before Phase 4; task 4.1/4.2 must supply per-level
+  context when materialized levels arrive. The optional `dune build @fmt` issue
+  recorded in task 3.3 remains unrelated to canonical verification.
+- Next: 4.1 — implement lazy machine/level materialization with cloned globals,
+  fresh open-recursion cells, and separate actual/expanded size metrics.
+
+### 2026-08-23 — task 3.4
+
+- Completed 3.4: staged-power and quasiquote-simplifier regressions.
+  - The exact spec §4.3 `power` generator constructs `pow5`; `run(pow5)(2)`
+    answers 32. The generated lambda is checked both closed relative to its
+    level globals and alpha-equivalent to five multiplications of its own
+    hygienic parameter.
+  - The §4.4 simplifier is run for recursive `+ 0`, `* 1`, `* 0`, application
+    descent with alpha-renamed lambda binders, and unmatched fallthrough.
+- Acceptance: `test/unit/staging_test.ml` is a dedicated end-to-end suite over
+  parser, desugarer, Code matching/splicing, closedness, and execution.
+- Decision and documentation: no semantic decision changed; README now includes
+  the accepted staged-power example and describes the simplifier coverage.
+- Verified with `opam exec -- dune exec test/unit/staging_test.exe` and the full
+  `opam exec -- dune runtest --force` suite.
+- Known issues: none.
+- Next at completion: 3.5 — retire `Ash_self.Encode` in favour of real Code.
 
 ### 2026-08-23 — task 3.3
 

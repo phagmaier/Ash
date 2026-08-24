@@ -1,7 +1,8 @@
 # 0016 — The CPS Core evaluator written in Ash
 
 - **Status:** accepted, amended in part by
-  [0017](0017-interpreter-layers.md)
+  [0017](0017-interpreter-layers.md) and superseded for term transport and
+  diagnostics by [0021](0021-real-code-self-interpreter.md)
 - **Date:** 2026-08-23
 - **Task:** 2.2
 

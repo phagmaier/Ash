@@ -16,7 +16,8 @@
   desugar_test
   continuation_test
   run_test
-  lift_test)
+  lift_test
+  staging_test)
  (libraries ash.core ash.syntax ash.runtime)
  (flags
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))

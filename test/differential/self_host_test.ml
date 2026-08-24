@@ -9,17 +9,14 @@
 
    What is compared, and what is not:
 
-   - {b Value.} Compared, after {!Ash_self.Encode.reveal} maps each host value
+   - {b Value.} Compared, after {!Ash_self.Self.reveal} maps each host value
      that carries identity to its tag, since an interpreted closure is not a
      host closure and never could be.
    - {b Trace.} Compared. The interpreted level writes to the same stream
      through the same primitives.
-   - {b Cause.} Compared for every failure a primitive raises, which is most of
-     them. The exceptions are listed in [own_diagnosis] below and are checked to
-     be exactly that list.
-   - {b Location.} Not compared. An encoded term carries no spans, so a failure
-     is reported where in `eval.ash` it was raised. Spans cross when [Code]
-     does, in Phase 3. *)
+   - {b Cause and location.} Compared for every failure. Code carries the source
+     node through the level, and source-preserving evaluator primitives attribute
+     both delegated and locally detected failures to that node. *)
 
 open Ash_core
 open Ash_syntax
@@ -41,44 +38,15 @@ let attempt f = match f () with value -> Ok value | exception Error.Ash_error e 
 
 type expectation = Succeeds | Fails
 
-(* Failures the interpreted level detects itself rather than delegating to a
-   primitive. Ash cannot construct a structured error — a cause carries a span,
-   and the encoding has none until `Code` does — so these report as
-   [No_matching_clause] naming the condition. The list is closed, and a program
-   that leaves it is a difference like any other: this is a boundary, not a
-   licence to disagree. *)
-let own_diagnosis =
-  [
-    "error: an anonymous arity error";
-    "error: a nullary lambda given an argument";
-    "error: a named arity error";
-    "surface error: an arity error on a named function";
-  ]
-
-let self_diagnosed name error =
-  List.mem name own_diagnosis
-  &&
-  match error.Error.cause with
-  | Error.No_matching_clause _ -> true
-  | Error.Unbound_ident _ | Error.Unbound_name _ | Error.Ambiguous_name _
-  | Error.Unfilled_binding _ | Error.Open_code _ | Error.Unliftable_value _
-  | Error.Unexpected_character _
-  | Error.Unterminated _
-  | Error.Unexpected _ | Error.Unknown_form _ | Error.Malformed_form _
-  | Error.Arity_error _ | Error.Division_by_zero | Error.Continuation_reuse _
-  | Error.Immutable_binding _ | Error.Unsupported _ | Error.Duplicate_binder _
-  | Error.Inconsistent_pattern_binders _ | Error.End_of_input ->
-      false
-
 (* The first difference, and only the first, in the order a reader would check
    it by hand: did they both fail, did they fail the same way, having done the
    same things. *)
-let difference name host self =
+let difference _name host self =
   match (host.result, self.result) with
-  | Ok a, Ok b when not (Value.equal (Encode.reveal a) b) ->
+  | Ok a, Ok b when not (Value.equal (Self.reveal a) b) ->
       Some
         (Printf.sprintf "value: the host gave %s, the self-interpreter gave %s"
-           (Value.to_string (Encode.reveal a))
+           (Value.to_string (Self.reveal a))
            (Value.to_string b))
   | Ok a, Error e ->
       Some
@@ -88,13 +56,21 @@ let difference name host self =
       Some
         (Printf.sprintf "the host failed where the self-interpreter gave %s: %s"
            (Value.to_string b) (Error.to_string e))
-  | Error a, Error b
-    when (not (Error.cause_equal a.Error.cause b.Error.cause))
-         && not (self_diagnosed name b) ->
+  | Error a, Error b when not (Error.cause_equal a.Error.cause b.Error.cause) ->
       Some
         (Printf.sprintf "cause: the host said %s, the self-interpreter said %s"
            (Error.cause_message a.Error.cause)
            (Error.cause_message b.Error.cause))
+  | Error a, Error b when not (Span.equal a.Error.span b.Error.span) ->
+      Some
+        (Printf.sprintf "location: the host reported %s, the self-interpreter reported %s"
+           (Span.to_string a.Error.span) (Span.to_string b.Error.span))
+  | Error a, Error b
+    when a.Error.phase <> b.Error.phase
+         || not (Option.equal Int.equal a.Error.level b.Error.level) ->
+      Some
+        (Printf.sprintf "error context: the host said %s, the self-interpreter said %s"
+           (Error.to_string a) (Error.to_string b))
   | (Ok _ | Error _), (Ok _ | Error _) ->
       if List.equal Io.event_equal host.trace self.trace then None
       else
@@ -102,10 +78,6 @@ let difference name host self =
           (Printf.sprintf "output: the host left [%s], the self-interpreter left [%s]"
              (String.concat "; " (List.map Io.event_to_string host.trace))
              (String.concat "; " (List.map Io.event_to_string self.trace)))
-
-(* Each entry in [own_diagnosis] must actually be one, or the list is protecting
-   a program that has started agreeing and nobody noticed. *)
-let exercised = Hashtbl.create 8
 
 let compare_runs name term ~expect ~globals ~io =
   let run evaluate =
@@ -126,12 +98,6 @@ let compare_runs name term ~expect ~globals ~io =
       incr failures;
       Printf.printf "FAIL %s\n  was meant to fail, gave %s\n" name (Value.to_string value)
   | (Succeeds | Fails), (Ok _ | Error _) -> ());
-  (match (host.result, self.result) with
-  | Error a, Error b
-    when (not (Error.cause_equal a.Error.cause b.Error.cause)) && self_diagnosed name b
-    ->
-      Hashtbl.replace exercised name ()
-  | (Ok _ | Error _), (Ok _ | Error _) -> ());
   match difference name host self with
   | None -> ()
   | Some explanation ->
@@ -191,19 +157,14 @@ let control =
    it quietly. Quotation yields code, and the two levels do not represent code
    the same way; applying a reifier needs the level above, which is Phase 4. *)
 let test_boundary () =
-  let globals, named, _ = registry () in
+  let globals, named, io = registry () in
   let term text =
     Core_reader.read ~scope:(Core_reader.scope_of_list named) ~file text
   in
-  let refuses text =
-    match attempt (fun () -> Self.eval ~globals (term text)) with
-    | Error _ -> true
-    | Ok _ -> false
-  in
-  check "applying a reifier is refused, as it is on the host"
-    (refuses "(app (reifier (e r k) (var e)) (lit 1))");
-  (* Both levels answer a quotation with the term itself. They disagree about
-     what a term is represented as, which is what Phase 3 settles. *)
+  compare_runs "error: applying a reifier"
+    (term "(app (reifier (e r k) (var e)) (lit 1))") ~expect:Fails
+    ~globals ~io;
+  (* Code is now the common transport and result representation. *)
   let quoted = term "(quote (lit 1))" in
   let host = Evaluator.eval ~env:(Env.extend globals Value.empty_env) quoted in
   let self = Self.eval ~globals quoted in
@@ -214,16 +175,23 @@ let test_boundary () =
     | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
     | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
         false);
-  check "the self-interpreter answers a quotation with the encoded term"
-    (Value.equal self (Encode.term (term "(lit 1)")))
+  check "the self-interpreter answers a quotation with the same Code"
+    (Value.equal self host)
 
-let test_own_diagnosis_is_exercised () =
-  List.iter
-    (fun name ->
-      check
-        (Printf.sprintf "`%s` still needs the self-interpreter's own diagnosis" name)
-        (Hashtbl.mem exercised name))
-    own_diagnosis
+let test_unbound_code_keeps_its_source () =
+  let globals, _, io = registry () in
+  let span =
+    Span.make
+      ~start:(Span.position ~file ~line:7 ~column:4 ~offset:30)
+      ~stop:(Span.position ~file ~line:7 ~column:11 ~offset:37)
+  in
+  compare_runs "error: an unbound hygienic variable"
+    (Core.var ~span (Ident.fresh "missing")) ~expect:Fails ~globals ~io
+
+let continuation_reuse =
+  "var saved = 0\n\
+   let v = callcc(fn(k) -> { saved := k\n  0 })\n\
+   if v == 0 then saved(1) else saved(2)"
 
 let () =
   List.iter (fun (name, text) -> agree ~expect:Succeeds ("value: " ^ name) text) Corpus.values;
@@ -241,8 +209,10 @@ let () =
     (fun (name, text) -> agree ~expect:Succeeds ("output: " ^ name) text)
     observable;
   List.iter (fun (name, text) -> agree ~expect:Succeeds ("control: " ^ name) text) control;
+  agree ~expect:Succeeds "code: explicit NamedVar lookup" "(named-var \"+\")";
+  agree_surface ~expect:Fails "control error: continuation reuse" continuation_reuse;
   test_boundary ();
-  test_own_diagnosis_is_exercised ();
+  test_unbound_code_keeps_its_source ();
   Printf.printf
     "self-interpreter corpus: %d Core, %d surface, %d output, and %d control programs \
      compared\n"

@@ -597,14 +597,14 @@ open fn eval(e, r, k) =
     App(f, as)     -> eval(f, r, fn(fv) ->
                         match fv {
                           Reif(_,_,_) -> shift_up(fv, e, r, k)
-                          _           -> eval_list(as, r, fn(vs) -> apply(fv, vs, k))
+                          _           -> eval_list(as, r, fn(vs) -> apply(fv, vs, k, e))
                         })
   }
 
-open fn apply(f, vs, k) =
+open fn apply(f, vs, k, site) =
   match f {
     Clo(ps, b, r) -> eval(b, extend(r, ps, vs), k)
-    Prim(op)      -> k(prim_apply(op, vs))
+    Prim(op)      -> k(invoke_at(site, op, vs))
     Cont(k2, u)   -> { check_unused(u); k2(head(vs)) }
   }
 
@@ -615,19 +615,17 @@ Every occurrence of `eval` / `apply` / `eval_list` inside this group is, per `op
 
 Every line you add here gets multiplied by tower depth. Guard it jealously.
 
-> [!note] What Phase 2 actually built
-> `lib/self/eval.ash` has this shape — same eleven forms, same evaluation order, same CPS, same open group — with two things above deferred rather than implemented, because both are Phase 3.
+> [!note] Phase 3 transport
+> Phase 2 first built this shape over a temporary tagged-list encoding. Phase 3
+> has now retired that transport: `lib/self/eval.ash` receives real `Code` and
+> dispatches with all eleven constructor patterns. Identifier fields remain
+> one-node `Var` Code, and child nodes retain their source spans.
 >
-> - The subject arrives as **tagged list data**, not as `Code`: quotation did not exist in Phase 2, so `Ash_self.Encode` writes each form as `['form, …]` and each identifier as `[name, id]`.
-> - Dispatch is an **`if` chain over the form tag**, not `match e { Lit(c) -> … }`: Core constructor patterns did not lower in Phase 2.
->
-> Task 3.1 adds both capabilities without changing this interpreter, preserving
-> the Phase 2 layer tests as an independent check of Code construction. Task 3.5
-> explicitly owns replacing `Ash_self.Encode`, converting dispatch to constructor
-> patterns, carrying spans across the level boundary, and deleting the temporary
-> module after closed-code execution and the rest of the Code foundation land.
->
-> `prim_apply` is the `invoke` primitive, which applies a callee to an argument list whose length is only known at run time — Core `App` has a fixed number of argument positions, so an evaluator that has built an argument list cannot spread it without one. See `docs/decisions/0016-the-ash-self-interpreter.md`, which also records the two places the interpreted level's diagnostics deliberately differ from level 0's.
+> `invoke_at` spreads a runtime argument list while attributing delegated errors
+> to the subject `App`; `raise_at` carries the interpreter's closed structured
+> error protocol to the subject node. The host/self differential therefore
+> compares failure location as well as cause. See
+> `docs/decisions/0021-real-code-self-interpreter.md`.
 
 ### 6.1 Lazy materialization
 
@@ -761,8 +759,8 @@ One-shot first-class continuations (D4), `used` flag enforcement. Differential t
 ### Phase 3 — Code `[1]`
 Quotation, splicing, hygienic construction, closed-code `run` (D5), alpha-equivalence checker, `lift` with the D6 domain.
 - **Done when:** staged `power` produces alpha-correct closed code; `run` rejects open code with a useful message.
-- **Then:** retire the Phase 2 `Ash_self.Encode` transport in favour of real Code,
-  constructor dispatch, and cross-level spans (checklist task 3.5).
+- **Completed:** the Phase 2 transport is retired in favour of real Code,
+  constructor dispatch, and cross-level spans.
 
 > [!note] Two independent tracks from here
 > Phases 4/8/9/10 (tower) and 5/6/7 (collapse) are largely independent after Phase 3. The ordering below does the tower first because it stress-tests Core's reflective adequacy while Core is still cheap to change. If you'd rather de-risk the collapse result first, swap 4 and 5 — but don't interleave them.

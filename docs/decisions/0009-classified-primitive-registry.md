@@ -2,7 +2,8 @@
 
 - **Status:** accepted, clarified by
   [0018](0018-hygienic-code-and-refutable-shapes.md) and amended by
-  [0019](0019-closed-code-run.md) and [0020](0020-fixed-lift-domain.md)
+  [0019](0019-closed-code-run.md), [0020](0020-fixed-lift-domain.md), and
+  [0021](0021-real-code-self-interpreter.md)
 - **Date:** 2026-08-23
 - **Task:** 0.9
 

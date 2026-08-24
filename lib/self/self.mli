@@ -4,30 +4,22 @@
     Ash and open-recursive in the sense of spec §D3. This module is the harness
     that loads it: it lowers the interpreter with the ordinary parser and
     desugarer, evaluates it on the ground evaluator, and applies the interface it
-    exports to an encoded term.
+    exports to a term carried as real [Code].
 
     Nothing here is a host escape hatch for the interpreter. The interpreted
     level gets exactly the globals the host level gets, and everything it cannot
     do itself — arithmetic, list operations, output, arity and type diagnostics —
     it does by applying those same primitives through [invoke].
 
-    {1 What agrees and what does not}
+    {1 Comparison boundary}
 
     On a program that produces a value, the self-interpreter and the ground
-    evaluator agree on the value ({!Encode.reveal} makes the two comparable) and
-    on the observable trace. On a program that fails, they agree on the cause
-    wherever the failure is one a primitive raises, which is most of them.
-
-    Two boundaries are deliberate and tested rather than papered over:
-
-    - {b Locations.} An encoded term carries no spans, so a failure the
-      interpreted level raises is reported wherever in [eval.ash] it was raised.
-      Task 3.5 crosses spans when it replaces the encoding with real [Code].
-    - {b Failures this level detects itself.} Ash cannot construct a structured
-      error, so an arity mismatch on an interpreted closure, a reused
-      continuation, an unbound identifier, and reifier application are reported
-      as {!Ash_core.Error.No_matching_clause} naming the condition instead of as
-      the host's cause. *)
+    evaluator agree on the value ({!reveal} makes identity-bearing host and
+    interpreted values comparable) and on the observable trace. Source spans
+    cross the level boundary with [Code]. The interpreter delegates
+    applications through the source-preserving primitive protocol and raises its
+    own closed set of structured evaluator causes at the subject node, so host
+    and interpreted failures agree on both cause and location. *)
 
 open Ash_core
 
@@ -52,11 +44,15 @@ val load :
 val call : Value.value -> Value.value list -> Value.value
 (** Apply an Ash value to arguments on a fresh default machine. *)
 
+val reveal : Value.value -> Value.value
+(** Replace host closures, reifiers, and continuations with the symbolic tags
+    returned by the interpreter's own [reveal], recursively through lists. *)
+
 val interpreting :
   ?extra:string -> globals:(Ident.t * Value.value) list -> Core.t -> Core.t
-(** The term that interprets [term]: the interpreter applied to the encoded
-    program and the encoded globals, with both written into the term rather than
-    passed beside it. The result is an ordinary Core term, so it can itself be
+(** The term that interprets [term]: the interpreter applied to [Code term] and
+    its Code-keyed primitive globals, with both written into the term rather
+    than passed beside it. The result is an ordinary Core term, so it can itself be
     the program a further layer interprets — which is what makes {!eval} with
     [~layers:2] mean the interpreter running under itself. *)
 

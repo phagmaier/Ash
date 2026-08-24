@@ -51,12 +51,10 @@ let level source =
 
 let host ~globals term = Evaluator.eval ~env:(Env.extend globals Value.empty_env) term
 
-(* Apply an interface the appended Ash statements export to the encoded program
-   and the encoded globals — the same two arguments `interpret` takes. *)
+(* Run an interface appended to the interpreter against the same real-Code
+   subject and Code-keyed globals that [Self.interpreting] uses. *)
 let through ~extra ~globals term =
-  Self.call
-    (Self.load ~extra ~globals ())
-    [ Encode.term term; Encode.globals globals ]
+  host ~globals (Self.interpreting ~extra ~globals term)
 
 let pair name value =
   match value with
@@ -73,20 +71,24 @@ let pair name value =
    every reference to the member inside `base` is still a dereference, so the
    wrapper sees the nested steps too. *)
 let wrapper member =
+  let parameters, arguments =
+    if String.equal member "apply" then ("a, b, c, d", "a, b, c, d")
+    else ("a, b, c", "a, b, c")
+  in
   Printf.sprintf
     "fn traced(e, prims) = {\n\
     \  var hits = 0\n\
     \  let base = %s\n\
-    \  %s := fn(a, b, c) -> {\n\
+    \  %s := fn(%s) -> {\n\
     \    hits := hits + 1\n\
-    \    base(a, b, c)\n\
+    \    base(%s)\n\
     \  }\n\
     \  let answer = interpret(e, prims)\n\
     \  %s := base\n\
     \  [hits, answer]\n\
      }\n\
      traced"
-    member member member
+    member member parameters arguments member
 
 (* §D3's own assertion. The program has thirteen Core nodes once `1 + (2 * (3 -
    (4 / 5)))` is lowered — four applications, four operator variables, five
@@ -98,7 +100,7 @@ let test_every_nested_node () =
     pair "the traced run" (through ~extra:(wrapper "eval") ~globals term)
   in
   check "the interpreted answer is the ground one"
-    (Value.equal expected (Encode.reveal answer));
+    (Value.equal expected (Self.reveal answer));
   check "wrapping eval observes more than the entry" (hits >= 9);
   check_int "wrapping eval observes every node" (Core.node_count term) hits;
   check "the run dereferenced the group's cells"
@@ -117,7 +119,7 @@ let test_every_member () =
       in
       check
         (Printf.sprintf "tracing %s leaves the answer alone" member)
-        (Value.equal expected (Encode.reveal answer));
+        (Value.equal expected (Self.reveal answer));
       check
         (Printf.sprintf "%s is dereferenced more than once" member)
         (hits >= least))
@@ -154,7 +156,7 @@ let test_replacement_mid_evaluation () =
     pair "the mid-evaluation replacement" (through ~extra ~globals term)
   in
   check "a replacement mid-evaluation leaves the answer alone"
-    (Value.equal expected (Encode.reveal answer));
+    (Value.equal expected (Self.reveal answer));
   (* Three steps ran under the first wrapper; every later one must reach the
      second, which the first one never calls. *)
   check_int "a replacement takes effect at the next step"
@@ -212,7 +214,7 @@ let test_patching_at_depth () =
     pair "the patched inner layer" (run inner_patched)
   in
   check "an interpreted interpreter still answers the ground value"
-    (Value.equal expected (Encode.reveal inner_answer));
+    (Value.equal expected (Self.reveal inner_answer));
   check "patching at depth observes more than the entry" (inner_hits >= 9);
   check_int "patching at depth observes every node of the program"
     (Core.node_count term) inner_hits;
@@ -224,7 +226,7 @@ let test_patching_at_depth () =
   in
   let outer_hits, outer_answer = pair "the patched outer layer" (run outer_patched) in
   check "patching the layer below leaves the answer alone"
-    (Value.equal expected (Encode.reveal outer_answer));
+    (Value.equal expected (Self.reveal outer_answer));
   (* Two orders of magnitude is not a tuning constant: interpreting one node
      costs the interpreter a great many nodes of its own, so anything close to
      the program's count would mean the patch had reached the wrong subject. *)
@@ -243,7 +245,7 @@ let test_patching_at_depth () =
       let hits, answer = pair ("patching " ^ member ^ " at depth") (run nested) in
       check
         (Printf.sprintf "patching %s at depth leaves the answer alone" member)
-        (Value.equal expected (Encode.reveal answer));
+        (Value.equal expected (Self.reveal answer));
       check_int
         (Printf.sprintf "patching %s at depth observes its own steps" member)
         expected_hits hits)
@@ -264,7 +266,7 @@ let test_instrumentation_is_inert () =
     (Int.equal counted (Primitives.open_dereferences registry));
   check "an interpreted run dereferences the group" (counted > 0);
   check "the answer is the ground one"
-    (Value.equal (Encode.reveal (host ~globals term)) first)
+    (Value.equal (Self.reveal (host ~globals term)) first)
 
 let () =
   test_every_nested_node ();
