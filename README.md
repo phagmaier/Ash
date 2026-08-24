@@ -734,6 +734,29 @@ level 0, and level 2 counts what level 1 then does, reporting 715 interpreter
 steps for 67 program steps. What both print is stored in
 `test/golden/demos.expected`.
 
+## Staging and the maybe-lift evaluator
+
+`Ash_stage` (`ash.stage`) implements the staged specializer foundation (spec §7):
+
+- **Values (`Ash_stage.Stage_value`):** static data are real values (`Value.value`),
+  while dynamic data are `Code(Core.t)`. Named policy predicates (`is_static`,
+  `is_dynamic`, `is_purely_static`, `static_value`, `dynamic_code`) control
+  specialization choices.
+- **Modes (`Ash_stage.Mode`):** `Identity` mode evaluates terms as standard
+  ground evaluation; `Lift` mode folds static computations and lifts static results
+  at stage boundaries. Machines carry the mode of their evaluator wiring, and
+  `run` rejects an explicitly mismatching mode before evaluating anything.
+- **Evaluator (`Ash_stage.Staged_eval`):** a single CPS evaluator source supporting
+  both `Identity` and `Lift` modes with open recursion across `eval`, `apply`, and
+  `eval_list`. Pure primitives are stage-polymorphic (spec §D7): folding only
+  when arguments are recursively static and residualizing `Core.App` when any
+  nested value is dynamic. Residual calls retain the exact hygienic primitive
+  binding. Observable effects always residualize; Core `Set` is rejected in
+  Lift mode until Phase 7 supplies store splitting. Quotes retain their `Quote`
+  node, while closures are reified from lambda syntax with an isolated emission
+  buffer for each dynamic body—closures themselves remain outside `lift`'s
+  fixed domain.
+
 ## The differential corpus
 
 `test/differential/` runs one program on both evaluators and compares four

@@ -284,7 +284,7 @@ let apply_default machine ~call_site callee arguments k =
       type_error ~span:call_site ~level ~expected:"a function" callee
 
 let machine () =
-  Machine.create ~eval:eval_default ~apply:apply_default ~eval_list:eval_list_default
+  Machine.create ~eval:eval_default ~apply:apply_default ~eval_list:eval_list_default ()
 
 let run machine ~env node =
   Machine.set_global_env machine env;

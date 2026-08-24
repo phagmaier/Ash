@@ -16,17 +16,19 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 5 — pure collapser (milestone 2)
-- **Next:** 5.1 — add static/dynamic values and a `maybe-lift` evaluator mode
+- **Next:** 5.3 — stage pure higher-order Core, recursion, and immutable data
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass from a removed `_build` in about 31 s, with **Phase 4 complete**: lazy
-  level materialization, reifiers and the up/down protocol, surface `up { … }`
-  with the full §5.2 meta bindings, the §5.7 law suite at depths 0–5, and the two
-  packaged milestone demos. Also intact: the hygienic desugarer, `open fn`
-  groups, the Ash self-interpreter (`lib/self/eval.ash`) at layers 1 and 2, the
-  49-primitive registry, the desugar/continuation/reifier/up/parser/lexer/Core/
-  runtime suites, three differential comparisons over the shared 91-program
-  corpus (73 Core, 18 surface), and the golden parser/lexer/desugar/demo output
+  pass after a staging correctness review. **Task 5.2 remains complete**:
+  hygienic let-insertion now includes isolated residual lambda bodies and
+  guaranteed linear emission on duplication traps. Lift mode preserves Quote,
+  recursively detects dynamic data, retains exact primitive identities, rejects
+  Core Set pending store splitting, and cannot be requested on Identity wiring.
+  Identity mode again agrees with ground Code semantics.
+  Also intact: the static/dynamic value model and `maybe-lift` mode (5.1), lazy
+  tower (depths 0–5), the hygienic desugarer, `open fn` groups, the self-interpreter
+  (`lib/self/eval.ash`) at layers 1 and 2, the 49-primitive registry, the full
+  regression suite (unit, differential, laws, golden), and both packaged milestone demos.
 - **Blocker:** none
 
 Milestone 1 is done. The tower is real: a program can reach up and replace the
@@ -288,12 +290,12 @@ the fragment where it can be.
 
 ## Phase 5 — pure collapser (milestone 2)
 
-- [ ] **5.1 Add static/dynamic values and `maybe-lift` evaluator mode.**
+- [x] **5.1 Add static/dynamic values and `maybe-lift` evaluator mode.**
   - Static data are real values; dynamic data are `Code(Core)`.
   - One evaluator source supports identity and lifting modes.
   - Accept: ordinary evaluation and constant-folding tests both pass.
 
-- [ ] **5.2 Implement hygienic let-insertion.**
+- [x] **5.2 Implement hygienic let-insertion.**
   - Use scoped block buffers, fresh IDs, and distinct buffers for dynamic branch
     and lambda bodies. Preserve operation count and evaluation order.
   - Accept: nested emission stays linear on duplication traps.
@@ -421,6 +423,114 @@ the fragment where it can be.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — staging correctness review fixes
+
+- Corrected all seven findings against tasks 5.1–5.2 without advancing the
+  checklist:
+  - Lift-mode Core `Set` is rejected before evaluating its value or mutating the
+    specialization environment; Phase 7 remains responsible for store splitting.
+  - Lift-mode `Quote` residualizes the enclosing `Core.Quote`, so residual
+    execution returns Code rather than the quoted value.
+  - evaluator machines record ground/staged-Identity/staged-Lift wiring;
+    `Staged_eval.run` derives the mode and rejects explicit mismatches before IO.
+  - residual primitive calls recover the outermost hygienic binding containing
+    the exact primitive value by identity, never by printed-name lookup.
+  - Code-specific `If`, `Let`, and application residualization is Lift-only, so
+    Identity mode preserves the ground evaluator's values and type errors.
+  - pure primitives use recursive `is_purely_static`, preventing folds over
+    lists that contain dynamic Code.
+  - closures crossing a Lift boundary reify their lambda syntax and specialize
+    each dynamic body in its own `reify_block`; closures remain unliftable.
+- Regression coverage in `test/unit/stage_test.ml` executes residual Quote and
+  lambda programs and checks mode/IO safety, Identity Code behavior, primitive
+  hygiene under same-name shadowing, nested dynamic data, and mutation-state
+  preservation under a dynamic branch.
+- Documentation: README and ADRs 0026–0027 now state the corrected contracts.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/stage_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all pass.
+- Known issues: none from this review. Store splitting remains deliberately
+  deferred to Phase 7.
+- Next: 5.3 — stage pure higher-order Core, recursion, and immutable data.
+
+### 2026-08-24 — task 5.2
+
+- Completed: hygienic let-insertion with scoped block buffers.
+  - **Scoped block buffers.** `Ash_stage.Emit` implements ambient mutable block
+    buffers (`create_buffer`, `with_buffer`, `emit`, `reify_block`).
+  - **Let-insertion.** Non-trivial dynamic computations (`App`, `If`, `Let`, etc.)
+    emitted into an ambient buffer allocate fresh identifiers (`Ident.fresh`),
+    record `{ binder; value; span }` with provenance `"stage/let-insert"`, and
+    return `Var binder`. Trivial variables and literals pass through directly.
+  - **Isolated branch scopes.** Dynamic `If` evaluates consequent and alternative
+    branches within distinct `reify_block` buffers so bindings do not leak across
+    branches or into the parent block. Dynamic `Let` and top-level `run`/`fold`
+    wrap expressions with `reify_block`.
+  - **Linearity on duplication traps.** Repeated references to dynamic results
+    pass the generated variable name rather than inlining syntax trees, keeping
+    emission strictly linear $O(N)$ on $N$-nested duplication traps.
+- Acceptance: `test/unit/stage_test.ml` proves:
+  - Linearity on duplication traps: for $N$-nested `dbl(x)` calls up to $N=8$,
+    number of `Let` bindings is exactly $N$ and AST node count scales linearly.
+  - Distinct scoped branch buffers: dynamic `If` isolates branch bindings under
+    its own let-inserted expression.
+  - Correct let-insertion and alpha-equivalence for residualized primitives,
+    dynamic applications, dynamic conditionals, and non-pure primitives.
+- Decision and documentation: ADR 0027 records the LMS-style mutable accumulator
+  design, buffer scoping, and duplication prevention.
+- Known issues: none.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/stage_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `opam exec -- dune exec ash -- --demos`
+  all pass.
+- Next: 5.3 — stage pure higher-order Core, recursion, and immutable data.
+
+### 2026-08-24 — task 5.1
+
+- Completed: static/dynamic values, stage polymorphism, and the `maybe-lift` evaluator mode.
+  - **Value model.** Static data are real runtime values (`Value.value`), dynamic
+    data are `Value.Code(Core.t)`. `Ash_stage.Stage_value` provides named policy
+    predicates (`is_static`, `is_dynamic`, `is_purely_static`, `static_value`,
+    `dynamic_code`) and stage-conversion helpers (`lift_to_code`, `maybe_lift`).
+  - **Evaluation modes.** `Ash_stage.Mode` defines `Identity` (standard execution;
+    `maybe_lift = id`) and `Lift` (staged execution; `maybe_lift = lift`).
+  - **One evaluator source.** `Ash_stage.Staged_eval` implements the CPS staged
+    evaluator parameterized by `Mode.t`. In `Identity` mode, it matches ground
+    evaluation. In `Lift` mode, pure primitives fold on static arguments and
+    residualize `Core.App` with lifted arguments when dynamic; `If` with a static
+    condition evaluates only the taken branch; `Let` with static values propagates
+    bindings without administrative lets; and pure static errors (division by zero,
+    type errors) fail at stage time.
+  - **Open recursion.** Every recursive call routes dynamically through
+    `Machine.eval`, `Machine.apply`, and `Machine.eval_list`, keeping meta
+    replacements and counters active across both modes.
+  - **New library.** `lib/stage/` (`ash.stage`) with `Mode`, `Stage_value`,
+    `Staged_eval`, and `Stage`. `Evaluator.lift_value` is exported from `ash.runtime`.
+- Acceptance: `test/unit/stage_test.ml` proves:
+  - Policy predicates and `maybe_lift` across all value shapes.
+  - `Identity` mode agreement on arithmetic, conditionals, `let`, `letrec`,
+    closures, list operations, continuations, and open recursion.
+  - Constant folding of arithmetic, comparisons, logic, list operations,
+    and higher-order functions in `Lift` mode.
+  - Constant propagation through static `Let` chains.
+  - Stage-polymorphic residualization with dynamic arguments (`Code`) for
+    arithmetic, dynamic conditionals, and non-pure primitives (`print`).
+  - Pure error preservation at stage time (division by zero, type errors).
+  - Open recursion interception and static recursion folding.
+- Decision and documentation: ADR 0026 records static/dynamic value representation,
+  stage polymorphism, the `maybe_lift` mode split, and error attribution.
+- Known issues: none.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/stage_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `opam exec -- dune exec ash -- --demos`
+  all pass. Full suite includes all unit tests, 91-program differential corpus,
+  tower laws at depths 0–5, self-interpreter at layers 1 & 2, and golden tests.
+- Next: 5.2 — implement hygienic let-insertion with scoped block buffers, fresh
+  IDs, and distinct buffers for dynamic branch and lambda bodies.
 
 ### 2026-08-23 — tasks 4.4 and 4.5 (Phase 4 complete)
 

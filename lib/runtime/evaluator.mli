@@ -70,3 +70,6 @@ val run : Machine.t -> env:Value.env -> Core.t -> Value.value
 
 val eval : env:Value.env -> Core.t -> Value.value
 (** Convenience for callers with nothing to ask the counters. *)
+
+val lift_value : Machine.t -> call_site:Span.t -> Value.value -> Core.t
+(** Convert a value in the fixed lift domain to Core on [machine]. *)

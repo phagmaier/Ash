@@ -3,6 +3,8 @@ open Ash_core
 type cont = Value.value -> Value.answer
 type args_cont = Value.value list -> Value.answer
 
+type evaluator_mode = Ground | Staged_identity | Staged_lift
+
 type t = {
   mutable eval_cell : eval_fn;
   mutable apply_cell : apply_fn;
@@ -18,6 +20,7 @@ type t = {
   mutable cell_dereferences : int;
   mutable named_var_lookups : int;
   dispatches : int array;
+  evaluator_mode : evaluator_mode;
 }
 
 and levels = {
@@ -31,7 +34,7 @@ and eval_fn = t -> Core.t -> Value.env -> cont -> Value.answer
 and apply_fn = t -> call_site:Span.t -> Value.value -> Value.value list -> cont -> Value.answer
 and eval_list_fn = t -> Core.t list -> Value.env -> args_cont -> Value.answer
 
-let create ~eval ~apply ~eval_list =
+let create ?(evaluator_mode = Ground) ~eval ~apply ~eval_list () =
   {
     eval_cell = eval;
     apply_cell = apply;
@@ -47,7 +50,10 @@ let create ~eval ~apply ~eval_list =
     cell_dereferences = 0;
     named_var_lookups = 0;
     dispatches = Array.make Core.kind_count 0;
+    evaluator_mode;
   }
+
+let evaluator_mode machine = machine.evaluator_mode
 
 (* The dereference points. Reading the cell here, on every call, is what makes a
    replacement take effect from the next step rather than the next top-level

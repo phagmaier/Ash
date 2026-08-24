@@ -20,7 +20,8 @@
   staging_test
   tower_test
   reifier_test
-  up_test)
- (libraries ash.core ash.syntax ash.runtime ash.tower)
+  up_test
+  stage_test)
+ (libraries ash.core ash.syntax ash.runtime ash.tower ash.stage)
  (flags
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))

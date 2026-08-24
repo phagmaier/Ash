@@ -39,7 +39,20 @@ and eval_fn = t -> Core.t -> Value.env -> cont -> Value.answer
 and apply_fn = t -> call_site:Span.t -> Value.value -> Value.value list -> cont -> Value.answer
 and eval_list_fn = t -> Core.t list -> Value.env -> args_cont -> Value.answer
 
-val create : eval:eval_fn -> apply:apply_fn -> eval_list:eval_list_fn -> t
+type evaluator_mode = Ground | Staged_identity | Staged_lift
+(** The semantic wiring installed in the evaluator group.  The staged runner
+    checks this tag so a caller cannot ask an Identity-wired machine to perform
+    Lift evaluation (or vice versa). *)
+
+val create :
+  ?evaluator_mode:evaluator_mode ->
+  eval:eval_fn ->
+  apply:apply_fn ->
+  eval_list:eval_list_fn ->
+  unit ->
+  t
+
+val evaluator_mode : t -> evaluator_mode
 
 (** {1 Calling the group}
 
