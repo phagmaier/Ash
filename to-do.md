@@ -16,10 +16,12 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 4 — lazy tower (milestone 1)
-- **Next:** 4.1 — implement lazy machine/level materialization
+- **Next:** 4.2 — implement reifiers and the up/down protocol
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass with the hygienic desugarer, `open fn` groups, the
+  pass with lazy adjacent-level materialization, per-level cloned globals and
+  evaluator machines, separate materialized/expanded size metrics, the hygienic
+  desugarer, `open fn` groups, the
   Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
   41-primitive registry (including source-preserving self-evaluation operations,
   fixed-domain `lift`, and closed-code `run`), the
@@ -29,16 +31,14 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   layers 0/1/2
 - **Blocker:** none
 
-Phase 3 is complete. Hygienic quotation/splicing, constructor and quasiquote
-patterns, deterministic closed-code `run`, and the exhaustive fixed `lift`
-domain are implemented. The documented staged power produces closed,
-alpha-correct Code and answers 32; the quasiquote simplifier cases pass. The Ash
-self-interpreter now consumes real Code and dispatches on all eleven Core
-constructor patterns; the Phase 2 `Ash_self.Encode` transport is deleted. Code
-spans cross each interpreter layer, source-directed primitive application and a
-closed structured-error protocol make host/self failures agree on cause and
-location, and the layer and open-recursion law suites retain their Phase 2
-coverage.
+Task 4.1 adds `ash.tower`: ground exists separately from an initially empty upper
+tower, and reflection requests materialize or reuse exactly the adjacent level.
+Every level owns cloned hygienic global identities/cells and an independent
+open-recursive evaluator machine while sharing primitive values and one IO
+stream. Physical reachable heap/structural counts and the conceptual expanded
+Core-node formula are distinct metrics. Phase 3's real-Code self-interpreter,
+staging, source preservation, full error comparison, and layer/open-recursion
+coverage remain intact.
 
 ## Locked decisions
 
@@ -236,7 +236,7 @@ coverage.
 
 ## Phase 4 — lazy tower (milestone 1)
 
-- [ ] **4.1 Implement lazy machine/level materialization.**
+- [x] **4.1 Implement lazy machine/level materialization.**
   - Each level owns cloned globals and fresh open-recursion cells.
   - Track actual materialized size separately from expanded semantic size.
   - Accept: ordinary code creates no upper level; first reflection creates one.
@@ -396,6 +396,49 @@ coverage.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 4.1
+
+- Completed: added the `ash.tower` library with explicit `Level` and `Tower`
+  abstractions.
+  - Ground level 0 is retained outside the upper-level collection, so a fresh
+    tower reports zero materialized levels and ordinary `Tower.run` cannot
+    allocate one.
+  - `Tower.materialize_above` requires an existing source level, reuses an
+    existing adjacent level, or creates exactly one new adjacent level. It is
+    the ownership boundary task 4.2's reifier application will call.
+  - Each level calls `Primitives.globals` once and owns a fresh
+    `Evaluator.machine`; identities, global cells, group cells, replacements,
+    and counters are independent, while primitive values and the IO stream are
+    shared through one registry.
+  - Size metrics keep actual runtime representation (upper levels, cloned
+    global cells, evaluator-group cells, and reachable OCaml heap words) apart
+    from expanded semantic Core nodes (`|program| + depth * |interpreter|`).
+- Acceptance: `test/unit/tower_test.ml` proves ordinary Core creates no upper
+  level, the first materialization request creates exactly level 1, repeated and
+  nested requests reuse/create exactly one adjacent level, levels 0–2 own
+  independent globals and evaluator cells, a level-1 evaluator replacement does
+  not affect levels 0 or 2, and only the physical size changes when a level is
+  materialized.
+- Decision and documentation: ADR 0022 records the separate ground baseline,
+  adjacent-only materialization, shared-registry/fresh-level ownership, and the
+  distinct physical/semantic measurement units. README, runtime/tower module
+  documentation, and this checklist agree; no spec semantics changed.
+- Verified with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune exec test/unit/tower_test.exe`,
+  `opam exec -- dune exec test/unit/evaluator_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, and `git diff --check` all pass. The
+  full suite retains 91 oracle/CPS programs, 99 self-interpreter programs at
+  layer 1, and 98 at layer 2.
+- Known issues: reifier application still raises its deliberate refusal; 4.2
+  must connect it to `materialize_above` and supply correct per-level continuation
+  and error ownership. `raise_at` consequently still emits the pre-tower fixed
+  level-0 continuation context. The unrelated pre-existing `dune build @fmt`
+  failure recorded in task 3.3 remains.
+- Next: 4.2 — implement whole-call reification plus `reflect`, `resume`, and
+  `meta_error`, accepting when the identity reifier evaluates effects exactly
+  once and errors reach only level *n+1*.
 
 ### 2026-08-23 — task 3.5 and Phase 3 complete
 

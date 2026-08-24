@@ -1,0 +1,6 @@
+(library
+ (name ash_tower)
+ (public_name ash.tower)
+ (libraries ash.core ash.runtime)
+ (flags
+  (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))

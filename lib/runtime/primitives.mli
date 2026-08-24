@@ -47,7 +47,8 @@
 
     Immutable Code operations are pure per spec D7; [lift] and [run] are
     Reflection because they cross into or execute a stage using the active
-    evaluator level. [reflect] and [up] still wait for the tower.
+    evaluator level. [reflect] and [up] still wait for tasks 4.2 and 4.3's
+    cross-level protocol.
 
     {1 Errors}
 

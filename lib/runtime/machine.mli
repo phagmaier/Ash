@@ -32,8 +32,8 @@ type cont = Value.value -> Value.answer
 type args_cont = Value.value list -> Value.answer
 
 type t
-(** One evaluator level: its group cells and its counters. Task 4.1 gives each
-    materialized tower level its own, with cloned globals. *)
+(** One evaluator level: its group cells and its counters. The tower gives each
+    materialized level its own machine, alongside cloned globals. *)
 
 and eval_fn = t -> Core.t -> Value.env -> cont -> Value.answer
 and apply_fn = t -> call_site:Span.t -> Value.value -> Value.value list -> cont -> Value.answer
@@ -63,6 +63,10 @@ val set_eval_list : t -> eval_list_fn -> unit
 val current_eval : t -> eval_fn
 val current_apply : t -> apply_fn
 val current_eval_list : t -> eval_list_fn
+
+val group_cell_count : t -> int
+(** Number of independently replaceable open-recursion cells owned by this
+    machine. Kept here so tower-size accounting cannot drift from the group. *)
 
 (** {1 Global environment} *)
 

@@ -67,6 +67,7 @@ let set_eval_list machine f = machine.eval_list_cell <- f
 let current_eval machine = machine.eval_cell
 let current_apply machine = machine.apply_cell
 let current_eval_list machine = machine.eval_list_cell
+let group_cell_count _machine = 3
 let set_global_env machine env = machine.global_env <- env
 let global_env machine = machine.global_env
 

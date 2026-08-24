@@ -37,6 +37,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, precedence parser, and desugarer |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
 | `lib/self/` | `ash.self`: the self-interpreter written in Ash (`eval.ash`) and the real-Code layer harness |
+| `lib/tower/` | `ash.tower`: independently stateful levels and one-step lazy materialization |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `test/differential/` | oracle/CPS and CPS/self-interpreter comparisons on one shared corpus |
@@ -566,6 +567,29 @@ layer beneath it observes the interpreter's own execution, some 3500 steps for
 the same fixture. Same fixture, same answer, a different subject. See
 [`docs/decisions/0017-interpreter-layers.md`](docs/decisions/0017-interpreter-layers.md).
 
+## Lazy tower materialization
+
+`Ash_tower.Tower` always has a ground level, but starts with zero materialized
+upper levels. Ordinary `Tower.run` stays on that fast path. A reflective caller
+asks for the adjacent level with `materialize_above`: the first request from
+level 0 creates exactly level 1, another request reuses it, and a request from
+level 1 creates exactly level 2. A caller cannot skip an unmaterialized source
+level. Reifier application will use this boundary in task 4.2; 4.1 deliberately
+does not ship a partial up/down protocol.
+
+Every `Ash_tower.Level` calls `Primitives.globals` for fresh hygienic identities
+and binding cells and owns a fresh evaluator machine with independent `eval`,
+`apply`, and `eval_list` cells. Levels share the primitive values and registry,
+so observable output remains one event stream for the entire tower. Replacing a
+machine cell at one level therefore changes that level only.
+
+The tower reports two sizes without conflating them. Materialized runtime size
+records the upper-level/global-cell/evaluator-cell structure that exists and the
+actual OCaml heap words reachable from the tower. Expanded semantic size is the
+conceptual eager formula `program nodes + depth × interpreter nodes`; physically
+creating a level changes the first measurement and never the second. See
+[`docs/decisions/0022-lazy-level-materialization.md`](docs/decisions/0022-lazy-level-materialization.md).
+
 ## The differential corpus
 
 `test/differential/` runs one program on both evaluators and compares four
@@ -599,9 +623,9 @@ is printed so a change in either direction is visible.
 The oracle's refusals are checked too, as a boundary rather than as agreement:
 quotation, reifiers, `callcc`, observable effects, and cells are all outside the
 pure corpus by construction, and a change that quietly moved that line would fail
-here. Applying a reifier remains a declared boundary until Phase 4 supplies the
-level above; quotation is no longer a representation boundary, and both the host
-and self-interpreter answer the same alpha-equivalent Code.
+here. Applying a reifier remains a declared boundary until task 4.2 connects it
+to the now-lazy adjacent level; quotation is no longer a representation boundary,
+and both the host and self-interpreter answer the same alpha-equivalent Code.
 
 ## Development workflow
 
