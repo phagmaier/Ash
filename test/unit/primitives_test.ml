@@ -79,7 +79,7 @@ let identity_primitive =
     prim_arity = Value.Exactly 1;
     prim_class = Effect_class.Pure;
     prim_impl =
-      (fun ~call_site:_ ~apply:_ ~lift:_ ~run:_ args k ->
+      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
         match args with [ a ] -> k a | [] | _ :: _ :: _ -> k Value.Unit);
   }
 
@@ -108,8 +108,10 @@ let expected_classification =
     ("cell_new", mutating); ("deref", mutating); ("cell_set", mutating);
     ("open_cell", mutating); ("open_deref", mutating); ("open_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
-    ("callcc", control); ("invoke", control); ("invoke_at", control);
-    ("lift", reflection); ("run", reflection);
+    ("callcc", control); ("resume", control); ("invoke", control);
+    ("invoke_at", control);
+    ("lift", reflection); ("run", reflection); ("reflect", reflection);
+    ("meta_error", reflection);
   ]
 
 let sorted_names names = List.sort String.compare names
@@ -172,12 +174,13 @@ let test_classification () =
        Primitives.classification);
 
   (* Control and reflection are evaluator-dependent and get bespoke rules. *)
-  check "control is capture and run-time application"
+  check "control is capture, resumption, and run-time application"
     (List.equal String.equal
-       [ "callcc"; "invoke"; "invoke_at" ]
+       [ "callcc"; "resume"; "invoke"; "invoke_at" ]
        (Primitives.by_class Effect_class.Control));
-  check "reflection contains staging and closed-code execution"
-    (List.equal String.equal [ "lift"; "run" ]
+  check "reflection contains staging, closed-code execution, and the tower protocol"
+    (List.equal String.equal
+       [ "lift"; "run"; "reflect"; "meta_error" ]
        (Primitives.by_class Effect_class.Reflection));
 
   check "an unregistered name has no class" (Primitives.class_of "nope" = None);
@@ -224,10 +227,12 @@ let test_arity () =
                again, and the two checks must not disagree. *)
             match
               attempt (fun () ->
-                  primitive.Value.prim_impl ~call_site:sp ~apply:test_apply
+                  primitive.Value.prim_impl ~call_site:sp ~level:0
+                    ~apply:test_apply
                     ~lift:(fun ~call_site:_ _ -> Core.lit ~span:sp Constant.Unit)
-                    ~run:(fun ~call_site:_ _ k -> k Value.Unit) args
-                    (fun v -> v))
+                    ~run:(fun ~call_site:_ _ k -> k Value.Unit)
+                    ~reflect:(fun ~call_site:_ ~code:_ ~env:_ ~cont:_ k -> k Value.Unit)
+                    args (fun v -> v))
             with
             | Ok _ ->
                 incr failures;
@@ -262,6 +267,10 @@ let type_expectations =
   let n = Value.Num 1 and s = Value.Str "x" and b = Value.Bool true in
   let marker = Ident.fresh "marker" in
   let code_lit = Value.Code (Core.lit ~span:sp (Constant.Num 1)) in
+  let environment = Value.Environment Value.empty_env in
+  let continuation =
+    Value.Continuation (Value.continuation ~capture:sp ~level:0 (fun value -> value))
+  in
   let code_var = Value.Code (Core.var ~span:sp marker) in
   let numeric name =
     ( name,
@@ -357,6 +366,20 @@ let type_expectations =
         ] );
     ("lift", Total [ n ]);
     ("run", Rejects [ ([ n ], "a number", "code") ]);
+    (* Checked left to right like every other primitive, and each rejection
+       happens before the evaluator callback is reached, so the table needs no
+       tower. *)
+    ( "resume",
+      Rejects [ ([ n; n ], "a number", "a continuation") ] );
+    ( "reflect",
+      Rejects
+        [
+          ([ n; environment; continuation ], "a number", "code");
+          ([ code_lit; n; continuation ], "a number", "an environment");
+          ([ code_lit; environment; n ], "a number", "a continuation");
+        ] );
+    ( "meta_error",
+      Always_fails [ ([ s ], Error.Meta_error "x") ] );
   ]
 
 let test_type_errors () =

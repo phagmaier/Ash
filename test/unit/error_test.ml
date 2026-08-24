@@ -49,6 +49,7 @@ let causes =
     Error.Arity_error { callee = Some "f"; expected = "2"; actual = 3 };
     Error.Unsupported { what = "quote"; by = "the direct-style oracle" };
     Error.Division_by_zero;
+    Error.Meta_error "a meta level said so";
     Error.Duplicate_binder "x";
     Error.Inconsistent_pattern_binders { expected = [ "x" ]; actual = [ "y" ] };
     Error.End_of_input;
@@ -60,7 +61,7 @@ let test_phases () =
   check_string "the evaluate phase is named" "evaluate" (Error.phase_name Error.Evaluate)
 
 let test_causes () =
-  check_int "every cause is enumerated" 17 (List.length causes);
+  check_int "every cause is enumerated" 18 (List.length causes);
   check "cause messages are distinct" (distinct (List.map Error.cause_message causes));
   List.iter
     (fun cause ->
@@ -89,6 +90,14 @@ let test_rendering () =
     (Error.to_string levelled);
   check "an error with no level says nothing about levels"
     (error.Error.level = None);
+
+  (* Levels are relative, so level 0 is the base program: naming it would appear
+     on every ordinary runtime diagnostic and distinguish nothing. *)
+  let base_level = Error.make ~phase:Error.Evaluate ~span ~level:0 (Error.Unbound_ident x) in
+  check_string "the base program's level is not worth naming"
+    "demo.ash:12:3-8: evaluate error: unbound identifier `x`"
+    (Error.to_string base_level);
+  check "the base level is still recorded" (base_level.Error.level = Some 0);
 
   (* Unique IDs are an excluded observation: a rendered diagnostic must not
      depend on allocation order, or golden output becomes unstable. Two distinct

@@ -104,12 +104,17 @@ and apply ~span callee arguments =
            position, so the identity continuation returns its result. The
            applier is the direct-style [apply] read as CPS; no pure primitive
            calls it, and passing one that raised would be a lie about what this
-           evaluator does rather than a restriction it enforces. *)
-        primitive.Value.prim_impl ~call_site:span
+           evaluator does rather than a restriction it enforces.
+
+           The oracle evaluates the base program and nothing else, so its level
+           is 0 and there is no level below it to reflect into. *)
+        primitive.Value.prim_impl ~call_site:span ~level:0
           ~apply:(fun ~call_site callee arguments k ->
             k (apply ~span:call_site callee arguments))
           ~lift:(fun ~call_site _ -> unsupported ~span:call_site "lift")
           ~run:(fun ~call_site _ _ -> unsupported ~span:call_site "run")
+          ~reflect:(fun ~call_site ~code:_ ~env:_ ~cont:_ _ ->
+            unsupported ~span:call_site "reflect")
           arguments
           (fun value -> value)
   | Value.Reifier _ -> unsupported ~span "reifier"

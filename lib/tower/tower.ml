@@ -27,13 +27,6 @@ type size_metrics = {
   expanded_semantic : expanded_semantic_size;
 }
 
-let create ?registry () =
-  let registry =
-    match registry with Some registry -> registry | None -> Primitives.create ()
-  in
-  let ground = Level.create ~index:0 ~registry () in
-  { registry; ground; materialized_count = 0; upper_levels = [] }
-
 let registry (tower : t) = tower.registry
 let ground (tower : t) = tower.ground
 let run (tower : t) term = Level.run tower.ground term
@@ -44,7 +37,25 @@ let find_level (tower : t) index =
   else if index = 0 then Some tower.ground
   else List.find_opt (fun level -> Level.index level = index) tower.upper_levels
 
-let materialize_above (tower : t) ~level =
+(* The evaluator cannot see this library, so each level's machine is told what
+   its neighbours are as it is created: the level above is a thunk, because
+   materializing it eagerly would defeat laziness, and the level below is a
+   machine that necessarily already exists. This is the whole coupling between
+   the tower and the runtime — reifier application and [reflect] read it, and
+   nothing else does. *)
+let rec install_levels (tower : t) level =
+  let index = Level.index level in
+  Machine.set_levels (Level.machine level)
+    {
+      Machine.level_index = index;
+      level_above = (fun () -> Level.machine (materialize_above tower ~level:index));
+      level_below =
+        (match find_level tower (index - 1) with
+        | Some below -> Some (Level.machine below)
+        | None -> None);
+    }
+
+and materialize_above (tower : t) ~level =
   if level < 0 then
     invalid_arg "Tower.materialize_above: level must be non-negative";
   let highest = materialized tower in
@@ -56,7 +67,17 @@ let materialize_above (tower : t) ~level =
       let created = Level.create ~index:(level + 1) ~registry:tower.registry () in
       tower.upper_levels <- created :: tower.upper_levels;
       tower.materialized_count <- tower.materialized_count + 1;
+      install_levels tower created;
       created
+
+let create ?registry () =
+  let registry =
+    match registry with Some registry -> registry | None -> Primitives.create ()
+  in
+  let ground = Level.create ~index:0 ~registry () in
+  let tower = { registry; ground; materialized_count = 0; upper_levels = [] } in
+  install_levels tower ground;
+  tower
 
 let size_metrics (tower : t) ~depth ~program ~interpreter =
   let upper_levels = materialized tower in

@@ -65,6 +65,11 @@ type cause =
           error is reported where the second invocation was written, and what a
           reader needs is where the continuation came from and where it already
           went. *)
+  | Meta_error of string
+      (** A meta level raised deliberately with [meta_error] (spec §5.2). The
+          error belongs to the level that raised it, which is the level a lower
+          one reflected into: a reifier body running at level [n + 1] fails at
+          level [n + 1] and never resumes level [n]. *)
   | Immutable_binding of string
       (** A surface assignment named a binding introduced by [let] rather than
           [var]. Mutability is a property of the binder, not of the cell, so the
@@ -124,7 +129,10 @@ val equal : t -> t -> bool
 
 val to_string : t -> string
 (** ["file:1:5: evaluate error: unbound identifier `x`"], with
-    [" at level 1"] appended when the error belongs to a level. *)
+    [" at level 1"] appended when the error belongs to a meta level above the
+    base program. Level 0 is the base program itself (levels are relative, spec
+    §D9), so it is not named: it would appear on every ordinary diagnostic and
+    distinguish nothing. *)
 
 val to_string_debug : t -> string
 (** As {!to_string} but with unique identifier IDs. Never use in golden output. *)

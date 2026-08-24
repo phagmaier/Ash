@@ -5,8 +5,12 @@
     asks for level 1. Asking from a materialized level [n] creates at most the
     one fresh level [n + 1]; repeated asks return the existing level.
 
-    This module owns materialization only. Reifier application and cross-level
-    transfer arrive in tasks 4.2 and 4.3 and will use {!materialize_above}. *)
+    This module owns materialization and the level neighbourhood each machine is
+    given ({!Ash_runtime.Machine.levels}): the runtime cannot see this library,
+    so a level is told what is above and below it as it is created. Reifier
+    application reads that to shift up, and [reflect] reads it to drop back down;
+    creating a level is still the only thing that allocates one. [up] and the
+    meta bindings are sugar over the same protocol and arrive in task 4.3. *)
 
 open Ash_core
 

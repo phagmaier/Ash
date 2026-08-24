@@ -16,29 +16,32 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 4 — lazy tower (milestone 1)
-- **Next:** 4.2 — implement reifiers and the up/down protocol
+- **Next:** 4.3 — implement `up` and all meta bindings
 - **Last verified:** 2026-08-23 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, and `opam exec -- dune exec ash -- --help`
-  pass with lazy adjacent-level materialization, per-level cloned globals and
-  evaluator machines, separate materialized/expanded size metrics, the hygienic
+  pass with the reifier up/down protocol on top of lazy adjacent-level
+  materialization, per-level cloned globals and evaluator machines, separate
+  materialized/expanded size metrics, the hygienic
   desugarer, `open fn` groups, the
   Ash self-interpreter (`lib/self/eval.ash`) running at layers 1 and 2, the
-  41-primitive registry (including source-preserving self-evaluation operations,
-  fixed-domain `lift`, and closed-code `run`), the
-  desugar/continuation/parser/lexer/Core/runtime suites, the open-recursion law
-  suite including patching at depth, and three differential comparisons over the
-  shared 91-program corpus (73 Core, 18 surface): oracle/CPS, CPS/layer 1, and
-  layers 0/1/2
+  44-primitive registry (including source-preserving self-evaluation operations,
+  fixed-domain `lift`, closed-code `run`, and the `reflect`/`resume`/`meta_error`
+  tower protocol), the
+  desugar/continuation/reifier/parser/lexer/Core/runtime suites, the
+  open-recursion law suite including patching at depth, and three differential
+  comparisons over the shared 91-program corpus (73 Core, 18 surface):
+  oracle/CPS, CPS/layer 1, and layers 0/1/2
 - **Blocker:** none
 
-Task 4.1 adds `ash.tower`: ground exists separately from an initially empty upper
-tower, and reflection requests materialize or reuse exactly the adjacent level.
-Every level owns cloned hygienic global identities/cells and an independent
-open-recursive evaluator machine while sharing primitive values and one IO
-stream. Physical reachable heap/structural counts and the conceptual expanded
-Core-node formula are distinct metrics. Phase 3's real-Code self-interpreter,
-staging, source preservation, full error comparison, and layer/open-recursion
-coverage remain intact.
+Task 4.2 connects reification to that tower. Applying a reifier happens in
+`eval`'s `App` case, so arguments stay unevaluated; the call, environment, and
+one-shot continuation become values and the body runs on the adjacent level's
+machine in the environment the reifier was written in. `reflect` drops back
+down, `resume` transfers to a captured continuation, and `meta_error` fails at
+the level running it. Every evaluator error now carries the level of the machine
+that raised it. Phase 3's real-Code self-interpreter, staging, source
+preservation, full error comparison, and layer/open-recursion coverage remain
+intact.
 
 ## Locked decisions
 
@@ -241,7 +244,7 @@ coverage remain intact.
   - Track actual materialized size separately from expanded semantic size.
   - Accept: ordinary code creates no upper level; first reflection creates one.
 
-- [ ] **4.2 Implement reifiers and the up/down protocol.**
+- [x] **4.2 Implement reifiers and the up/down protocol.**
   - Implement whole-call reification, `reflect`, `resume`, and `meta_error` with
     correct level ownership.
   - Accept: identity reifier evaluates effects once; errors reach only level n+1.
@@ -396,6 +399,67 @@ coverage remain intact.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-23 — task 4.2
+
+- Completed: reifiers and the up/down protocol.
+  - Whole-call reification lives in `eval`'s `App` case, before `eval_list`, so
+    a reifier's arguments are never evaluated. The call expression, the caller's
+    environment, and the caller's one-shot continuation become values; the body
+    runs on the machine of the adjacent level (via `Tower.materialize_above`) in
+    the lexical environment the reifier was written in, under the identity
+    continuation. Applying a reifier through `apply` — `invoke` and friends —
+    stays refused: there is no whole call to reify.
+  - `Machine.levels` is the neutral protocol the runtime reads and the tower
+    writes: level index, a thunk for the level above, the machine below. The
+    thunk keeps materialization lazy; a machine with no record installed is the
+    base program, refuses reifier application, and refuses `reflect`.
+  - New primitives: `reflect` (Reflection, drops one level and transfers through
+    the caller's applier, so the one-shot check is the ordinary one), `resume`
+    (Control), and `meta_error` (Reflection, new `Error.Meta_error` cause). The
+    registry is 44 primitives. `Value.primitive` implementations now receive
+    `~level` and `~reflect`.
+  - Errors carry the level of the machine that raised them. `raise_at` uses the
+    same level instead of the old fixed `Some 0` for continuation reuse, so the
+    self-interpreter and the host still agree. `Error.to_string` names a level
+    only above 0, since level 0 is the base program.
+- Acceptance: `test/unit/reifier_test.ml` proves the identity reifier returns its
+  argument's value and evaluates its effect exactly once, unreflected arguments
+  produce no effect, `resume` returns to the caller, an unresumed reifier
+  abandons the level below, a continuation stored across the boundary is
+  one-shot, nesting materializes exactly two levels, a level-1 evaluator patch
+  changes the reifier body and not the program (109, not 198), and error
+  ownership is level 1 for `meta_error` and for an unbound identity in the body,
+  level 0 for the same identity in reflected code, with no resumption of level 0
+  in the failing cases.
+- Decision and documentation: ADR 0023 records reification in `App`, the
+  definition-environment/upper-machine split, the identity continuation, the
+  `Machine.levels` protocol, the three new primitives and their classes, and
+  per-level error attribution — including why catching and re-raising to
+  attribute levels was rejected (it breaks constant-stack tail calls). README,
+  `Evaluator`, `Primitives`, `Machine`, `Value`, `Error`, and `Tower` module
+  documentation agree; no spec semantics changed.
+- Verified with OCaml 5.4.1 and Dune 3.24.2, the full suite from a removed
+  `_build`:
+  `opam exec -- dune exec test/unit/reifier_test.exe`,
+  `opam exec -- dune exec test/unit/primitives_test.exe`,
+  `opam exec -- dune exec test/unit/error_test.exe`,
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`, and
+  `opam exec -- dune exec ash -- --help` all pass. The full suite retains 91
+  oracle/CPS programs, 99 self-interpreter programs at layer 1, and 98 at
+  layer 2.
+- Known issues: primitive argument diagnostics (type and domain errors raised
+  inside a primitive's own helpers) still carry no level; ADR 0023 records this
+  as a deliberate gap rather than half-threaded state. The self-interpreter still
+  refuses reifier application, so a tower whose level runs `eval.ash` would reify
+  on the host and refuse in the interpreted level — an interpreter layer is not
+  a tower level (ADR 0017), and giving an interpreted level its own tower is not
+  4.2's protocol. `up`, the meta bindings, and `tower_depth()` are 4.3. The
+  unrelated pre-existing `dune build @fmt` failure recorded in task 3.3 remains.
+- Next: 4.3 — implement `up` and all meta bindings (`exp`, `env`, `cont`, the
+  evaluator cells, `global`, resume/error helpers, relative `level`, and explicit
+  `tower_depth()`), accepting when a persistent evaluator replacement intercepts
+  arbitrary AST depth and does not change the evaluator running its own level.
 
 ### 2026-08-23 — task 4.1
 

@@ -41,9 +41,11 @@ and primitive = {
   prim_class : Effect_class.t;
   prim_impl :
     call_site:Span.t ->
+    level:int ->
     apply:applier ->
     lift:lifter ->
     run:runner ->
+    reflect:reflector ->
     value list ->
     (value -> answer) ->
     answer;
@@ -52,6 +54,10 @@ and primitive = {
 and applier = call_site:Span.t -> value -> value list -> (value -> answer) -> answer
 and lifter = call_site:Span.t -> value -> Core.t
 and runner = call_site:Span.t -> Core.t -> (value -> answer) -> answer
+
+and reflector =
+  call_site:Span.t -> code:Core.t -> env:env -> cont:value -> (value -> answer) -> answer
+
 and arity = Exactly of int | At_least of int
 
 (* Constants *)

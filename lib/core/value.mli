@@ -87,9 +87,11 @@ and primitive = {
       (** Exactly one class per primitive; see {!Effect_class} and spec §D7. *)
   prim_impl :
     call_site:Span.t ->
+    level:int ->
     apply:applier ->
     lift:lifter ->
     run:runner ->
+    reflect:reflector ->
     value list ->
     (value -> answer) ->
     answer;
@@ -116,8 +118,19 @@ and primitive = {
           [run] is the corresponding evaluator-dependent callback for closed
           Code. The caller owns both closedness analysis and the explicit global
           environment in which accepted code executes; this keeps a primitive
-          from capturing the lexical environment of its call. Primitives that
-          never call back ignore all three callbacks. *)
+          from capturing the lexical environment of its call.
+
+          [reflect] is the downward half of the tower protocol: it evaluates
+          Code on the level {e below} the caller and transfers to a continuation
+          captured there. A primitive cannot find that level itself — the
+          registry is shared by the whole tower (ADR 0017), so only the applying
+          evaluator knows which level is running.
+
+          [level] is the tower level that evaluation belongs to, counted from
+          the base program (spec §D9). A primitive that captures a continuation
+          or raises needs it, because the same shared primitive value runs at
+          every level. Primitives that need none of this ignore all five
+          arguments. *)
 }
 
 and applier = call_site:Span.t -> value -> value list -> (value -> answer) -> answer
@@ -130,6 +143,14 @@ and lifter = call_site:Span.t -> value -> Core.t
 and runner = call_site:Span.t -> Core.t -> (value -> answer) -> answer
 (** Analyze and execute Code on the current evaluator, in its explicit global
     environment. The callback reports open Code at [call_site]. *)
+
+and reflector =
+  call_site:Span.t -> code:Core.t -> env:env -> cont:value -> (value -> answer) -> answer
+(** Drop one level: evaluate [code] in [env] on the machine of the level below
+    the caller's, then transfer to [cont] (spec §5.4). [cont] is applied through
+    the caller's own applier, so one-shot enforcement is the ordinary one. The
+    callback fails at [call_site] when there is no level below, which is what
+    reflecting from the base program means. *)
 
 and arity = Exactly of int | At_least of int
 

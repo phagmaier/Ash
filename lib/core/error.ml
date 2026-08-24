@@ -16,6 +16,7 @@ type cause =
   | Unsupported of { what : string; by : string }
   | Division_by_zero
   | Continuation_reuse of { captured : Span.t; first_used : Span.t }
+  | Meta_error of string
   | Immutable_binding of string
   | No_matching_clause of string
   | Duplicate_binder of string
@@ -93,6 +94,7 @@ let message ~show_ids cause =
       Printf.sprintf
         "this continuation is one-shot: captured at %s, it was already invoked at %s"
         (Span.to_string captured) (Span.to_string first_used)
+  | Meta_error message -> Printf.sprintf "meta level raised: %s" message
   | Immutable_binding name ->
       Printf.sprintf "`%s` is bound by `let`, so it cannot be assigned; bind it with `var`"
         name
@@ -140,6 +142,7 @@ let cause_equal a b =
   | Division_by_zero, Division_by_zero -> true
   | Continuation_reuse x, Continuation_reuse y ->
       Span.equal x.captured y.captured && Span.equal x.first_used y.first_used
+  | Meta_error x, Meta_error y -> String.equal x y
   | Immutable_binding x, Immutable_binding y -> String.equal x y
   | No_matching_clause x, No_matching_clause y -> String.equal x y
   | Duplicate_binder x, Duplicate_binder y -> String.equal x y
@@ -151,7 +154,8 @@ let cause_equal a b =
       | Open_code _ | Unliftable_value _
       | Unexpected_character _ | Unterminated _ | Unexpected _ | Unknown_form _
       | Malformed_form _ | Arity_error _ | Unsupported _ | Division_by_zero
-      | Continuation_reuse _ | Immutable_binding _ | No_matching_clause _
+      | Continuation_reuse _ | Meta_error _ | Immutable_binding _
+      | No_matching_clause _
       | Duplicate_binder _
       | Inconsistent_pattern_binders _ | End_of_input ),
       _ ) ->
@@ -163,9 +167,14 @@ let equal a b =
   && Option.equal Int.equal a.level b.level
   && cause_equal a.cause b.cause
 
+(* Levels are relative (spec §D9): the base program is level 0, so naming it
+   would appear on every ordinary diagnostic and say nothing. A level is
+   reported exactly when the error belongs to a meta level above the program. *)
 let render ~show_ids error =
   let level =
-    match error.level with None -> "" | Some n -> Printf.sprintf " at level %d" n
+    match error.level with
+    | None | Some 0 -> ""
+    | Some n -> Printf.sprintf " at level %d" n
   in
   Printf.sprintf "%s: %s error%s: %s" (Span.to_string error.span)
     (phase_name error.phase) level

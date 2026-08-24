@@ -293,7 +293,7 @@ let test_frozen () =
       prim_arity = Value.Exactly 1;
       prim_class = Effect_class.Observable_effect;
       prim_impl =
-        (fun ~call_site:_ ~apply:_ ~lift:_ ~run:_ args k ->
+        (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
           logged := args;
           k Value.Unit);
     }

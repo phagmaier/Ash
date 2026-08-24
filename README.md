@@ -37,7 +37,7 @@ The CLI is only a bootstrap shell at present. Follow the first unchecked task in
 | `lib/syntax/` | `ash.syntax`: the shared scanning cursor, s-expression data, the canonical Core reader/printer, and the surface lexer, AST, precedence parser, and desugarer |
 | `lib/runtime/` | `ash.runtime`: the classified primitive registry, the observable-effect stream, the CPS evaluator, and the frozen oracle |
 | `lib/self/` | `ash.self`: the self-interpreter written in Ash (`eval.ash`) and the real-Code layer harness |
-| `lib/tower/` | `ash.tower`: independently stateful levels and one-step lazy materialization |
+| `lib/tower/` | `ash.tower`: independently stateful levels, one-step lazy materialization, and the level neighbourhood the up/down protocol reads |
 | `lib/` | `ash`: version metadata, and later the layers above Core |
 | `test/unit/` | module-level behaviour tests |
 | `test/differential/` | oracle/CPS and CPS/self-interpreter comparisons on one shared corpus |
@@ -229,8 +229,8 @@ does not.
 | pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_name`, `code_splice`, `code_match`, `NamedVar`, `match_error`, `raise_at` | fold when every argument is static |
 | allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
-| control | `callcc`, `invoke`, `invoke_at` | never folded: capturing at specialization time captures the specializer, and invocation's class is its callee's |
-| reflection | `lift`, `run`; later `reflect`, `up`, and reifier application | bespoke, and the classification target |
+| control | `callcc`, `resume`, `invoke`, `invoke_at` | never folded: capturing at specialization time captures the specializer, and invocation's class is its callee's |
+| reflection | `lift`, `run`, `reflect`, `meta_error`; later `up` | bespoke, and the classification target |
 
 A registry is created over an `Ash_runtime.Io` stream: observable primitives
 write events to it and read scripted lines from it, so a program's *trace* is a
@@ -459,9 +459,11 @@ than a discovery.
 
 A primitive receives evaluator callbacks alongside its call site, arguments,
 and continuation: `~apply` is how `callcc` calls its argument, `~lift` constructs
-Code using the active level's hygienic globals, and `~run` analyzes and executes
-closed Code without capturing caller lexical state. The applying evaluator
-supplies all three, so callbacks use the active machine and a meta-level
+Code using the active level's hygienic globals, `~run` analyzes and executes
+closed Code without capturing caller lexical state, and `~reflect` drops one
+level. It is also told the `~level` it is running at, because one registry serves
+the whole tower and the primitive values are shared. The applying evaluator
+supplies all of them, so callbacks use the active machine and a meta-level
 replacement can intercept evaluator work. See
 [`docs/decisions/0014-one-shot-continuations-and-the-applier.md`](docs/decisions/0014-one-shot-continuations-and-the-applier.md)
 [`docs/decisions/0019-closed-code-run.md`](docs/decisions/0019-closed-code-run.md),
@@ -574,8 +576,7 @@ upper levels. Ordinary `Tower.run` stays on that fast path. A reflective caller
 asks for the adjacent level with `materialize_above`: the first request from
 level 0 creates exactly level 1, another request reuses it, and a request from
 level 1 creates exactly level 2. A caller cannot skip an unmaterialized source
-level. Reifier application will use this boundary in task 4.2; 4.1 deliberately
-does not ship a partial up/down protocol.
+level. Reifier application is what asks.
 
 Every `Ash_tower.Level` calls `Primitives.globals` for fresh hygienic identities
 and binding cells and owns a fresh evaluator machine with independent `eval`,
@@ -589,6 +590,44 @@ actual OCaml heap words reachable from the tower. Expanded semantic size is the
 conceptual eager formula `program nodes + depth × interpreter nodes`; physically
 creating a level changes the first measurement and never the second. See
 [`docs/decisions/0022-lazy-level-materialization.md`](docs/decisions/0022-lazy-level-materialization.md).
+
+## Reifiers and the up/down protocol
+
+Applying a reifier shifts one level up. It happens in `eval`'s `App` case rather
+than in `apply`, because a reifier receives the whole *unevaluated* call, and an
+applier sees values with no call expression to hand up. The call, the caller's
+environment, and the caller's one-shot continuation become values; the reifier's
+body then runs on the machine of the level above, materialized on demand.
+
+The body keeps the lexical environment the reifier was written in. Which machine
+evaluates a term does not change what its free hygienic identities mean; what
+changes is that replacing the upper level's `eval` cell intercepts the body and
+replacing the lower one's does not. The body runs under the identity
+continuation, so a reifier that never resumes does not return to the level below
+at all: its value is the answer of the run, and the caller's pending work never
+happens.
+
+`reflect(code, env, cont)` is the way back down: it evaluates Code on the machine
+below and transfers to a continuation captured there, through the caller's own
+applier, so the one-shot check is the ordinary one. That makes the identity
+reifier
+
+```text
+(reifier (e r k) (reflect (first-argument e) r k))
+```
+
+observationally the identity function, effects included and evaluated once.
+`resume(k, v)` is the same transfer named, and `meta_error(msg)` fails at the
+level running it.
+
+Errors carry the level of the machine that raised them, counted from the base
+program. An error inside a reifier body belongs to the level above and never
+resumes the level below; the same error in reflected code belongs to the level
+that evaluated it. A diagnostic names its level only above 0, since level 0 is
+the base program. A machine with no tower installed refuses both reifier
+application and `reflect` rather than materializing a level no tower knows
+about. See
+[`docs/decisions/0023-reifiers-and-the-up-down-protocol.md`](docs/decisions/0023-reifiers-and-the-up-down-protocol.md).
 
 ## The differential corpus
 
@@ -623,9 +662,11 @@ is printed so a change in either direction is visible.
 The oracle's refusals are checked too, as a boundary rather than as agreement:
 quotation, reifiers, `callcc`, observable effects, and cells are all outside the
 pure corpus by construction, and a change that quietly moved that line would fail
-here. Applying a reifier remains a declared boundary until task 4.2 connects it
-to the now-lazy adjacent level; quotation is no longer a representation boundary,
-and both the host and self-interpreter answer the same alpha-equivalent Code.
+here. Applying a reifier is still outside both the oracle and the
+self-interpreter: the oracle refuses reflection by construction, and an
+interpreter layer is not a tower level, so an interpreted level has no level to
+shift to. Quotation is no longer a representation boundary, and both the host and
+self-interpreter answer the same alpha-equivalent Code.
 
 ## Development workflow
 

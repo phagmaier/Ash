@@ -23,18 +23,21 @@
       is a value tests can compare.
 
     - {!Ash_core.Effect_class.Control} — [callcc], which reifies the current
-      continuation as a one-shot value and hands it to its argument, and
-      [invoke], which applies a callee to an argument list whose length is only
-      known at run time, and [invoke_at], its source-preserving self-interpreter
-      form. None is folded automatically: capturing during specialization would
+      continuation as a one-shot value and hands it to its argument, [resume],
+      which transfers to a continuation a meta level is holding, and [invoke],
+      which applies a callee to an argument list whose length is only known at
+      run time, with [invoke_at] its source-preserving self-interpreter form.
+      None is folded automatically: capturing during specialization would
       capture the specializer's continuation, and invocation's class is its
       callee's, which no amount of knowledge about its arguments settles.
 
     - {!Ash_core.Effect_class.Reflection} — [lift], which converts only the fixed
-      liftable domain to Code using level-hygienic list construction, and [run],
+      liftable domain to Code using level-hygienic list construction, [run],
       which requires Code to have no unresolved lexical dependencies and
-      evaluates it in the current level's explicit global environment. Both are
-      evaluator-dependent and need bespoke specialization rules.
+      evaluates it in the current level's explicit global environment, [reflect],
+      which drops one level to evaluate Code there and resume a continuation
+      captured there, and [meta_error], which fails at the level running it. All
+      are evaluator-dependent and need bespoke specialization rules.
 
     {1 Open recursion}
 
@@ -47,8 +50,18 @@
 
     Immutable Code operations are pure per spec D7; [lift] and [run] are
     Reflection because they cross into or execute a stage using the active
-    evaluator level. [reflect] and [up] still wait for tasks 4.2 and 4.3's
-    cross-level protocol.
+    evaluator level.
+
+    {1 The level a primitive runs at}
+
+    One registry serves the whole tower: the primitive {e values} are shared, so
+    a primitive cannot know its level and is told it by the evaluator applying
+    it. Three primitives need it. [callcc] stamps the captured continuation with
+    the level it resumes, [meta_error] fails at the level that ran it, and
+    [raise_at] attributes an interpreted level's failure to the level running the
+    interpreter. [reflect] needs more than the number — the machine below — and
+    gets it as a callback for the same reason. [up] is sugar over a reifier and
+    arrives in task 4.3.
 
     {1 Errors}
 

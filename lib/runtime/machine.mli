@@ -64,6 +64,41 @@ val current_eval : t -> eval_fn
 val current_apply : t -> apply_fn
 val current_eval_list : t -> eval_list_fn
 
+(** {1 The level this machine is}
+
+    A machine is one level's evaluator, and reifier application has to reach the
+    level above while [reflect] and a resumed continuation reach the one below.
+    The tower owns materialization, which is a layer this library cannot see, so
+    it installs the neighbourhood here when it creates a level (spec §5.4).
+
+    A machine with no neighbourhood installed is the base program's level and
+    nothing else: it answers level 0, has nothing above, and nothing below.
+    Applying a reifier on it is refused rather than silently materializing a
+    level the tower does not know about. *)
+
+type levels = {
+  level_index : int;  (** Relative to the base program (spec §D9). *)
+  level_above : unit -> t;
+      (** The machine of level [level_index + 1], materializing it on the first
+          call and returning the same one afterwards. *)
+  level_below : t option;
+      (** The machine of level [level_index - 1]. [None] at the base program. *)
+}
+
+val set_levels : t -> levels -> unit
+val levels : t -> levels option
+
+val level : t -> int
+(** This machine's level, or 0 when it has no neighbourhood. *)
+
+val above : t -> t option
+(** The next level up, materialized on demand. [None] when no neighbourhood is
+    installed, which is what makes reifier application refusable without a
+    tower. *)
+
+val below : t -> t option
+(** The level this one interprets, or [None] at the base program. *)
+
 val group_cell_count : t -> int
 (** Number of independently replaceable open-recursion cells owned by this
     machine. Kept here so tower-size accounting cannot drift from the group. *)

@@ -8,6 +8,7 @@ type t = {
   mutable apply_cell : apply_fn;
   mutable eval_list_cell : eval_list_fn;
   mutable global_env : Value.env;
+  mutable levels : levels option;
   mutable steps : int;
   mutable eval_calls : int;
   mutable apply_calls : int;
@@ -15,6 +16,12 @@ type t = {
   mutable cell_dereferences : int;
   mutable named_var_lookups : int;
   dispatches : int array;
+}
+
+and levels = {
+  level_index : int;
+  level_above : unit -> t;
+  level_below : t option;
 }
 
 and eval_fn = t -> Core.t -> Value.env -> cont -> Value.answer
@@ -27,6 +34,7 @@ let create ~eval ~apply ~eval_list =
     apply_cell = apply;
     eval_list_cell = eval_list;
     global_env = Value.empty_env;
+    levels = None;
     steps = 0;
     eval_calls = 0;
     apply_calls = 0;
@@ -68,6 +76,23 @@ let current_eval machine = machine.eval_cell
 let current_apply machine = machine.apply_cell
 let current_eval_list machine = machine.eval_list_cell
 let group_cell_count _machine = 3
+
+(* The tower installs this when it materializes a level. A machine without it is
+   the whole tower it belongs to: it is the base program's level, and there is
+   no level for a reifier to run at. *)
+let set_levels machine value = machine.levels <- Some value
+let levels machine = machine.levels
+
+let level machine =
+  match machine.levels with None -> 0 | Some levels -> levels.level_index
+
+let above machine =
+  match machine.levels with
+  | None -> None
+  | Some levels -> Some (levels.level_above ())
+
+let below machine =
+  match machine.levels with None -> None | Some levels -> levels.level_below
 let set_global_env machine env = machine.global_env <- env
 let global_env machine = machine.global_env
 

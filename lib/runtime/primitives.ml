@@ -81,6 +81,25 @@ let code ~span value =
   | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
       type_error ~span ~expected:"code" value
 
+let environment ~span value =
+  match value with
+  | Value.Environment env -> env
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
+  | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Cell _
+  | Value.Code _ | Value.Primitive _ ->
+      type_error ~span ~expected:"an environment" value
+
+(* Returned as a value rather than as a {!Value.continuation}: transferring is
+   the applier's job, so the check here is about what the caller passed, not
+   about how it is invoked. *)
+let continuation ~span value =
+  match value with
+  | Value.Continuation _ -> value
+  | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
+  | Value.Closure _ | Value.Reifier _ | Value.Environment _ | Value.Cell _
+  | Value.Code _ | Value.Primitive _ ->
+      type_error ~span ~expected:"a continuation" value
+
 let code_variable ~span value =
   let node = code ~span value in
   match Core.shape node with
@@ -115,33 +134,34 @@ let optional_callee ~span value =
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
       type_error ~span ~expected:"an empty list or a one-string list" value
 
+(* The level is deliberately absent here: an interpreted level's failure belongs
+   to the level running the interpreter, which only the applying evaluator
+   knows. Naming a level in the descriptor would fix it to the base program and
+   be wrong for every materialized level above it. *)
 let source_error_cause ~span descriptor =
   match items ~span descriptor with
   | [ Value.Sym "unbound_ident"; identity ] ->
-      (Error.Unbound_ident (code_variable ~span identity), None)
-  | [ Value.Sym "unbound_name"; Value.Str name ] -> (Error.Unbound_name name, None)
+      Error.Unbound_ident (code_variable ~span identity)
+  | [ Value.Sym "unbound_name"; Value.Str name ] -> Error.Unbound_name name
   | [ Value.Sym "ambiguous_name"; Value.Str name; candidates ] ->
-      ( Error.Ambiguous_name { name; candidates = code_variables ~span candidates },
-        None )
+      Error.Ambiguous_name { name; candidates = code_variables ~span candidates }
   | [ Value.Sym "arity"; callee; expected; actual ] ->
-      ( Error.Arity_error
-          {
-            callee = optional_callee ~span callee;
-            expected = string_of_int (integer ~span expected);
-            actual = integer ~span actual;
-          },
-        None )
+      Error.Arity_error
+        {
+          callee = optional_callee ~span callee;
+          expected = string_of_int (integer ~span expected);
+          actual = integer ~span actual;
+        }
   | [ Value.Sym "unexpected"; found; Value.Str expected ] ->
-      (Error.Unexpected { found = Value.type_phrase found; expected }, None)
+      Error.Unexpected { found = Value.type_phrase found; expected }
   | [ Value.Sym "continuation_reuse"; captured; first_used ] ->
-      ( Error.Continuation_reuse
-          {
-            captured = source_span ~span captured;
-            first_used = source_span ~span first_used;
-          },
-        Some 0 )
+      Error.Continuation_reuse
+        {
+          captured = source_span ~span captured;
+          first_used = source_span ~span first_used;
+        }
   | [ Value.Sym "unsupported"; Value.Str what; Value.Str by ] ->
-      (Error.Unsupported { what; by }, None)
+      Error.Unsupported { what; by }
   | Value.Sym tag :: _ ->
       fail ~span
         (Error.Unexpected
@@ -207,26 +227,27 @@ let code_view node =
 let make ~name ~arity ~cls impl =
   { Value.prim_name = name; prim_arity = arity; prim_class = cls; prim_impl = impl }
 
-(* The three wrappers cover primitives that need none of the evaluator callbacks:
-   they drop them and invoke the continuation once, in tail position. *)
+(* The three wrappers cover primitives that need neither the evaluator callbacks
+   nor the level they are running at: they drop both and invoke the continuation
+   once, in tail position. *)
 
 let nullary name cls impl =
   let arity = Value.Exactly 0 in
-  make ~name ~arity ~cls (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
       match args with
       | [] -> k (impl ~span:call_site)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let unary name cls impl =
   let arity = Value.Exactly 1 in
-  make ~name ~arity ~cls (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
       match args with
       | [ a ] -> k (impl ~span:call_site a)
       | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let binary name cls impl =
   let arity = Value.Exactly 2 in
-  make ~name ~arity ~cls (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
+  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
       match args with
       | [ a; b ] -> k (impl ~span:call_site a b)
       | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
@@ -277,7 +298,7 @@ let pure =
     unary "length" Effect_class.Pure (fun ~span a ->
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
-      (fun ~call_site:_ ~apply:_ ~lift:_ ~run:_ args k -> k (Value.List args));
+      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k -> k (Value.List args));
     (* The one type test Ash has. The self-interpreter needs it because its
        value domain distinguishes an interpreted closure — a list carrying a
        private tag — from an interpreted scalar, and every other list operation
@@ -310,7 +331,7 @@ let pure =
     unary "code_name" Effect_class.Pure (fun ~span value ->
         Value.Str (Ident.name (code_variable ~span value)));
     make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
-      (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
         match args with
         | [ template; marker; replacement ] ->
             let template = code ~span:call_site template in
@@ -321,7 +342,7 @@ let pure =
             wrong_arity ~span:call_site ~name:"code_splice"
               ~arity:(Value.Exactly 3) args);
     make ~name:"code_match" ~arity:(Value.At_least 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~apply:_ ~lift:_ ~run:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ args k ->
         match args with
         | template :: subject :: markers ->
             let template = code ~span:call_site template in
@@ -351,10 +372,18 @@ let pure =
        evaluator error itself, [raise_at] anchors the structured cause at that
        node rather than at the helper call in [eval.ash]. The descriptor is a
        closed protocol, not an arbitrary host exception escape hatch. *)
-    binary "raise_at" Effect_class.Pure (fun ~span site descriptor ->
-        let cause, level = source_error_cause ~span descriptor in
-        Error.raise_cause ~phase:Error.Evaluate
-          ~span:(source_span ~span site) ?level cause);
+    make ~name:"raise_at" ~arity:(Value.Exactly 2) ~cls:Effect_class.Pure
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ args _k ->
+        match args with
+        | [ site; descriptor ] ->
+            (* An interpreted level fails where the ground evaluator would, so
+               its error belongs to the level running the interpreter, exactly
+               as an error that evaluator raises itself does. *)
+            Error.raise_cause ~phase:Error.Evaluate
+              ~span:(source_span ~span:call_site site) ~level
+              (source_error_cause ~span:call_site descriptor)
+        | [] | [ _ ] | _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"raise_at" ~arity:(Value.Exactly 2) args);
   ]
 
 (* The store. Residualized by default: running [cell_set] during specialization
@@ -434,18 +463,32 @@ let observable io =
 let control =
   [
     make ~name:"callcc" ~arity:(Value.Exactly 1) ~cls:Effect_class.Control
-      (fun ~call_site ~apply ~lift:_ ~run:_ args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
         match args with
         | [ receiver ] ->
             (* [k] is the continuation of the [callcc] call itself, so invoking
                the reified continuation later resumes exactly what the call
-               would have returned into. Level 0 is the only level before Phase
-               4; a captured continuation records it so that a reifier holding
-               one cannot resume it on the wrong machine. *)
-            let captured = Value.continuation ~capture:call_site ~level:0 k in
+               would have returned into. The level is the applying evaluator's:
+               one registry serves the whole tower, so a captured continuation
+               records where it came from and a reifier holding one cannot
+               resume it on the wrong machine. *)
+            let captured = Value.continuation ~capture:call_site ~level k in
             apply ~call_site receiver [ Value.Continuation captured ] k
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"callcc" ~arity:(Value.Exactly 1) args);
+    (* Invoking a captured continuation by name (spec §5.2). A meta level holds
+       the continuation of the level below and resumes it with a value; the
+       transfer, including the one-shot check, is the ordinary application the
+       applier already performs, so this is the spread of [invoke] narrowed to
+       exactly one argument. The continuation it transfers to ignores the
+       continuation of this call: [resume] does not return. *)
+    make ~name:"resume" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
+        match args with
+        | [ cont; value ] ->
+            apply ~call_site (continuation ~span:call_site cont) [ value ] k
+        | [] | [ _ ] | _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"resume" ~arity:(Value.Exactly 2) args);
     (* Applying a callee to a list of arguments whose length is only known at
        run time. Core [App] has a fixed number of argument positions, so a
        program that has built an argument list — which is what any evaluator's
@@ -461,7 +504,7 @@ let control =
        does not, residualizes it. That is the same treatment [callcc] gets, and
        for the same reason. *)
     make ~name:"invoke" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~apply ~lift:_ ~run:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
         match args with
         | [ callee; arguments ] ->
             apply ~call_site callee (items ~span:call_site arguments) k
@@ -471,7 +514,7 @@ let control =
        supplied as Code. This is the source-preserving application path used by
        the real-Code self-interpreter. *)
     make ~name:"invoke_at" ~arity:(Value.Exactly 3) ~cls:Effect_class.Control
-      (fun ~call_site ~apply ~lift:_ ~run:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ args k ->
         match args with
         | [ site; callee; arguments ] ->
             let call_site = source_span ~span:call_site site in
@@ -484,22 +527,54 @@ let control =
 (* Evaluator-dependent operations. [lift] delegates Code construction because a
    lifted list must refer to this level's hygienic [list] global. [run] delegates
    both analysis and execution, so it cannot accidentally retain the registry's
-   construction environment or its caller's lexical frame. [reflect] and [up]
-   arrive in tasks 4.2--4.3. *)
+   construction environment or its caller's lexical frame. [reflect] and
+   [meta_error] delegate for a sharper reason: one registry serves every level
+   (ADR 0017), so the primitive values are shared and only the applying
+   evaluator knows which level is running. [up] is sugar over a reifier and
+   arrives in task 4.3. *)
 let reflection =
   [
     make ~name:"lift" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~apply:_ ~lift ~run:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift ~run:_ ~reflect:_ args k ->
         match args with
         | [ value ] -> k (Value.Code (lift ~call_site value))
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"lift" ~arity:(Value.Exactly 1) args);
     make ~name:"run" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~apply:_ ~lift:_ ~run args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run ~reflect:_ args k ->
         match args with
         | [ value ] -> run ~call_site (code ~span:call_site value) k
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"run" ~arity:(Value.Exactly 1) args);
+    (* The inverse of reifier application (spec §5.4): drop one level, evaluate
+       [code] in [env] there, and transfer to a continuation captured there. The
+       identity reifier is the round trip, and it must be observationally the
+       identity function — the argument is evaluated once, on the level that
+       wrote it, with that level's effects in that order. *)
+    make ~name:"reflect" ~arity:(Value.Exactly 3) ~cls:Effect_class.Reflection
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect args k ->
+        match args with
+        | [ subject; env; cont ] ->
+            reflect ~call_site
+              ~code:(code ~span:call_site subject)
+              ~env:(environment ~span:call_site env)
+              ~cont:(continuation ~span:call_site cont)
+              k
+        | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"reflect" ~arity:(Value.Exactly 3) args);
+    (* Failing deliberately at the level that runs it. Reflection rather than
+       Pure because the level is part of the result: folding it during
+       specialization would report the failure at whatever level the specializer
+       happened to run at, which is the same mistake D7 names for [print]. *)
+    make ~name:"meta_error" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ args _k ->
+        match args with
+        | [ message ] ->
+            Error.raise_cause ~phase:Error.Evaluate ~span:call_site ~level
+              (Error.Meta_error (string ~span:call_site message))
+        | [] | _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"meta_error" ~arity:(Value.Exactly 1)
+              args);
   ]
 
 let build io dereferences =
