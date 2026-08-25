@@ -6,6 +6,96 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-08-24 — task 7.3
+
+- Completed: the effect-order differential corpus, which closes Phase 7. Tasks
+  7.1 and 7.2 built the machinery; this is the measurement that says it works.
+  - **The corpus (`test/differential/corpus.ml`).** Three new lists.
+    `effect_order` is 15 programs, each stated as `setup` / `answer` / `store` —
+    statements run for what they do, the expression whose value is compared, and
+    the expressions that read the store back. The harness composes them into one
+    program whose final expression is `[answer, store…]`, so a single run yields
+    value, store and trace together and a difference is still reportable as
+    whichever of the three it is. `effect_order_failures` is 3 programs whose
+    failure the specializer could not decide and had to leave in the residual —
+    the only way the output and the writes *before* a failure become comparable,
+    since a folded failure never reaches a residual at all.
+    `effect_order_boundaries` is 1 recorded refusal.
+  - **A store is compared as what the program reads back (ADR 0037).** Cells
+    carry identity and each run allocates its own (§D1) — `Metrics.agreement`
+    already answers `Incomparable` for anything that carries identity. The reads
+    are in the program, so a fold that moved a read across a write shows up as a
+    wrong number rather than as a missing check.
+  - **`deref(cell_new(v))` is how a closed program contains something dynamic.**
+    Allocation still residualizes (ADR 0036 keeps the heap outside the store's
+    domain), so the specializer cannot see the value and every run reads it as
+    `v`. That gives a conditional the specializer must fork on inside a program
+    that still runs to a comparable answer — a residual that is a *function*
+    could only be compared by applying it, and a tower run's recorded outcome
+    cannot be applied afterwards. The day allocation becomes static these
+    samples stop being dynamic, which is the right way for a boundary sample to
+    expire.
+  - **Two failures agree on cause and *source* location, provenance excluded.**
+    `Metrics.agreement` compared `Span.equal`, which includes provenance — the
+    span module says in as many words that semantic comparisons must not. For a
+    *folded* failure the two spans are the same object, so the mistake was
+    invisible for the whole pure corpus. A *residualized* failure is the first
+    one raised twice by two different terms: the residual's `/` carries
+    `stage/prim` over exactly the span the source reported, and the CLI report
+    printed `DIFFERS` for a correct residual. Now compared through
+    `Span.source_span`. Provenance joined §D9's excluded observations and
+    AGENTS' invariant 10.
+- Falsified rather than assumed, both ways: reverting the span comparison to
+  `Span.equal` fails all three failure samples at all six depths; disabling ADR
+  0033's store guard in the normalizer turns "a read of a binding a later write
+  changes" from 3 into 4, and the same sample's shape assertion — the residual
+  must still bind a bare read of a binder the term assigns — fails with it.
+  That is the note in 7.3's acceptance criterion made concrete: comparing raw
+  residuals would have passed without ever exercising the guard.
+- Scope, deliberately: one boundary is asserted rather than dropped. A failure
+  the specializer can decide, inside a branch it cannot, aborts the whole
+  specialization instead of becoming a residual failure in that branch, so
+  `if dynamic then 1/0 else 7` runs fine and does not collapse. Residualizing a
+  decided failure is error-and-control work that no step of §7.4's fragment
+  ordering owns; the sample is written down so whichever phase takes it on
+  announces itself by failing that assertion.
+- Measurement: no counter changed meaning or value. The criterion suite still
+  proves its 73 depth-1 samples against the same 906,708-dispatch /
+  2,125,589-cell-read tower figures and the same 250 residual nodes; depth
+  results are still 417 invariant and 18 depth-sensitive checks; every golden
+  output is unchanged. New: 324 effect-order checks over 19 programs at depths
+  0–5, and the source/residual differential grows from 8 mutating programs to
+  26.
+- Tests: new `test/laws/effect_order_test.ml` — per depth and per sample, the
+  tower is transparent, the residual does what the tower did, and the
+  specialization phase left no program output; plus residue cleanliness,
+  normalizer idempotence on the actual residual, one normalized residual across
+  all six depths, and the shape assertion on the store-guard sample. Budgeted by
+  counted steps projected through the measured per-level multiplier, skips
+  reported; nothing was skipped. `test/differential/residual_test.ml` runs the
+  same programs against the *raw* fold, which is what says the specializer was
+  already right before the normalizer touched it, and gained a surface-notation
+  path so the desugaring of `var`, `:=` and `&&` is under the same claim.
+- Documentation: ADR 0037; spec §7.4 step 3, §8 Phase 7 (now Done), §D9's
+  excluded observations, and §10's `print`-at-compile-time trap (now marked,
+  citing 0035 and 0037); AGENTS invariant 10; `Metrics.agreement`'s docstring
+  and the `specialization.log` docstring, which is no longer empty for the whole
+  corpus.
+- Verified: `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, `opam exec -- dune exec ash -- --demo
+  tracing`, `opam exec -- dune exec ash -- --demo level-2-counting`, and
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1` all
+  pass.
+- Known issues: `open fn` dereferences still residualize (Phase 9's work, and
+  the criterion's falsifiability sample). A decided failure inside an undecided
+  branch refuses, as above. `Error.cause_equal` still compares provenance inside
+  the two causes that embed spans (`Open_code`, `Continuation_reuse`); neither
+  can reach a residual today, and both belong to the control and reflection
+  fragments that Phases 8–10 open.
+- Next: 8.1 — persistent overlay frames and `meta_with`: overlay meta lookup
+  precedes persistent cells, lexical `NamedVar` never sees overlays, and never
+  by save/mutate/restore (D8).
+
 ### 2026-08-24 — task 7.2
 
 - Completed: static-store splitting and dynamic joins, which is where `Core.Set`

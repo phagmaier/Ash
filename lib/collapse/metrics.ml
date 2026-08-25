@@ -23,6 +23,18 @@ let rec comparable_across_runs = function
   | Value.Cell _ ->
       false
 
+(* Two runs fail the same way when they fail for the same reason at the same
+   place in the program the human wrote. Provenance is deliberately not part of
+   that: a residual node records that the specializer emitted it (ADR 0033), and
+   a failure the residual raises therefore carries a [stage/prim] layer over the
+   very span the source run reported. Comparing spans with provenance would make
+   every residualized failure a disagreement, which would say that collapsing a
+   program changed its meaning whenever the program can fail — a claim about
+   where a node came from dressed up as a claim about what a program does.
+   ADR 0037. *)
+let same_failure_site a b =
+  Span.equal (Span.source_span a) (Span.source_span b)
+
 let agreement a b =
   match (a, b) with
   | Answered x, Answered y ->
@@ -32,7 +44,7 @@ let agreement a b =
   | Failed x, Failed y ->
       if
         Error.cause_equal x.Error.cause y.Error.cause
-        && Span.equal x.Error.span y.Error.span
+        && same_failure_site x.Error.span y.Error.span
       then Agrees
       else Differs
   | (Answered _ | Failed _), _ -> Differs

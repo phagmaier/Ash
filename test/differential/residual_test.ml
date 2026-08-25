@@ -10,8 +10,15 @@
    The effect half joins it at task 7.2: store splitting is what lets a [Set]
    reach a residual, and the corpus's mutation programs are the shapes that go
    wrong first — a closure that writes what it captured, two closures that share
-   one binding, and argument order against a write. The error and control halves
-   are still absent: those are §7.4's later steps. *)
+   one binding, and argument order against a write. Task 7.3's effect-order
+   programs join them, including the ones whose failure the residual raises
+   rather than folds.
+
+   What this test compares that `test/laws/effect_order_test.ml` does not is the
+   {e raw} residual: the fold's own output, before normalization. That test
+   compares the deliverable, which is the normalized term; this one is what says
+   the specializer was already right before the normalizer touched it. The
+   control half is still absent: that is §7.4's later step. *)
 
 open Ash_core
 open Ash_syntax
@@ -63,12 +70,20 @@ let difference source residual =
 
 let compared = ref 0
 
-let agree name text =
+(* Both notations, one comparison: the Core half is what the corpus's older
+   lists are written in, and the effect-order samples are Ash the front end
+   lowers, which puts the desugaring of `var`, `:=` and `&&` under the same
+   claim as the staging of what it produces. *)
+let agree ?(surface = false) name text =
   let registry = Primitives.create () in
   let globals = Primitives.globals registry in
   let named = List.map (fun (ident, _) -> (Ident.name ident, ident)) globals in
   let io = Primitives.io registry in
-  let term = Core_reader.read ~scope:(Core_reader.scope_of_list named) ~file text in
+  let term =
+    if surface then
+      Desugar.program ~scope:(Desugar.scope_of_globals named) (Parser.program ~file text)
+    else Core_reader.read ~scope:(Core_reader.scope_of_list named) ~file text
+  in
   let fresh () = Env.extend globals Value.empty_env in
   Io.clear io;
   let source = attempt (fun () -> Evaluator.eval ~env:(fresh ()) term) in
@@ -120,6 +135,15 @@ let () =
   List.iter (fun (name, text) -> agree ("value: " ^ name) text) Corpus.values;
   let pure = !compared in
   List.iter (fun (name, text) -> agree ("effect: " ^ name) text) Corpus.effects;
+  List.iter
+    (fun sample ->
+      agree ~surface:true
+        ("effect order: " ^ sample.Corpus.name)
+        (Corpus.effect_sample_program sample))
+    Corpus.effect_order;
+  List.iter
+    (fun (name, text) -> agree ~surface:true ("failure: " ^ name) text)
+    Corpus.effect_order_failures;
   Printf.printf
     "source/residual corpus: %d pure and %d mutating programs compared\n" pure
     (!compared - pure);

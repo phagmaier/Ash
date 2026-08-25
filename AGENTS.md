@@ -52,9 +52,11 @@ Session protocol:
    save/mutate/restore.
 9. **Per-level state:** materialized levels get cloned globals and fresh
    open-recursion cells.
-10. **Scoped claims:** timing, host stack depth, resource exhaustion, and gensym
-    counters are excluded observations; depth-sensitive code gets per-depth
-    semantic comparison, never cross-depth alpha-equivalence.
+10. **Scoped claims:** timing, host stack depth, resource exhaustion, gensym
+    counters, and span provenance are excluded observations; two failures agree
+    on cause and *source* location, never on the generated layers a residual
+    node carries. Depth-sensitive code gets per-depth semantic comparison, never
+    cross-depth alpha-equivalence.
 
 Add a regression test before repairing any violation. Never weaken an invariant
 to make a test pass.

@@ -40,7 +40,13 @@ type agreement =
           checked. *)
 
 val agreement : outcome -> outcome -> agreement
-(** Whether two runs of one program produced the same answer. *)
+(** Whether two runs of one program produced the same answer.
+
+    Two failures agree when they have the same cause at the same {e source}
+    location. Provenance is excluded: a residual node records the phase that
+    emitted it, so a failure the residual raises carries a [stage/prim] layer
+    over exactly the span the source run reported, and comparing those layers
+    would call every residualized failure a difference (ADR 0037). *)
 
 type run = {
   outcome : outcome;
@@ -100,7 +106,8 @@ type specialization = {
       (** What [static_log] wrote while specializing — §D7's compile-time
           channel, which is deliberately {e not} program-visible output and so
           is reported beside it rather than counted in it. Empty for a program
-          that does not use it, which is the whole corpus. *)
+          that does not call [static_log], which is all of the corpus but the
+          one sample that pins the channel apart from {!output}. *)
 }
 
 type residual = { term : Core.t; residue : Residue.t; run : run }

@@ -16,13 +16,32 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 7 — mutation and effects. 7.1 and 7.2 done.
-- **Next:** 7.3 — the effect-order differential corpus
-- **Last verified:** 2026-08-24 from a removed `_build` — `opam exec -- dune
-  build @all`, `opam exec -- dune runtest --force`, `opam exec -- dune exec ash
-  -- --help`, `opam exec -- dune exec ash -- --demos`, and
+- **Phase:** 7 — mutation and effects. Done (7.1, 7.2, 7.3).
+- **Next:** 8.1 — persistent overlay frames and `meta_with`
+- **Last verified:** 2026-08-24 — `opam exec -- dune build @all`,
+  `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
+  `opam exec -- dune exec ash -- --demo tracing`,
+  `opam exec -- dune exec ash -- --demo level-2-counting`, and
   `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1` all
-  pass. Task 7.2 split the store: a binding is either the specializer's — writes
+  pass. Task 7.3 measured what 7.1 and 7.2 built. The effect-order corpus is 15
+  programs that state their observation as an answer plus the expressions that
+  read the store back, 3 whose failure the specializer had to leave in the
+  residual, and 1 recorded boundary; at every depth 0–5 the tower run and the
+  **normalized** residual run agree on value, observable store, output and
+  failure, and the specialization phase's own output is required to be empty —
+  324 checks over 19 programs. Two things had to be settled to write it. A store
+  is not comparable across runs (cells carry identity, §D1), so the comparison
+  is what the program reads back out of one; and a closed program gets a
+  condition the specializer cannot decide by writing `deref(cell_new(v))`,
+  because allocation still residualizes. Two failures now agree on cause and
+  **source** location with provenance excluded: a residualized failure carries
+  the emitting phase over the very span the source reported, so the old
+  `Span.equal` comparison called every such residual different and the CLI
+  report printed `DIFFERS` for correct output. Provenance joined §D9's excluded
+  observations. The one boundary is a decided failure inside an undecided branch
+  (`if dynamic then 1/0 else 7`): the program runs, the specialization aborts,
+  and the refusal is asserted rather than dropped. ADR 0037. Task 7.2 split the
+  store: a binding is either the specializer's — writes
   update its cell, reads fold, nothing survives — or the residual program's,
   with writes becoming `Set` nodes and reads a variable, and the store is keyed
   by cell identity so aliases stay one place and two activations stay two. At a
@@ -91,6 +110,17 @@ hope: generalizing is sticky and monotone, so a function with *k* parameters is
 generalized at most *k* times, after which its key is constant and the next call
 must find the memo table. The one place the specializer can only refuse is
 closure reification, which is not a call and has nothing to generalize.
+
+Phase 7 is done, and its "done when" is the measured kind. Effects are policed
+before any rule that could fold them (7.1), bindings are split between the
+specializer and the residual program and joined at branches neither can decide
+(7.2), and the effect-order corpus states the result rather than assuming it
+(7.3): at every depth 0–5, the tower run and the normalized residual run of each
+sample agree on value, observable store, output and failure, and compilation
+writes nothing to the program's stream. What Phase 7 does *not* cover is written
+down as one asserted refusal rather than left to be rediscovered — a failure the
+specializer can decide, inside a branch it cannot, stops the specialization
+instead of becoming a residual failure in that branch.
 
 ## Locked decisions
 
@@ -466,12 +496,28 @@ closure reification, which is not a call and has nothing to generalize.
     residualize, so an `open fn` group is still the criterion's boundary sample.
     ADR 0036.
 
-- [ ] **7.3 Build the effect-order differential corpus.**
+- [x] **7.3 Build the effect-order differential corpus.**
   - Compare values, output, errors, and observable store at depths 0–5.
   - Accept: tower and residual runs agree; compilation has no runtime effects.
   - Compare *normalized* residuals, as 6.4 does: this corpus is what exercises
     the normalizer's store guard end to end, and a store comparison against raw
     residuals would pass for the wrong reason.
+  - 19 programs, 324 checks, depths 0–5. Each sample is an answer plus the
+    expressions that read the store back, composed into one program, so a single
+    run yields value, store and trace together and a difference is reported as
+    whichever of the three it is — a store is not comparable across runs, since
+    cells carry identity (§D1), so what is compared is what the program reads.
+    Dynamic conditionals in closed programs are written `deref(cell_new(v))`,
+    because allocation still residualizes. Normalized residuals throughout, and
+    that is load-bearing: disabling ADR 0033's store guard turns one sample's
+    answer from 3 into 4 and the test names it. Two failures agree on cause and
+    source location, provenance excluded — a residualized failure necessarily
+    carries the phase that emitted it, and comparing generated layers made the
+    CLI report say `DIFFERS` for a correct residual. One boundary is asserted
+    rather than dropped: a decided failure inside an undecided branch aborts the
+    specialization, so `if dynamic then 1/0 else 7` runs and does not collapse.
+    `test/differential/residual_test.ml` runs the same programs against the raw
+    fold. ADR 0037.
 
 ## Phase 8 — scoped meta-overrides
 

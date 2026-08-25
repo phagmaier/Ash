@@ -184,3 +184,213 @@ let surface_errors =
     ("an arity error on a named function", "fn f(a, b) = a + b\nf(1)");
     ("a type error in a lowered operator", "let s = \"a\"\ns + 1");
   ]
+
+(* Effect order (to-do task 7.3).
+
+   Everything above asks whether two implementations agree on an answer. These
+   ask whether they agree on *when*: which write a read sees, what reached the
+   output stream in what order, and what the store holds once the program is
+   done. That is the half a specializer gets wrong silently. A fold that moves a
+   read across a write still produces a program, and a [print] that ran at
+   compile time still produces a program; only a comparison of traces says which
+   program it is.
+
+   {1 Writing "dynamic" without leaving a function unapplied}
+
+   Several samples need a value the specializer cannot decide, and still have to
+   run to an answer two runs can compare — a residual that is a function could
+   only be compared by applying it, and what a tower run recorded cannot be
+   applied afterwards. [deref(cell_new(v))] is how that is written here: the
+   allocation primitives always residualize (spec 7.4, ADR 0036), so the value
+   is dynamic to the specializer and is plainly [v] to every run.
+
+   {1 The observable store}
+
+   A store is not comparable across two runs: cells carry identity and each run
+   allocates its own (D1). What is comparable is what a program reads back out
+   of one, so each sample states its store observation as [store] — expressions
+   evaluated after [answer], in the order written. The harness composes the
+   three parts into one program, so a single run yields the value, the trace and
+   the final store together, and a difference can still be named as whichever of
+   the three it is. A sample that fails has no store observation left to make,
+   which is why the failing programs are their own list. *)
+
+type effect_sample = {
+  name : string;
+  setup : string;  (** Statements, run for what they do. *)
+  answer : string;  (** The expression whose value is compared. *)
+  store : string list;  (** Read after [answer]: the observable store. *)
+}
+
+let effect_sample_program sample =
+  sample.setup ^ "\n[" ^ String.concat ", " (sample.answer :: sample.store) ^ "]"
+
+let sample name setup answer store = { name; setup; answer; store }
+
+let effect_order =
+  [
+    (* Reads on both sides of a write, in one argument list: the order of the
+       three reads is the whole content of the answer. *)
+    sample "a read on each side of a write" "var x = 0"
+      "[x, { x := 1; x }, x]" [ "x" ];
+    (* Every read here folds and every [println] residualizes, so the residual
+       is a sequence of prints around constants — which is right only if the
+       constants are the values the reads had at those points. *)
+    sample "output ordered around folded reads"
+      "var x = 0\nfn note(tag, v) = { println(tag); v }"
+      "[note(\"first\", { x := x + 1; x }), note(\"second\", x), \
+       note(\"third\", { x := x * 10; x })]"
+      [ "x" ];
+    (* A binding two closures share is the residual program's, so these writes
+       and reads are residual [Set]s and variables rather than folds, and the
+       prints between them fix their order. *)
+    sample "output between two writes to a shared binding"
+      "var n = 0\n\
+       fn bump() = n := n + 1\n\
+       fn peek() = n\n\
+       println(\"start\")\n\
+       bump()\n\
+       println(peek())\n\
+       bump()\n\
+       println(peek())"
+      "peek()" [ "n" ];
+    (* ADR 0033's store guard, end to end: [a] is bound to a bare read of a
+       binding a later write changes, which is exactly the binding the
+       normalizer may not substitute away. Substituting it answers 4. *)
+    sample "a read of a binding a later write changes"
+      "var x = 1\nfn bump() = x := x + 1\nlet a = x\nbump()" "a + x"
+      [ "a"; "x" ];
+    (* D7's compile-time channel beside the program's own stream: [static_log]
+       runs while specializing and leaves no call behind, so the two runs write
+       the same output despite one of them never reaching it. *)
+    sample "the compile-time channel is not the program's output"
+      "var n = 0\n\
+       fn bump() = n := n + 1\n\
+       fn peek() = n\n\
+       bump()\n\
+       static_log(peek())\n\
+       println(peek())\n\
+       bump()"
+      "peek()" [ "n" ];
+    (* Spec 7.4's own example, both ways round, with a second binding no branch
+       writes: [x] is given up before the fork and [y] stays the specializer's,
+       which is what makes it a *split* store rather than a residualized one. *)
+    sample "a dynamic branch chooses the write, taken"
+      "var x = 0\nvar y = 5\nlet b = deref(cell_new(true))\nif b then x := 1 else x := 2"
+      "x + y" [ "x"; "y" ];
+    sample "a dynamic branch chooses the write, not taken"
+      "var x = 0\nvar y = 5\nlet b = deref(cell_new(false))\nif b then x := 1 else x := 2"
+      "x + y" [ "x"; "y" ];
+    (* The branch not taken carries both a print and a division that would fail:
+       neither may happen, and the residual has to keep both where they are. *)
+    sample "a dynamic branch prints and writes"
+      "var x = 0\n\
+       let z = deref(cell_new(0))\n\
+       let b = deref(cell_new(false))\n\
+       if b then { println(\"yes\"); x := 1 / z } else { println(\"no\"); x := 7 }"
+      "x" [ "x" ];
+    (* Short-circuit is a dynamic conditional the front end wrote, so the write
+       inside the operand happens exactly when the operator says it does. *)
+    sample "short-circuit skips the write"
+      "var x = 0\nfn boom() = { x := x + 1; true }\nlet b = deref(cell_new(false))"
+      "b && boom()" [ "x" ];
+    sample "short-circuit performs the write"
+      "var x = 0\nfn boom() = { x := x + 1; true }\nlet b = deref(cell_new(true))"
+      "b && boom()" [ "x" ];
+    (* A binding written from inside an inlined call, under a branch the
+       specializer cannot decide: the write is not written in the branch it
+       happens in, which is why a binder free in a lambda is never held. *)
+    sample "a captured binding written under a dynamic branch, taken"
+      "var c = 0\n\
+       fn bump() = c := c + 1\n\
+       fn peek() = c\n\
+       let b = deref(cell_new(true))\n\
+       if b then bump() else println(\"skipped\")"
+      "peek()" [ "c" ];
+    sample "a captured binding written under a dynamic branch, not taken"
+      "var c = 0\n\
+       fn bump() = c := c + 1\n\
+       fn peek() = c\n\
+       let b = deref(cell_new(false))\n\
+       if b then bump() else println(\"skipped\")"
+      "peek()" [ "c" ];
+    (* The heap, which the store discipline does not cover: allocation always
+       residualizes, so nothing here folds and the residual is the program's own
+       order of reads and writes. *)
+    sample "a heap cell the specializer never owns"
+      "let c = cell_new(0)\n\
+       println(deref(c))\n\
+       cell_set(c, deref(c) + 1)\n\
+       println(deref(c))"
+      "deref(c)" [ "deref(c)" ];
+    (* A specialization point over a binding it assigns, printing on the way:
+       one residual function, called with the counts the source visits, in the
+       order the source visits them. *)
+    sample "recursion the specializer cannot finish, printing and accumulating"
+      "var total = 0\n\
+       fn down(k) =\n\
+      \  if k == 0 then total\n\
+      \  else {\n\
+      \    println(k)\n\
+      \    total := total + k\n\
+      \    down(k - 1)\n\
+      \  }\n\
+       let n = deref(cell_new(3))"
+      "down(n)" [ "total" ];
+    (* One binder, three activations, three places — and three prints that say
+       which activation each write belonged to. *)
+    sample "a local binding in a function called repeatedly, with output"
+      "fn twice(n) = {\n\
+      \  var t = n\n\
+      \  println(t)\n\
+      \  t := t * 2\n\
+      \  t\n\
+       }"
+      "twice(1) + twice(2) + twice(3)" [];
+  ]
+
+(* Failures the residual raises rather than folds, which is what makes the
+   effects *before* them comparable: a folded failure never reaches a residual
+   at all, so the output and the writes that preceded it are only observable
+   when the failing operation is one the specializer had to leave behind. *)
+
+let effect_order_failures =
+  [
+    ("a residualized division by zero after output and a write",
+     "var x = 0\n\
+      println(\"a\")\n\
+      x := x + 1\n\
+      println(x)\n\
+      let z = deref(cell_new(0))\n\
+      1 / z");
+    ("a dynamic branch that fails, taken",
+     "var x = 0\n\
+      let z = deref(cell_new(0))\n\
+      let b = deref(cell_new(true))\n\
+      if b then { println(\"yes\"); x := 1 / z } else { println(\"no\"); x := 7 }\n\
+      x");
+    ("a failure after a shared binding was written",
+     "var n = 0\n\
+      fn bump() = n := n + 1\n\
+      bump()\n\
+      println(n)\n\
+      head(deref(cell_new([])))");
+  ]
+
+(* Where specialization stops. The program runs; the specializer refuses it,
+   because a failure it can decide inside a branch it cannot decide aborts the
+   whole specialization rather than becoming a residual failure in that branch.
+   Residualizing a decided failure is error-and-control work no step of spec
+   7.4's fragment ordering owns, so the boundary is recorded here rather than
+   hidden: a refusal is not a
+   disagreement, but it is a limit, and a corpus that dropped the sample would
+   stop reporting the limit the day it moved. *)
+
+let effect_order_boundaries =
+  [
+    ("a statically failing branch the program never takes",
+     "var x = 0\n\
+      let b = deref(cell_new(false))\n\
+      if b then { println(\"yes\"); x := 1 / 0 } else { println(\"no\"); x := 7 }\n\
+      x");
+  ]
