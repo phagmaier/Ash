@@ -15,10 +15,8 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 6 — depth and recursion control. Complete.
-- **Next:** 7.1 — enforce primitive effect policy during specialization. The
-  effect-class gate belongs beside `Staged_eval.static_reading`: both decide
-  before `may_fold` is consulted.
+- **Phase:** 7 — mutation and effects. 7.1 done.
+- **Next:** 7.2 — static-store splitting and dynamic joins
 - **Last verified:** 2026-08-24 from a removed `_build` — `opam exec -- dune
   build @all`, `opam exec -- dune runtest --force`, `opam exec -- dune exec ash
   -- --help`, `opam exec -- dune exec ash -- --demos`, and
@@ -49,7 +47,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   hygienic let-insertion (5.2), the static/dynamic value model and
   `maybe-lift` mode (5.1), lazy tower (depths 0–5), the hygienic desugarer,
   `open fn` groups, the self-interpreter (`lib/self/eval.ash`) at layers 1 and
-  2, the 49-primitive registry, the full regression suite (unit, differential,
+  2, the 50-primitive registry, the full regression suite (unit, differential,
   laws, golden), and both packaged milestone demos.
 - **Blocker:** none
 
@@ -417,10 +415,21 @@ closure reification, which is not a call and has nothing to generalize.
 
 ## Phase 7 — mutation and effects
 
-- [ ] **7.1 Enforce primitive effect policy during specialization.**
+- [x] **7.1 Enforce primitive effect policy during specialization.**
   - IO always residualizes; allocation/mutation residualizes until proven by the
     store discipline; `static_log` is explicitly compile-time-only.
   - Accept: specialization emits no program-visible output.
+  - The gate is structural: `Staged_eval.apply_primitive` consults
+    `Effect_class.always_residualizes` before any rule that could fold —
+    before `static_reading`, before `may_fold` — so an observable effect cannot
+    reach a fold path whatever is added below it. Deliberately redundant with
+    `may_fold` today, and pinned as load-bearing: mis-mark the observable class
+    as foldable and the gate holds the criterion; remove the gate and the same
+    mis-marking makes compilation print. `static_log` is §D7's compile-time
+    channel in its own class, `Specialization_only` — the inverse of the
+    observable class, running when the specializer meets it and leaving no
+    residual call — writing to a second stream that is not program-visible
+    output. Allocation and mutation are unchanged and now pinned. ADR 0035.
 
 - [ ] **7.2 Implement static-store splitting and dynamic joins.**
   - Fork and conservatively merge abstract stores while retaining alias/cell
@@ -516,6 +525,65 @@ closure reification, which is not a call and has nothing to generalize.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-24 — task 7.1
+
+- Completed: primitive effect policy during specialization, which opens Phase 7.
+  - **The gate is structural (ADR 0035).** `Effect_class.always_residualizes`
+    existed, documented D7's absolute, and had no caller: the guarantee held
+    because the one fold path happened to consult `may_fold`. Task 6.4 then
+    added a second fold path, `static_reading`, which consults `may_fold` never
+    — harmless, since `tower_depth` is `Reflection`, but the shape of the
+    near-miss is the point. `Staged_eval.apply_primitive` now checks
+    `always_residualizes` first in lift mode, so an observable effect cannot
+    reach a fold path whatever rule is added below it.
+  - **Pinned as load-bearing, not assumed.** Two experiments, both run: with the
+    observable class deliberately mis-marked as foldable, the gate holds the
+    criterion and only the class-consistency assertions fail; with the gate
+    removed, the same mis-marking produces 20 failures including
+    `specialization wrote nothing: expected [] actual [x]` — compilation
+    printing, which is exactly the D7 bug.
+  - **`static_log` and a sixth class.** `Effect_class.Specialization_only` is
+    the inverse of `Observable_effect` rather than a weaker form: that class may
+    never run at specialization time, this one may never survive it. A class
+    rather than a special-cased name, so the specializer keeps reading policy
+    off the class. `static_log` runs when the specializer meets it, observes its
+    argument as `Unobserved` so a dynamic one is logged as the code it stands
+    for, and leaves no residual call.
+  - **A second stream, deliberately.** It writes to `Primitives.log`, never
+    `Primitives.io`. Had the log shared `io` with a tag, "the program printed
+    nothing" would have become "printed nothing once you filter", and a test one
+    refactor from not filtering is not a guarantee. Nothing in the language can
+    read the log; no equivalence claim consults it. A plain run is therefore
+    silent (the log has no echo), while the collapse report shows the
+    specialization phase's entries.
+  - **Considered and rejected:** making `static_log` a no-op under ordinary
+    evaluation. It would buy symmetry between the source and residual runs in a
+    stream nothing compares, at the cost of giving primitives access to the mode
+    they run under, which none currently has.
+- Measurement: no counter changed meaning or value — `may_fold` already refused
+  every observable primitive, so the gate re-decides nothing. The registry grows
+  to 50 primitives, so a materialized level has 50 global cells rather than 49,
+  and the report gains a `Specialization log:` line beside
+  `Specialization output:`.
+- Tests: new `test/unit/effect_policy_test.ml`; `data_model_test` and
+  `primitives_test` re-pinned (six classes, both policy predicates fixed to
+  their exact class sets, `static_log` in the independent classification and
+  arity tables); `test/golden/collapse.expected` re-pinned.
+- Documentation: ADR 0035; README gains the effect-policy and compile-time
+  channel bullets.
+- Verified from a removed `_build` with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, `opam exec -- dune exec ash --
+  --demos`, and `opam exec -- dune exec ash -- --collapse examples/fact.ash
+  --depth 1` all pass. The prior figures are identical: 906,708 dispatches /
+  2,125,589 cell reads / 250 residual nodes, 417 invariant and 18
+  depth-sensitive checks.
+- Known issues: unchanged. `open fn` dereferences and Core `Set` still
+  residualize until 7.2's store splitting; reflective collapse is Phase 9.
+- Next: 7.2 — static-store splitting and dynamic joins: fork and conservatively
+  merge abstract stores while retaining alias/cell identity, residualizing when
+  proof is unavailable.
 
 ### 2026-08-24 — tasks 6.3 and 6.4
 

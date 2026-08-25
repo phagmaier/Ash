@@ -472,6 +472,27 @@ let observable io =
         | None -> fail ~span Error.End_of_input);
   ]
 
+(* The compile-time channel of §D7. [static_log] exists so that "I want to see
+   what the specializer did" never becomes a reason to fold [print], which is
+   the mistake that makes compilation print and the compiled program silent.
+
+   It is defined by where its text goes rather than by when it runs: never to
+   the program's stream, always to the specialization log, which no Ash value,
+   diagnostic, or equivalence claim reads. That is why running a source program
+   containing one is not a difference from running its residual — the residual
+   has no call left, and neither run wrote anything a trace compares.
+
+   Its argument is {!Observation.Unobserved} because its staticness decides
+   nothing: a dynamic argument is logged as the code it stands for, which is the
+   useful answer at specialization time rather than a reason to refuse. *)
+let compile_time log =
+  let cls = Effect_class.Specialization_only in
+  [
+    unary ~observes:(Observation.uniform Observation.Unobserved) "static_log" cls (fun ~span:_ value ->
+        Io.write log (display value ^ "\n");
+        Value.Unit);
+  ]
+
 (* Control. [callcc] is the whole class: it is what makes a continuation a value,
    and every other control operator this project needs so far is written in Ash
    from it. It is spelled without a slash because a surface program has to be
@@ -637,8 +658,11 @@ let reflection =
     meta_reader "tower_depth" Value.Tower_depth;
   ]
 
-let build io dereferences =
-  let primitives = pure @ mutating dereferences @ observable io @ control @ reflection in
+let build io log dereferences =
+  let primitives =
+    pure @ mutating dereferences @ observable io @ compile_time log @ control
+    @ reflection
+  in
   (* Exactly one class per primitive is a property of the record type; what it
      cannot rule out is the same name registered twice with different classes,
      where a lookup would answer one and the environment bind the other. *)
@@ -654,6 +678,12 @@ let build io dereferences =
 
 type t = {
   io : Io.t;
+  log : Io.t;
+      (* The specialization log: where {!Effect_class.Specialization_only}
+         primitives write. A second stream rather than a tagged event in the
+         first, because "the program printed nothing" has to stay a statement
+         about [io] alone — a test that had to filter would be one refactor away
+         from not filtering. *)
   primitives : Value.primitive list;
   dereferences : int ref;
       (* Open-recursion cell reads, which the collapse report measures against
@@ -663,10 +693,12 @@ type t = {
 
 let create ?io () =
   let io = match io with Some io -> io | None -> Io.create () in
+  let log = Io.create () in
   let dereferences = ref 0 in
-  { io; primitives = build io dereferences; dereferences }
+  { io; log; primitives = build io log dereferences; dereferences }
 
 let io t = t.io
+let log t = t.log
 let open_dereferences t = !(t.dereferences)
 let reset_open_dereferences t = t.dereferences := 0
 let all t = t.primitives
@@ -683,13 +715,13 @@ let globals t =
     t.primitives
 
 (* The classification is the same for every registry, because only the
-   implementations of the observable primitives depend on a stream. Deriving it
+   implementations of the streaming primitives depend on a stream. Deriving it
    from a real registry rather than writing a second table keeps them from
    drifting apart. *)
 let classification =
   List.map
     (fun primitive -> (primitive.Value.prim_name, primitive.Value.prim_class))
-    (build (Io.create ()) (ref 0))
+    (build (Io.create ()) (Io.create ()) (ref 0))
 
 let names = List.map fst classification
 let count = List.length classification

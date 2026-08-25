@@ -794,6 +794,7 @@ Memoization, generalization, budget. Arbitrary tower depths of ordinary programs
 ### Phase 7 — Mutation and effects `[3]`
 Store splitting at dynamic joins; effect residualization per D7.
 - **Done when:** the effect-order corpus produces identical observable output under `run(p)` and `run(collapse(n,p))`, and nothing prints during compilation.
+- **In progress:** effect policy is enforced (task 7.1). Nothing prints during compilation, and that is structural rather than incidental: the specializer refuses an always-residualizing class before it consults any rule that could fold, so a fold path added later inherits the refusal instead of having to remember it. `static_log` now exists as this section prescribes — its own class, run when the specializer meets it, leaving no residual call, writing to a stream that is not the program's output — so wanting compile-time visibility is no longer a reason to reach for `print`. Allocation and mutation still residualize; store splitting (7.2) and the effect-order corpus (7.3) remain (ADR 0035).
 
 ### Phase 8 — `meta_with` `[2]`
 Overlay frames (D8), interaction with captured continuations.

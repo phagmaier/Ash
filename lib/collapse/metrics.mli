@@ -96,6 +96,11 @@ type specialization = {
   output : Io.event list;
       (** Must be empty. Specialization that prints is the trap §D7 exists to
           prevent, so the report shows this rather than assuming it. *)
+  log : Io.event list;
+      (** What [static_log] wrote while specializing — §D7's compile-time
+          channel, which is deliberately {e not} program-visible output and so
+          is reported beside it rather than counted in it. Empty for a program
+          that does not use it, which is the whole corpus. *)
 }
 
 type residual = { term : Core.t; residue : Residue.t; run : run }

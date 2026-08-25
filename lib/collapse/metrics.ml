@@ -61,6 +61,7 @@ type specialization = {
   generalizations : int;
   generalization_reasons : Ash_stage.Specialize.generalization list;
   output : Io.event list;
+  log : Io.event list;
 }
 
 type residual = { term : Core.t; residue : Residue.t; run : run }
@@ -81,10 +82,13 @@ type program = Surface of string | Core_notation of string
 
 let attempt f = match f () with value -> Answered value | exception Error.Ash_error e -> Failed e
 
-(* Each phase starts from a cleared stream and zeroed counters, so a number is
-   that phase's alone rather than the total since the tower was created. *)
+(* Each phase starts from cleared streams and zeroed counters, so a number is
+   that phase's alone rather than the total since the tower was created. Both
+   streams: the program's output, and the specialization log, which is the one
+   place a phase is allowed to write without that being output. *)
 let start ~registry ~machines =
   Io.clear (Primitives.io registry);
+  Io.clear (Primitives.log registry);
   Primitives.reset_open_dereferences registry;
   List.iter Machine.reset_counters machines
 
@@ -243,6 +247,7 @@ let measure ?(depth = 1) ?budget ~file ~name program =
       generalizations = Ash_stage.Specialize.generalization_count ();
       generalization_reasons = Ash_stage.Specialize.generalizations ();
       output = Io.events io;
+      log = Io.events (Primitives.log registry);
     }
   in
 

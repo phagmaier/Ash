@@ -418,19 +418,31 @@ let test_primitives () =
     (match result with Value.Num 5 -> true | _ -> false)
 
 let test_effect_classes () =
-  check_int "every effect class is enumerated" 5 (List.length Effect_class.all);
+  check_int "every effect class is enumerated" 6 (List.length Effect_class.all);
   check "effect class names are distinct"
     (distinct (List.map Effect_class.name Effect_class.all));
   check_string "the allocation class is named for both halves" "allocation/mutation"
     (Effect_class.name Effect_class.Allocation_or_mutation);
-  (* D7: static arguments justify folding only for pure primitives, and no
-     argument knowledge ever justifies running an observable effect early. *)
-  check "only pure primitives fold when static"
+  (* D7: static arguments justify folding only for pure primitives and the
+     compile-time channel, which is defined to run then; and no argument
+     knowledge ever justifies running an observable effect early. The two
+     predicates are opposites over the classes that have either. *)
+  check "only pure and compile-time primitives fold when static"
     (List.filter Effect_class.may_fold_when_static Effect_class.all
-    = [ Effect_class.Pure ]);
+    = [ Effect_class.Pure; Effect_class.Specialization_only ]);
   check "only observable effects always residualize"
     (List.filter Effect_class.always_residualizes Effect_class.all
     = [ Effect_class.Observable_effect ]);
+  check "only the compile-time channel runs at specialization"
+    (List.filter Effect_class.runs_at_specialization Effect_class.all
+    = [ Effect_class.Specialization_only ]);
+  check "nothing both always residualizes and runs at specialization"
+    (not
+       (List.exists
+          (fun c ->
+            Effect_class.always_residualizes c
+            && Effect_class.runs_at_specialization c)
+          Effect_class.all));
   check "classes compare equal to themselves"
     (List.for_all (fun c -> Effect_class.equal c c && Effect_class.compare c c = 0)
        Effect_class.all);

@@ -346,12 +346,26 @@ let apply_primitive mode machine ~call_site primitive arguments k =
   else
     match mode with
     | Mode.Identity -> apply_now ()
-    | Mode.Lift -> (
-        match static_reading machine primitive with
-        | Some reading -> k (Value.Code (Stage_value.lift_to_code ~call_site machine reading))
-        | None ->
-            if Stage_value.may_fold primitive arguments then apply_now ()
-            else residualize ())
+    | Mode.Lift ->
+        (* D7's one absolute, checked before any rule that could fold. Ordering
+           it first is what makes "specialization emits no program-visible
+           output" a property of this function rather than a coincidence of the
+           rules below it: {!Stage_value.may_fold} already refuses the class,
+           but {!static_reading} is a fold path that never consults [may_fold],
+           and the next such rule would be too. A class that always residualizes
+           cannot reach either. *)
+        if Effect_class.always_residualizes primitive.Value.prim_class then
+          residualize ()
+        else (
+          match static_reading machine primitive with
+          | Some reading ->
+              k (Value.Code (Stage_value.lift_to_code ~call_site machine reading))
+          | None ->
+              (* Everything else, including the compile-time channel: its class
+                 permits folding and it inspects nothing, so it runs here and
+                 contributes its unit answer rather than a residual call. *)
+              if Stage_value.may_fold primitive arguments then apply_now ()
+              else residualize ())
 
 let eval_default mode machine node env k =
   Machine.count_dispatch machine (Core.shape node);

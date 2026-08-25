@@ -95,6 +95,7 @@ let expected_classification =
   let pure = Effect_class.Pure
   and mutating = Effect_class.Allocation_or_mutation
   and observable = Effect_class.Observable_effect
+  and compile_time = Effect_class.Specialization_only
   and control = Effect_class.Control
   and reflection = Effect_class.Reflection in
   [
@@ -109,6 +110,7 @@ let expected_classification =
     ("cell_new", mutating); ("deref", mutating); ("cell_set", mutating);
     ("open_cell", mutating); ("open_deref", mutating); ("open_set", mutating);
     ("print", observable); ("println", observable); ("read_line", observable);
+    ("static_log", compile_time);
     ("callcc", control); ("resume", control); ("invoke", control);
     ("invoke_at", control);
     ("lift", reflection); ("run", reflection); ("reflect", reflection);
@@ -161,13 +163,39 @@ let test_classification () =
   (* The staging policy follows from the class, so it is asked of the class and
      not of the primitive. Folding anything outside the pure class at
      specialization time is the D7 mistake. *)
-  check "only pure primitives may fold when static"
+  check "only pure and compile-time primitives may fold when static"
     (List.for_all
        (fun (name, cls) ->
          Bool.equal
            (Effect_class.may_fold_when_static cls)
-           (List.mem name (Primitives.by_class Effect_class.Pure)))
+           (List.mem name (Primitives.by_class Effect_class.Pure)
+           || List.mem name (Primitives.by_class Effect_class.Specialization_only)))
        Primitives.classification);
+  check "only compile-time primitives run at specialization"
+    (List.for_all
+       (fun (name, cls) ->
+         Bool.equal
+           (Effect_class.runs_at_specialization cls)
+           (List.mem name (Primitives.by_class Effect_class.Specialization_only)))
+       Primitives.classification);
+  check "the compile-time channel is exactly static_log"
+    (List.equal String.equal [ "static_log" ]
+       (Primitives.by_class Effect_class.Specialization_only));
+  check "static_log writes to the log and not to the output stream"
+    (let registry = Primitives.create () in
+     match Primitives.find registry "static_log" with
+     | None -> false
+     | Some p ->
+         p.Value.prim_impl ~call_site:Span.unknown ~level:0
+           ~apply:(fun ~call_site:_ _ _ _ -> assert false)
+           ~lift:(fun ~call_site:_ _ -> assert false)
+           ~run:(fun ~call_site:_ _ _ -> assert false)
+           ~reflect:(fun ~call_site:_ ~code:_ ~env:_ ~cont:_ _ -> assert false)
+           ~meta:(fun ~call_site:_ _ -> assert false)
+           [ Value.Num 7 ] (fun v -> v)
+         = Value.Unit
+         && Io.events (Primitives.io registry) = []
+         && Io.written (Primitives.log registry) = [ "7\n" ]);
   check "only observable primitives always residualize"
     (List.for_all
        (fun (name, cls) ->
@@ -358,6 +386,9 @@ let type_expectations =
     ("print", Total [ s ]);
     ("println", Total [ n ]);
     ("read_line", Total []);
+    (* Total on anything: the compile-time channel logs whatever it is handed,
+       including code, which is what makes it useful during specialization. *)
+    ("static_log", Total [ n ]);
     (* [callcc] applies its argument, so what it accepts is what [apply]
        accepts; the applier the table supplies just reports the call. *)
     ("callcc", Total [ Value.Primitive identity_primitive ]);

@@ -21,6 +21,10 @@
     - {!Ash_core.Effect_class.Observable_effect} — [print], [println],
       [read_line], all of which go through an injectable {!Io.t} so that a trace
       is a value tests can compare.
+    - {!Ash_core.Effect_class.Specialization_only} — [static_log], §D7's
+      compile-time channel. It writes to {!log} rather than {!io}, so it is not
+      program-visible output and no equivalence claim reads it; the specializer
+      runs it and leaves nothing behind.
 
     - {!Ash_core.Effect_class.Control} — [callcc], which reifies the current
       continuation as a one-shot value and hands it to its argument, [resume],
@@ -97,6 +101,12 @@ val create : ?io:Io.t -> unit -> t
 
 val io : t -> Io.t
 (** The stream this registry's observable primitives write to and read from. *)
+
+val log : t -> Io.t
+(** The specialization log: where {!Ash_core.Effect_class.Specialization_only}
+    primitives write. Separate from {!io} on purpose, so "the program printed
+    nothing" stays a statement about {!io} alone rather than one about {!io}
+    after a filter. Nothing in the language can read it. *)
 
 val open_dereferences : t -> int
 (** How many times [open_deref] read an open-recursion cell, counted across this

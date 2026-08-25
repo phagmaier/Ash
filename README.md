@@ -836,6 +836,27 @@ shaped list disappears into the arithmetic it performed.
   before surveying and running the residual, so every reported figure describes
   the deliverable. See
   [`docs/decisions/0033-the-residual-normalizer.md`](docs/decisions/0033-the-residual-normalizer.md).
+- **Primitive effect policy (§D7):** folding is contagious, and
+  `print("hello")` has a static argument — fold it and *compilation* prints
+  while the compiled program is silent. So the specializer checks
+  `Effect_class.always_residualizes` **before** any rule that could fold: an
+  observable effect cannot reach a fold path, whatever rule is added below it.
+  That is deliberately redundant with the ordinary foldability check, and the
+  redundancy is the point — mis-mark the observable class as foldable and the
+  gate still holds the line; remove the gate and the same mis-marking makes
+  compilation print. Allocation and mutation residualize on the same rule until
+  Phase 7's store discipline earns them. See
+  [`docs/decisions/0035-primitive-effect-policy-and-the-compile-time-channel.md`](docs/decisions/0035-primitive-effect-policy-and-the-compile-time-channel.md).
+- **The compile-time channel (`static_log`):** the honest alternative §D7 asks
+  for, so that "I want to see what the specializer did" never becomes a reason
+  to fold `print`. It is defined by where its text goes rather than by when it
+  runs: never to the program's stream, always to a second one nothing in the
+  language can read. Its own class, `Specialization_only`, is the inverse of
+  the observable class — that one may never run at specialization time, this one
+  may never survive it — so it executes when the specializer meets it, logs a
+  dynamic argument as the code it stands for, and leaves no residual call. The
+  report prints `Specialization log:` beside `Specialization output:`, which is
+  where the alternative is visible at the point of temptation.
 
 ## The collapse report
 

@@ -157,6 +157,10 @@ let to_string (metrics : Metrics.t) =
   | Error error -> add (line "Residual:" ("not produced: " ^ Error.to_string error)));
   add (output_line "Source output:" metrics.Metrics.source.Metrics.output);
   add (output_line "Specialization output:" metrics.Metrics.specialization.Metrics.output);
+  (* Beside the output line, never inside it: the compile-time channel is what
+     §D7 offers instead of folding [print], so a report that hid it would leave
+     the honest alternative invisible. *)
+  add (output_line "Specialization log:" metrics.Metrics.specialization.Metrics.log);
   (match metrics.Metrics.residual with
   | Ok residual -> add (output_line "Residual output:" residual.Metrics.run.Metrics.output)
   | Error _ -> ());
