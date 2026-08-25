@@ -982,9 +982,9 @@ Resolved in Revision 2 by D1–D9: hygiene representation, `LetRec`, open recurs
 
 Still open:
 
-- [ ] Does `NamedVar` resolution search overlay frames, or only the lexical chain? (Affects whether `meta_with` is visible to reflective name lookup.)
-- [ ] Do reifiers receive the whole call expression or just the argument list? (Recommend whole call — you want the operator for error messages.)
-- [ ] Is the tower's global environment per-level or shared? (Recommend per-level, cloned on materialization; shared makes level independence untestable.)
+- [x] Does `NamedVar` resolution search overlay frames, or only the lexical chain? (Affects whether `meta_with` is visible to reflective name lookup.) *(Resolved: only explicit lexical environments, never meta overlays — locked decision and ADR 0024.)*
+- [x] Do reifiers receive the whole call expression or just the argument list? (Recommend whole call — you want the operator for error messages.) *(Resolved: whole call, environment, and continuation — ADR 0023.)*
+- [x] Is the tower's global environment per-level or shared? (Recommend per-level, cloned on materialization; shared makes level independence untestable.) *(Resolved: cloned per materialized level — ADR 0022.)*
 - [ ] What is the specialization semantics of a reifier whose *body* is static but whose *invocation* is under a dynamic condition? This is the sharpest case in the Phase 10 classification and probably where the real result lives.
-- [ ] Should `tower_depth()` exist at all, or is the depth-sensitive class more interesting than the clean theorem? (D9 — decide before Phase 6 writes its test suite.)
+- [x] Should `tower_depth()` exist at all, or is the depth-sensitive class more interesting than the clean theorem? (D9 — decide before Phase 6 writes its test suite.) *(Resolved: kept; `level` stays relative, `tower_depth()` is the explicit depth opt-in — ADR 0034, Phase 6 measured both classes.)*
 - [ ] When multi-shot continuations arrive, do overlay frames need reference counting, or does structural sharing suffice?
