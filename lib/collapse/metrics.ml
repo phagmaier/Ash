@@ -88,6 +88,71 @@ let start ~registry ~machines =
   Primitives.reset_open_dereferences registry;
   List.iter Machine.reset_counters machines
 
+(* The specialization phase: stage [term] in lift mode against [env] under the
+   stated depth, and normalize what comes back. Returns the staging machine
+   too, so a measurement can read its counters; {!specialize} is the same
+   without them.
+
+   The staging machine is attached to the configuration as level 0 — which is
+   what measuring at a stated depth means for the specializer:
+   [tower_depth()] is a static fact of that configuration and folds to it (ADR
+   0034), while every other meta reading stays dynamic exactly as in any
+   standalone specialization. When [tower] is given the depth reading is the
+   real materialized count; otherwise it is the stated number, which is
+   faithful because the pure fragment cannot shift levels and so cannot observe
+   anything else about a configuration. *)
+let specialize_with_stats ?(depth = 0) ?tower ~env term =
+  let machine = Ash_stage.Staged_eval.machine ~mode:Ash_stage.Mode.Lift () in
+  Machine.set_levels machine
+    {
+      Machine.level_index = 0;
+      level_above =
+        (match tower with
+        | Some tower ->
+            fun () -> Level.machine (Tower.materialize_above tower ~level:0)
+        | None ->
+            (* No tower to shift into. Refusing structurally keeps this a
+               [result]: a caller that hands us a term outside the pure
+               fragment gets the failure back rather than an escaping host
+               exception. *)
+            fun () ->
+              Error.raise_cause ~phase:Error.Stage ~span:(Core.span term)
+                ~level:0
+                (Error.Unsupported
+                   {
+                     what = "reifier application";
+                     by = "a specialization with no tower attached";
+                   }));
+      level_below = None;
+      level_tower_depth =
+        (match tower with
+        | Some tower -> fun () -> Tower.materialized tower
+        | None -> fun () -> depth);
+    };
+  let result =
+    match Ash_stage.Staged_eval.run machine ~env term with
+    | Value.Code residual -> Ok (Normalize.normalize residual)
+    | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
+    | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
+    | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
+        (* [run] in lift mode reifies its answer, so this is unreachable; it is
+           written out rather than assumed so the match stays exhaustive. *)
+        Error
+          (Error.make ~phase:Error.Stage ~span:(Core.span term) ~level:0
+             (Error.Unsupported
+                {
+                  what = "a specialization that did not produce code";
+                  by = "the collapse report";
+                }))
+    | exception Error.Ash_error error -> Error error
+  in
+  (machine, result)
+
+(* Specialize under a caller-owned environment, normalized, no counters. This
+   is the entry point comparisons use: pass one shared environment and every
+   residual names the same globals. *)
+let specialize ?depth ~env term = snd (specialize_with_stats ?depth ~env term)
+
 let measure ?(depth = 1) ?budget ~file ~name program =
   if depth < 0 then invalid_arg "Metrics.measure: depth must be non-negative";
   let registry = Primitives.create () in
@@ -156,25 +221,15 @@ let measure ?(depth = 1) ?budget ~file ~name program =
     }
   in
 
-  (* 3. Specialization itself, and what it left behind. *)
-  let staging_machine = Ash_stage.Staged_eval.machine ~mode:Ash_stage.Mode.Lift () in
-  start ~registry ~machines:[ staging_machine ];
+  (* 3. Specialization itself, and what it left behind, against the tower this
+     measurement created. *)
+  (* No machine to zero: the staging machine is created inside the phase, with
+     its counters already at zero. What has to be cleared is what outlives a
+     phase — the output stream and the registry's dereference count. *)
+  start ~registry ~machines:[];
   let configured = Ash_stage.Specialize.budget () in
   Option.iter Ash_stage.Specialize.set_budget budget;
-  let staged =
-    match Ash_stage.Staged_eval.run staging_machine ~env term with
-    | Value.Code residual -> Ok residual
-    | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
-    | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
-    | Value.Cell _ | Value.Primitive _ ->
-        (* [run] in lift mode reifies its answer, so this is unreachable; it is
-           written out rather than assumed so the match stays exhaustive. *)
-        Error
-          (Error.make ~phase:Error.Stage ~span:(Core.span term) ~level:0
-             (Error.Unsupported
-                { what = "a specialization that did not produce code"; by = "the collapse report" }))
-    | exception Error.Ash_error error -> Error error
-  in
+  let staging_machine, staged = specialize_with_stats ~depth ~tower ~env term in
   Ash_stage.Specialize.set_budget configured;
   let specialization =
     {
@@ -191,7 +246,10 @@ let measure ?(depth = 1) ?budget ~file ~name program =
     }
   in
 
-  (* 4. What the collapsed program costs, and what interpretation is left in it. *)
+  (* 4. What the collapsed program costs, and what interpretation is left in it.
+     The residual arrives normalized from the specialization phase: the
+     measurement describes the deliverable, and the deliverable is the
+     canonical shape the depth comparison of task 6.4 rests on. *)
   let residual =
     Result.map
       (fun term ->

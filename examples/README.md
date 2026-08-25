@@ -19,6 +19,7 @@ What each prints is stored in `test/golden/demos.expected` and compared by
 |------|---------------|
 | `tracing.ash` | Spec §5.3. A program reaches up and replaces the evaluator running it, mid-flight. The trace has one line per evaluated Core node: if open recursion (§D3) regressed, it would print a handful of lines and still return the right answer. |
 | `fact.ash` | The collapse report's sample program (spec §9.4). Nothing in it is unknown, so it folds to its answer: `--collapse` prints what the tower costs beside what the residual costs. |
+| `depth.ash` | The depth-sensitive shape (task 6.4, spec §9.3's second class). It reads `tower_depth()`, so its residual differs per depth: specialized at depth n, the reading folds to n, and the residual run matches what the depth-n tower did — while the ground source run says 0, which the report states honestly as a difference. |
 | `level_2_counting.ash` | Spec §5.6. Level 1 is made to interpret level 0, and level 2 then counts the work level 1 does. The ratio between the two counters is the per-level cost of a tower nobody has collapsed — the measurement Phase 5 exists to reduce. |
 
 `fact.ash` is not a demo — it is an ordinary program, run with:

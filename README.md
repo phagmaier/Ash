@@ -818,6 +818,24 @@ shaped list disappears into the arithmetic it performed.
   to give up, so it raises `Budget_exhausted` naming the budget and the
   function. See
   [`docs/decisions/0032-specialization-budgets-and-generalization.md`](docs/decisions/0032-specialization-budgets-and-generalization.md).
+- **The residual normalizer (`Ash_collapse.Normalize`):** one canonical shape
+  for residuals, so claims that compare them — the depth-invariance claim above
+  all — are about programs rather than about which identities a run allocated
+  or how deeply let-insertion happened to nest. Three rewrites, each
+  semantics-preserving by construction: administrative lets flatten (a let
+  whose value is a let emits its inner binding first, however deep the nesting),
+  trivial bindings substitute away (literals and unassigned variables only —
+  never code, so nothing duplicates and nothing reorders), and alpha-canonical
+  renaming runs last. A mention that cannot follow a substitution keeps its
+  binding: a `Set` target reads its cell, quoted code is data, a reifier body
+  is another level's code. Nor is a variable substituted when the term assigns
+  it anywhere — the binding captured the value it held then, and the body would
+  otherwise read what a later write put there. Effects never move — nothing hoists out of a lambda or branch,
+  an unused effectful binding still happens, and idempotence is exact, which is
+  what lets normal forms be compared structurally. The measurement normalizes
+  before surveying and running the residual, so every reported figure describes
+  the deliverable. See
+  [`docs/decisions/0033-the-residual-normalizer.md`](docs/decisions/0033-the-residual-normalizer.md).
 
 ## The collapse report
 
@@ -866,6 +884,35 @@ the program's recursion rather than an interpreter's. And the criterion is shown
 and a runtime `code_view` leave interpretation that the measurement reports, and
 those uncollapsed residuals are still checked to be correct. See
 [`docs/decisions/0030-what-the-pure-collapse-criterion-claims.md`](docs/decisions/0030-what-the-pure-collapse-criterion-claims.md).
+
+## Depth results
+
+`test/laws/depth_invariance_test.ml` is Phase 6's claim over the same pure
+corpus, at depths 0–5: ordinary programs specialize to residuals that are
+alpha-equal at every depth — `collapse(n, p) ≅α collapse(1, p)` — while
+programs that read `tower_depth()` produce one residual per depth, each
+semantically equivalent to what that depth's tower did. That is §9.3's first
+two classes measured rather than asserted.
+
+Two things make the comparison mean anything. Specialization is depth-aware:
+attached to a configuration, the specializer folds the statically known
+`tower_depth()` reading to its number (ADR 0034), so `C(n,p)` is genuinely a
+function of n instead of one term compared with itself. And all syntactic
+comparisons run against one shared environment, because cloned globals give
+each environment its own identities; two environments' residuals could never
+agree, so the law suite resolves every sample once and specializes under each
+depth through `Metrics.specialize`. The suite also proves the normalizer is
+load-bearing — two raw specializations differ by fresh identities while their
+normal forms coincide — and requires depth-sensitive samples to fail the
+invariance check rather than allowing them to pass vacuously.
+
+```sh
+opam exec -- dune exec ash -- --collapse examples/depth.ash --depth 3
+```
+
+prints the shape of it: source says 0 (the ground world), the tower says 3,
+the residual specialized at depth 3 says 3 — and the report states plainly
+that they differ rather than calling that agreement.
 
 ## The differential corpus
 

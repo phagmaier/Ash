@@ -15,37 +15,40 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 6 — depth and recursion control. 6.1 and 6.2 done.
-- **Next:** 6.3 — a semantics-preserving residual normalizer
-- **Last verified:** 2026-08-24 — `opam exec -- dune build @all`,
-  `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
-  `opam exec -- dune exec ash -- --demos`, and
-  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`
-  all pass. Task 6.1 removed the fragment's edge: recursion whose control the
-  specializer cannot decide now specializes to a memoized specialization point
-  and a residual `LetRec` instead of unrolling until the host stack runs out.
-  Task 6.2 covers what 6.1 cannot — recursion that never repeats a key — with a
-  budget that generalizes one argument at a time and records why. Inlining is
-  still the default and the defaults leave the whole corpus alone, so nothing
-  Phase 5 collapsed changed: the pre-existing collapse-report counters are
-  identical, and the criterion suite now asserts zero generalizations across all
-  73 samples.
-  **Milestone 2 remains done**, and the criterion now covers two more samples:
-  73 pure samples at depth 1 — the corpus's values and failures, plus eight
-  whose residual is a function, compared by application, two of them keeping a
-  residual `LetRec` of the program's own recursion — agree across the source,
-  tower, and residual runs, with zero surviving eval-cell dereferences,
+- **Phase:** 6 — depth and recursion control. Complete.
+- **Next:** 7.1 — enforce primitive effect policy during specialization
+- **Last verified:** 2026-08-24 from a removed `_build` — `opam exec -- dune
+  build @all`, `opam exec -- dune runtest --force`, `opam exec -- dune exec ash
+  -- --help`, `opam exec -- dune exec ash -- --demos`, and
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1` all
+  pass. Task 6.3 gave residuals one canonical shape: administrative lets
+  flatten, trivial bindings substitute away, alpha-canonical renaming runs
+  last, and no effect moves — idempotent by construction, pinned by unit tests
+  over flattening, hygiene, effect-order counterexamples, and whole programs.
+  Task 6.4 made specialization depth-aware and measured the result: ordinary
+  corpus programs produce alpha-equal residuals at depths 0–5, while
+  `tower_depth()` samples produce one residual per depth, each matching what
+  that depth's tower did — 417 invariant checks and 18 depth-sensitive checks,
+  with the normalizer proven load-bearing (raw specializations differ by fresh
+  identities; their normal forms coincide). Nothing prior moved: the collapse
+  report's counters are unchanged for every sample that does not read its
+  depth, the criterion suite still proves its 73 depth-1 samples against the
+  same 906,708-dispatch / 2,125,589-cell-read tower figures and the same 250
+  residual nodes, and standalone specialization (`Stage.fold`, unattached
+  machines) residualizes `tower_depth()` exactly as before.
+  **Milestone 2 remains done**, and the criterion still covers: 73 pure
+  samples at depth 1 — the corpus's values and failures, plus eight whose
+  residual is a function, compared by application, two of them keeping a
+  residual `LetRec` of the program's own recursion — agreeing across the
+  source, tower, and residual runs, with zero surviving eval-cell dereferences,
   evaluator calls, Core dispatch sites, `NamedVar` lookups, and reflection
-  boundaries in every residual. The depth-1 tower performed 906,708 constructor
-  dispatches and 2,125,589 evaluator-cell reads across those samples; the 250
-  residual nodes contain neither. The criterion is falsifiable and shown to be.
+  boundaries in every residual. The criterion is falsifiable and shown to be.
   Also intact: the collapse report (5.4), the staged pure fragment (5.3),
-  hygienic let-insertion (5.2), the
-  static/dynamic value model and `maybe-lift` mode (5.1), lazy tower (depths
-  0–5), the hygienic desugarer, `open fn` groups, the self-interpreter
-  (`lib/self/eval.ash`) at layers 1 and 2, the 49-primitive registry, the full
-  regression suite (unit, differential, laws, golden), and both packaged
-  milestone demos.
+  hygienic let-insertion (5.2), the static/dynamic value model and
+  `maybe-lift` mode (5.1), lazy tower (depths 0–5), the hygienic desugarer,
+  `open fn` groups, the self-interpreter (`lib/self/eval.ash`) at layers 1 and
+  2, the 49-primitive registry, the full regression suite (unit, differential,
+  laws, golden), and both packaged milestone demos.
 - **Blocker:** none
 
 Milestone 1 is done. The tower is real: a program can reach up and replace the
@@ -378,14 +381,37 @@ closure reification, which is not a call and has nothing to generalize.
     can only refuse (`Error.Budget_exhausted`), because it is not a call and has
     no argument to give up. ADR 0032.
 
-- [ ] **6.3 Implement a semantics-preserving residual normalizer.**
+- [x] **6.3 Implement a semantics-preserving residual normalizer.**
   - Alpha-canonicalize and flatten administrative lets without moving effects.
   - Accept: normalization is idempotent and passes effect counterexamples.
+  - `Ash_collapse.Normalize.normalize` applies three rewrites, each
+    semantics-preserving by construction: value-position lets flatten however
+    deep they nest, trivial bindings (a literal, or a variable nothing in the
+    term assigns) substitute away, and alpha-canonical renaming runs last. A
+    mention that cannot follow a substitution keeps its whole binding — a `Set`
+    target reads its cell, quoted code is data, a reifier body is another
+    level's code. Nothing hoists
+    out of a lambda, branch, or `LetRec` group; an unused effectful binding
+    still happens; idempotence is exact structural equality. `Metrics.measure`
+    normalizes before surveying and running the residual. ADR 0033.
 
-- [ ] **6.4 Establish depth results for the pure corpus.**
+- [x] **6.4 Establish depth results for the pure corpus.**
   - Compare normalized residuals at depths 1–5.
-  - Accept: ordinary programs equal depth 1; `tower_depth()` examples differ but
-    remain semantically correct at each depth.
+  - Accept: ordinary programs equal depth 1; `tower_depth()` examples differ
+    but remain semantically correct at each depth.
+  - Specialization became depth-aware: attached to a configuration as level 0,
+    it folds the statically known `tower_depth()` reading to that depth's
+    number (`Metrics.measure` attaches to its real materialized tower;
+    `Metrics.specialize ~depth ~env` carries only the faithful reading), so
+    ordinary programs produce alpha-equal residuals at depths 0–5 while depth
+    observers produce one per depth, each matching what that depth's tower did
+    — §9.3's first two classes, measured. `test/laws/depth_invariance_test.ml`
+    drives one shared environment for all syntactic comparisons (cloned
+    globals give each environment its own identities), proves the normalizer
+    load-bearing (raw specializations differ by fresh identities), and requires
+    the depth-sensitive samples to fail the invariance check. Budgeted steps,
+    skips reported. `examples/depth.ash` shows the shape from the CLI. ADR
+    0034.
 
 ## Phase 7 — mutation and effects
 
@@ -476,6 +502,85 @@ closure reification, which is not a call and has nothing to generalize.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-24 — tasks 6.3 and 6.4
+
+- Completed: the residual normalizer (6.3) and the depth results (6.4), which
+  close Phase 6.
+  - **The normalizer (`Ash_collapse.Normalize`, ADR 0033)** is three rewrites:
+    value-position lets flatten however deep they nest (`let x = (let y = ey in
+    ex) in b` → `let y = ey in let x = ex in b`); trivial bindings — a literal,
+    or a variable nothing in the term assigns — substitute away, or drop when
+    nothing mentions them; alpha-canonical renaming runs last. The guard that
+    makes elimination sound is an occurrence classifier, not `free_idents`: a
+    `Set` target reads its binding to find its cell, a variable inside a
+    `Quote` body is data, and a `Reifier` body is another level's code — any
+    such mention keeps the whole binding rather than being rewritten. The
+    mirror-image guard is on the value: substituting a variable that something
+    writes to would make the body read what the write put there, so the write
+    set is collected over the whole term (a closure can outlive its binding)
+    and blocks the substitution. Nothing hoists across lambdas,
+    branches, or `LetRec` groups; unused effectful bindings stay; idempotence
+    holds as exact structural equality. `Metrics.measure` normalizes before the
+    residue survey and run.
+  - **Depth-aware specialization (ADR 0034).** In lift mode one predicate,
+    `Staged_eval.static_reading`, folds a nullary reflection reading whose
+    answer the configuration fixes: today exactly `tower_depth()`, folded to
+    the attached depth. Everything else stays dynamic — `meta_eval`/
+    `meta_apply`/`meta_global` answer with identity-carrying cells and
+    environments the lift domain refuses to reify; `tower_level()` reads 0 both
+    ways already. Two attachment points: `Metrics.measure` attaches its staging
+    machine to the measurement's real materialized tower;
+    `Metrics.specialize ~depth ~env` (new) attaches only the faithful depth
+    reading against a caller-owned environment, which is what makes residuals
+    comparable at all — cloned globals (ADR 0022) give each environment its own
+    identities, so cross-environment comparison is impossible by construction.
+    Standalone specialization (`Stage.fold`, unattached machines) is unchanged
+    bit-for-bit, so every prior result held.
+  - **The depth law suite** (`test/laws/depth_invariance_test.ml`) runs two
+    halves. Syntactic: one shared environment, `Metrics.specialize` at depths
+    0–5 over the corpus plus computing and depth-sensitive samples — ordinary
+    programs equal depth 1 structurally, `tower_depth()` programs are required
+    to differ, zero surviving interpretation everywhere. Semantic:
+    `Metrics.measure` per affordable depth with budget projection (one corpus
+    entry stops at depth 2 and says so) — transparency for invariant samples,
+    program/residual agreement by application where answers are functions,
+    tower/residual agreement for closed answers, residual cost ≤ source cost.
+    Plus the falsifiability guard: two raw specializations differ structurally
+    while their normal forms coincide.
+  - **A rejected shortcut worth remembering:** memoizing global identities per
+    registry would have made cross-tower terms comparable mechanically but
+    weakened three pinned properties (fresh global identity per cloned level,
+    `primitives_test` / `tower_test` / `up_test`) that keep levels
+    independently stateful per ADR 0022. Reverted; shared-environment driving
+    costs nothing and touches nothing below `ash.collapse`.
+  - **Deliberately left out:** merging alpha-equal residual functions across
+    dynamic branches (the same key met twice still yields two functions) —
+    correct as-is, required by no acceptance criterion, recorded here so it is
+    not mistaken for a regression.
+- Measurement: none changed. Residuals arrive normalized (two golden samples
+  shrank slightly; re-pinned), no counter moved meaning, and no golden sample
+  reads its depth.
+- Tests: new `test/unit/normalize_test.ml`; new
+  `test/laws/depth_invariance_test.ml`; `test/golden/collapse.expected`
+  re-pinned; `examples/depth.ash` documents the depth-sensitive shape from the
+  CLI (`--collapse examples/depth.ash --depth N` prints source 0 vs tower n vs
+  residual n and states the difference honestly).
+- Documentation: ADRs 0033 and 0034; spec §8's Phase 6 carries the Done note;
+  README gains the normalizer bullet and a Depth results section;
+  `examples/README.md` lists `depth.ash`.
+- Verified from a removed `_build` with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, `opam exec -- dune exec ash --
+  --demos`, and `opam exec -- dune exec ash -- --collapse examples/fact.ash
+  --depth 1` all pass.
+- Known issues: unchanged from 6.1/6.2 plus none new inside the fragment.
+  Outside it, expected: `open fn` dereferences and Core `Set` residualize until
+  Phase 7's store splitting; reflective collapse is Phase 9.
+- Next: 7.1 — enforce primitive effect policy during specialization: IO always
+  residualizes, allocation/mutation until proven by store discipline,
+  `static_log` compile-time-only, and specialization emits no program-visible
+  output.
 
 ### 2026-08-24 — task 6.2
 

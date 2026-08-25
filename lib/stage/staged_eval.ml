@@ -276,6 +276,27 @@ and pressured_point machine ~call_site ~name ~lambda ~env ~key ~pressure argumen
   in
   (point, key)
 
+(* Meta readings the specializing configuration fixes outright.
+
+   [tower_depth] is §D9's one deliberate opt-in, and the specializer's own
+   position answers it. Attached to a materialized tower — which is what
+   measuring at a stated depth means — the depth it specializes under is a
+   static fact, and folding it is what makes a residual produced at depth {i n}
+   the residual {e for} depth {i n}: executed anywhere, it reports the depth it
+   was specialized under, which is what the tower at that depth reports too.
+   Without an attached tower the reading stays dynamic and residualizes, which
+   is the behavior every standalone caller gets.
+
+   The other readers stay dynamic always: [meta_eval], [meta_apply], and
+   [meta_global] answer with cells and environments, identity-carrying values
+   the small lifting domain refuses to reify, and [tower_level] is left to the
+   same rule as ever — it reads 0 here and 0 wherever this fragment runs. *)
+let static_reading machine primitive =
+  match primitive.Value.prim_name with
+  | "tower_depth" when Option.is_some (Machine.levels machine) ->
+      Some (Value.Num (Machine.tower_depth machine))
+  | _ -> None
+
 let apply_primitive mode machine ~call_site primitive arguments k =
   let given = List.length arguments in
   let level = Machine.level machine in
@@ -325,9 +346,12 @@ let apply_primitive mode machine ~call_site primitive arguments k =
   else
     match mode with
     | Mode.Identity -> apply_now ()
-    | Mode.Lift ->
-        if Stage_value.may_fold primitive arguments then apply_now ()
-        else residualize ()
+    | Mode.Lift -> (
+        match static_reading machine primitive with
+        | Some reading -> k (Value.Code (Stage_value.lift_to_code ~call_site machine reading))
+        | None ->
+            if Stage_value.may_fold primitive arguments then apply_now ()
+            else residualize ())
 
 let eval_default mode machine node env k =
   Machine.count_dispatch machine (Core.shape node);

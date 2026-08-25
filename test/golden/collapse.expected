@@ -330,7 +330,7 @@ Basis
 Sizes
   Expanded semantic tower:        35 nodes  (29 + 1 x 6)
   Materialized representation:    1 upper level, 49 global cells, 3 group cells
-  Residual:                       51 nodes
+  Residual:                       45 nodes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
@@ -339,7 +339,7 @@ Interpretation left in the residual
   NamedVar lookups residualized:  0
   Evaluator calls:                0
   Reflection boundaries:          none
-  Residual nodes by origin:       sample.ash 51
+  Residual nodes by origin:       sample.ash 45
 
 Work
   Source run:                     17
@@ -350,7 +350,7 @@ Work
   Specialization:                 56
   Specialization points:          0  (0 calls)
   Generalizations:                0
-  Residual run:                   25
+  Residual run:                   19
 
 Outcome
   Source:                         #<closure>
@@ -422,7 +422,7 @@ Basis
 Sizes
   Expanded semantic tower:        11 nodes  (5 + 1 x 6)
   Materialized representation:    1 upper level, 49 global cells, 3 group cells
-  Residual:                       9 nodes
+  Residual:                       5 nodes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
@@ -431,7 +431,7 @@ Interpretation left in the residual
   NamedVar lookups residualized:  0
   Evaluator calls:                0
   Reflection boundaries:          none
-  Residual nodes by origin:       sample.ash 9
+  Residual nodes by origin:       sample.ash 5
 
 Work
   Source run:                     8
@@ -442,7 +442,7 @@ Work
   Specialization:                 8
   Specialization points:          0  (0 calls)
   Generalizations:                0
-  Residual run:                   12
+  Residual run:                   8
 
 Outcome
   Source:                         42

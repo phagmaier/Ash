@@ -124,6 +124,25 @@ type program =
   | Surface of string  (** Ash source, parsed and lowered by the front end. *)
   | Core_notation of string  (** Core in the canonical notation. *)
 
+val specialize :
+  ?depth:int -> env:Value.env -> Core.t -> (Core.t, Error.t) result
+(** Specialize [node] under a stated tower depth and normalize the residual —
+    the specialization phase of {!measure}, alone, against an environment the
+    caller owns.
+
+    The stated depth — 0 unless [depth] says otherwise — is what
+    [tower_depth()] answers during this specialization: §D9's one opt-in is a static fact of the configuration
+    being specialized for, so the reading folds to it (ADR 0034). No tower is
+    materialized here and none is needed: the pure fragment cannot shift
+    levels, so a faithful depth reading is the whole of what a configuration
+    contributes. Callers comparing residuals across depths pass one shared
+    environment, because cloned globals (ADR 0022) give each environment its
+    own identities.
+
+    A term outside that fragment — one that applies a reifier — has no level to
+    shift into and comes back as [Error] naming the missing tower, like any
+    other refusal. *)
+
 val measure :
   ?depth:int ->
   ?budget:Ash_stage.Specialize.budget ->
@@ -135,6 +154,12 @@ val measure :
     resolved against a fresh tower's own ground globals, so every run shares one
     set of hygienic identities and one buffered output stream — which is why the
     text is read here rather than taken already lowered.
+
+    Each call builds its own tower and registry: two measurements resolve the
+    same global under different identities, which is inherent to cloned globals
+    (ADR 0022) and is why a comparison of residuals {e across} measurements —
+    task 6.4's cross-depth claim — drives one shared environment directly
+    instead.
 
     [budget] applies to the specialization step only and is restored afterwards.
     It is the knob that makes a generalization observable in a report: the
