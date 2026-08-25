@@ -229,7 +229,7 @@ does not.
 | Class | Members | Specialization |
 |-------|---------|----------------|
 | pure | `+ - * / %`, comparison, `==`, `!=`, `not`, immutable lists, `code?`, `code_view`, `code_name`, `code_splice`, `code_match`, `NamedVar`, `match_error`, `raise_at` | fold when everything the primitive inspects is static |
-| allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | residualize until Phase 7's store splitting |
+| allocation/mutation | `cell_new`, `deref`, `cell_set`, `open_cell`, `open_deref`, `open_set` | always residualize: store splitting reasons about bindings, not heap cells |
 | observable effect | `print`, `println`, `read_line` | never executed at specialization time |
 | control | `callcc`, `resume`, `invoke`, `invoke_at` | never folded: capturing at specialization time captures the specializer, and invocation's class is its callee's |
 | reflection | `lift`, `run`, `reflect`, `meta_error`; later `up` | bespoke, and the classification target |
@@ -765,8 +765,8 @@ steps for 67 program steps. What both print is stored in
   `eval_list`. Pure primitives are stage-polymorphic (spec §D7): folding only
   when everything a primitive inspects is static and residualizing `Core.App`
   otherwise. Residual calls retain the exact hygienic primitive binding.
-  Observable effects always residualize; Core `Set` is rejected in Lift mode
-  until Phase 7 supplies store splitting. Quotes retain their `Quote` node.
+  Observable effects always residualize; Core `Set` is placed by the abstract
+  store below. Quotes retain their `Quote` node.
 - **Stage boundaries (`Staged_eval.reify_value`):** one conversion is used
   wherever a value crosses into residual code. A closure is reified into its
   lambda syntax, its parameters made dynamic and its body specialized in its own
@@ -830,12 +830,39 @@ shaped list disappears into the arithmetic it performed.
   binding: a `Set` target reads its cell, quoted code is data, a reifier body
   is another level's code. Nor is a variable substituted when the term assigns
   it anywhere — the binding captured the value it held then, and the body would
-  otherwise read what a later write put there. Effects never move — nothing hoists out of a lambda or branch,
+  otherwise read what a later write put there. Both guards read the same write
+  set the abstract store below reads, and they decide something as soon as a
+  residual contains a `Set`: substituting §7.4's promoted binding into the read
+  after its join would answer with the value before the branch. Effects never move — nothing hoists out of a lambda or branch,
   an unused effectful binding still happens, and idempotence is exact, which is
   what lets normal forms be compared structurally. The measurement normalizes
   before surveying and running the residual, so every reported figure describes
   the deliverable. See
   [`docs/decisions/0033-the-residual-normalizer.md`](docs/decisions/0033-the-residual-normalizer.md).
+- **The abstract store (`Ash_stage.Store`):** static-store splitting and dynamic
+  joins (spec §7.4 step 3). A cell is either *held* — the specializer owns it,
+  writes update it, reads fold, and nothing of it reaches the residual — or
+  *residual* — the residual program owns it, writes become `Set` nodes and reads
+  become a variable. The store is keyed by the cell rather than the binder, so
+  two names for one cell stay one place and one binder evaluated twice stays two:
+  two closures over the same `var` write to one residual binding, while a `var`
+  local to a recursive function folds separately in every activation. Holding is
+  proved once per binder and syntactically — not free in any lambda, not in
+  quoted data, not spelled by a `NamedVar`, no reifier in scope — and a binding
+  that fails is residualized, not refused. At a conditional the specializer
+  cannot decide, every held binding either branch assigns is given up *before*
+  the fork, because the residual needs one place both branches write to and it
+  has to be bound where both can see it; the two stores are then joined, keeping
+  only what outlives the branch. So
+
+  ```ash
+  fn(b) -> { var x = 0; var y = 5; if b then x := 1 else x := 2; x + y }
+  ```
+
+  splits: `x` becomes a residual binding both branches assign, and `y` folds into
+  the addition. Every decision is gated on the term's write set, so a program
+  that assigns nothing specializes exactly as it did before. See
+  [`docs/decisions/0036-static-store-splitting-and-dynamic-joins.md`](docs/decisions/0036-static-store-splitting-and-dynamic-joins.md).
 - **Primitive effect policy (§D7):** folding is contagious, and
   `print("hello")` has a static argument — fold it and *compilation* prints
   while the compiled program is silent. So the specializer checks
@@ -844,8 +871,8 @@ shaped list disappears into the arithmetic it performed.
   That is deliberately redundant with the ordinary foldability check, and the
   redundancy is the point — mis-mark the observable class as foldable and the
   gate still holds the line; remove the gate and the same mis-marking makes
-  compilation print. Allocation and mutation residualize on the same rule until
-  Phase 7's store discipline earns them. See
+  compilation print. The allocation primitives residualize on the same rule: the
+  store discipline above reasons about bindings, not about heap cells. See
   [`docs/decisions/0035-primitive-effect-policy-and-the-compile-time-channel.md`](docs/decisions/0035-primitive-effect-policy-and-the-compile-time-channel.md).
 - **The compile-time channel (`static_log`):** the honest alternative §D7 asks
   for, so that "I want to see what the specializer did" never becomes a reason

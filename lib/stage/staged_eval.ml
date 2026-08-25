@@ -54,12 +54,24 @@ let primitive_ident machine ~call_site primitive =
       fail Mode.Lift ~span:call_site ~level
         (Error.Unbound_name primitive.Value.prim_name)
 
+(* Handing this level's environment to the level above, or to the level below,
+   ends the specializer's exclusive claim on everything in it. {!Store.holdable}
+   already refuses any scope that {e builds} a reifier, so a held binding cannot
+   reach here from the fragment the store proves; a reifier inherited from
+   outside that scope can, and refusing is the honest answer — the level above
+   may write the cell, and a value already folded from it cannot be taken back. *)
+let across_levels mode machine ~span what =
+  if Mode.is_lift mode && Store.holds_static () then
+    unsupported mode ~span ~level:(Machine.level machine)
+      (what ^ " while the abstract store holds a binding")
+
 let shift_up mode machine ~exp ~env ~reifier k =
   let level = Machine.level machine in
   match Machine.above machine with
   | None ->
       unsupported mode ~span:(Core.span exp) ~level "reifier application"
   | Some upper ->
+      across_levels mode machine ~span:(Core.span exp) "reifier application";
       let definition = reifier.Value.reif_def in
       let continuation = Value.continuation ~capture:(Core.span exp) ~level k in
       let meta =
@@ -81,6 +93,7 @@ let reflect_down mode machine ~call_site ~code ~env ~cont k =
         (Error.Unsupported
            { what = "reflect"; by = "the base program, which has no level below it" })
   | Some lower ->
+      across_levels mode machine ~span:call_site "reflect";
       Machine.eval lower code env (fun value ->
           Machine.apply machine ~call_site cont [ value ] k)
 
@@ -115,6 +128,17 @@ let list_ident machine ~call_site =
   fst
     (Env.lookup_by_name_exn ~phase:Error.Stage ~span:call_site
        ~level:(Machine.level machine) (Machine.global_env machine) "list")
+
+(* The binder a residual expression stands for, when it stands for one at all.
+   Only a variable names a place the residual program can assign to; anything
+   else is a computation, and a store binding on it would have nowhere to
+   write. *)
+let residual_target node =
+  match Core.shape node with
+  | Core.Var ident -> Some ident
+  | Core.Lit _ | Core.NamedVar _ | Core.Lam _ | Core.App _ | Core.Let _
+  | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _ | Core.Reifier _ ->
+      None
 
 (* Making a static value dynamic at a stage boundary.
 
@@ -151,11 +175,13 @@ let rec reify_value machine ~call_site value =
           (fun param -> (param, Value.Code (Core.var ~span:generated param)))
           params
       in
+      let inner = Env.extend dynamic_params clo_env in
+      let tracked = track_parameters machine ~call_site ~lambda:clo_lambda ~env:inner params in
       let body =
         Specialize.with_reification (fun () ->
-            reify_eval machine clo_lambda.Core.lam_body
-              (Env.extend dynamic_params clo_env))
+            reify_eval machine clo_lambda.Core.lam_body inner)
       in
+      List.iter Store.release tracked;
       Core.lam ~span:generated ~params ~body
   | Value.List (_ :: _ as items) ->
       (* A spine the specializer knows, carrying elements it may not: rebuild the
@@ -175,6 +201,79 @@ and reify_eval machine node env =
       Emit.reify_block (fun () ->
           let res = Machine.eval machine node env (fun value -> value) in
           reify_value machine ~call_site:(Core.span node) res))
+
+(* Who owns a parameter's cell: the same question a [Let] asks, asked where a
+   call binds its arguments. Only parameters the term assigns are considered, so
+   an ordinary call binds its arguments exactly as it did before the store
+   existed. Returns the cells to forget when the body is done with them. *)
+and track_parameters machine ~call_site ~lambda ~env params =
+  let level = Machine.level machine in
+  List.filter_map
+    (fun param ->
+      if not (Store.assigned param) then None
+      else
+        let cell =
+          Env.lookup_exn ~phase:Error.Stage ~span:call_site ~level env param
+        in
+        let value =
+          Env.read_exn ~phase:Error.Stage ~span:call_site ~level env param
+        in
+        let residual code =
+          match residual_target code with
+          | Some target ->
+              Store.track_residual cell ~binder:param ~target
+                ~reference:(Value.Code code)
+          | None ->
+              let target, binder_span =
+                Emit.emit_binder ~from:call_site ~name:(Ident.name param) code
+              in
+              let reference = Value.Code (Core.var ~span:binder_span target) in
+              Value.fill_cell cell reference;
+              Store.track_residual cell ~binder:param ~target ~reference
+        in
+        (match Stage_value.dynamic_code value with
+        | Some code -> residual code
+        | None ->
+            if Store.holdable ~binder:param ~scope:lambda.Core.lam_body then
+              Store.track_held cell ~binder:param value
+            else residual (reify_value machine ~call_site value));
+        Some cell)
+    params
+
+(* The bindings a held cell has to give up before a dynamic conditional forks.
+
+   The branches' syntactic write set is enough, and only here: a held binder is
+   never free in a lambda ({!Store.holdable}), so no call inlined inside a
+   branch can assign it and every write to it is written in the branch itself. *)
+and promote_writes machine ~span ~branches =
+  (* Nothing held is nothing to give up, so a program whose bindings are all the
+     residual program's already never pays for this scan. *)
+  if Store.holds_static () then
+    let written =
+      List.fold_left
+        (fun written branch -> Ident.Set.union written (Core.assigned_idents branch))
+        Ident.Set.empty branches
+    in
+    List.iter
+      (fun (cell, binder, value) ->
+        let code = reify_value machine ~call_site:span value in
+        let target, binder_span =
+          Emit.emit_binder ~from:span ~name:(Ident.name binder) code
+        in
+        Store.promote cell ~target
+          ~reference:(Value.Code (Core.var ~span:binder_span target)))
+      (Store.written_holds written)
+
+(* A write the residual program performs. It is a step of that program, so it is
+   emitted into the block in the order it happens rather than being folded into
+   the expression its value flows to — which is unit, and known. *)
+and emit_set machine ~span ~target value =
+  let code = reify_value machine ~call_site:span value in
+  let generated = Span.generated ~by:"stage/set" ~from:span in
+  ignore
+    (Emit.emit_binder ~from:span ~name:"set"
+       (Core.set ~span:generated ~target ~value:code)
+      : Ident.t * Span.t)
 
 (* Calling a specialization point: only the argument positions the key knows
    nothing about are passed, because the rest are already inside the residual
@@ -239,8 +338,35 @@ and build_point machine ~call_site ~name ~lambda ~env ~key arguments =
       (Specialize.arguments key)
   in
   let parameters = List.rev !parameters in
+  (* A parameter specialized {e into} the point's body is one value shared by
+     every call to it, so a place for it has to be inside the body. The store can
+     make one — it promotes into whatever block is open, and the point's body is
+     open while it is specialized — but only for a binding it may hold in the
+     first place. A parameter it cannot hold is residualized at its binding site,
+     and that binding site is here, outside the residual function: one place
+     every call would share, so one call's write would reach the next. The
+     specializer refuses instead of emitting a residual that quietly shares. *)
+  List.iter2
+    (fun param projection ->
+      match projection with
+      | Specialize.Unknown -> ()
+      | Specialize.Known _ | Specialize.Held _ ->
+          if
+            Store.assigned param
+            && not (Store.holdable ~binder:param ~scope:lambda.Core.lam_body)
+          then
+            unsupported Mode.Lift ~span:call_site ~level:(Machine.level machine)
+              (Printf.sprintf
+                 "a specialization point whose specialized parameter `%s` is assigned"
+                 (Ident.name param)))
+    lambda.Core.params (Specialize.arguments key);
   let point = Specialize.define key residual in
-  let body = reify_eval machine lambda.Core.lam_body (Env.extend bindings env) in
+  let inner = Env.extend bindings env in
+  let tracked =
+    track_parameters machine ~call_site ~lambda ~env:inner lambda.Core.params
+  in
+  let body = reify_eval machine lambda.Core.lam_body inner in
+  List.iter Store.release tracked;
   let definition = Core.lambda ~params:parameters ~body in
   Emit.emit_letrec ~from:call_site
     [ Core.rec_binding ~span:generated ~name:residual definition ];
@@ -392,8 +518,32 @@ let eval_default mode machine node env k =
           | Value.Bool true -> Machine.eval machine consequent env k
           | Value.Bool false -> Machine.eval machine alternative env k
           | Value.Code cond_code when Mode.is_lift mode ->
+              (* The store forks here (spec §7.4 step 3). Every held cell either
+                 branch assigns is given up first, because the residual program
+                 needs one place both branches write to and it has to be bound
+                 where both — and everything after the join — can see it. *)
+              promote_writes machine ~span ~branches:[ consequent; alternative ];
+              let before = Store.snapshot () in
               let t_code = reify_eval machine consequent env in
+              let after_consequent = Store.snapshot () in
+              Store.restore before;
               let f_code = reify_eval machine alternative env in
+              let after_alternative = Store.snapshot () in
+              (match
+                 Store.join ~before ~left:after_consequent ~right:after_alternative
+               with
+              | Ok joined -> Store.restore joined
+              | Error binding ->
+                  fail mode ~span ~level
+                    (Error.Unsupported
+                       {
+                         what =
+                           Printf.sprintf
+                             "a conditional whose branches leave `%s` in different \
+                              places"
+                             (Ident.name (Store.binder_of binding));
+                         by = "the abstract store, which cannot join them";
+                       }));
               let generated = Span.generated ~by:"stage/if" ~from:span in
               let node =
                 Core.if_ ~span:generated ~condition:cond_code
@@ -409,26 +559,61 @@ let eval_default mode machine node env k =
                 ~expected:"a boolean" other)
   | Core.Let { Core.let_binder; let_value; let_body } ->
       Machine.eval machine let_value env (fun value ->
-          match value with
-          | Value.Code val_code when Mode.is_lift mode ->
-              let dyn_var =
-                Value.Code (Core.var ~span:(Core.span let_value) let_binder)
-              in
-              let body_code =
-                reify_eval machine let_body (Env.bind let_binder dyn_var env)
-              in
-              let generated = Span.generated ~by:"stage/let" ~from:span in
-              let node =
-                Core.let_ ~span:generated ~binder:let_binder ~value:val_code
-                  ~body:body_code
-              in
-              let emitted = Emit.emit ~from:span node in
-              k (Value.Code emitted)
-          | ( Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
-            | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
-            | Value.Environment _ | Value.Cell _ | Value.Code _
-            | Value.Primitive _ ) as static_val ->
-              Machine.eval machine let_body (Env.bind let_binder static_val env) k)
+          (* The residual program owns the binding: it is bound in the residual
+             [Let], every read of it is that variable, and every assignment to it
+             becomes a residual [Set] on that binder. *)
+          let residual_binding val_code =
+            let reference =
+              Value.Code (Core.var ~span:(Core.span let_value) let_binder)
+            in
+            let inner = Env.bind let_binder reference env in
+            let tracked =
+              if Store.assigned let_binder then (
+                let cell =
+                  Env.lookup_exn ~phase:(phase_of mode) ~span ~level inner let_binder
+                in
+                Store.track_residual cell ~binder:let_binder ~target:let_binder
+                  ~reference;
+                Some cell)
+              else None
+            in
+            let body_code = reify_eval machine let_body inner in
+            Option.iter Store.release tracked;
+            let generated = Span.generated ~by:"stage/let" ~from:span in
+            let node =
+              Core.let_ ~span:generated ~binder:let_binder ~value:val_code
+                ~body:body_code
+            in
+            k (Value.Code (Emit.emit ~from:span node))
+          in
+          (* The specializer owns the binding: it holds the value in its own
+             cell, so writes update it and reads fold, and nothing of it reaches
+             the residual program at all. *)
+          let held_binding () =
+            let inner = Env.bind let_binder value env in
+            let cell =
+              Env.lookup_exn ~phase:(phase_of mode) ~span ~level inner let_binder
+            in
+            Store.track_held cell ~binder:let_binder value;
+            Machine.eval machine let_body inner (fun result ->
+                Store.release cell;
+                k result)
+          in
+          let static_binding () =
+            Machine.eval machine let_body (Env.bind let_binder value env) k
+          in
+          match mode with
+          | Mode.Identity -> static_binding ()
+          | Mode.Lift -> (
+              match Stage_value.dynamic_code value with
+              | Some val_code -> residual_binding val_code
+              | None ->
+                  (* Gated on the write set: a binder nothing assigns takes
+                     exactly the path it took before the store existed. *)
+                  if not (Store.assigned let_binder) then static_binding ()
+                  else if Store.holdable ~binder:let_binder ~scope:let_body then
+                    held_binding ()
+                  else residual_binding (reify_value machine ~call_site:span value)))
   | Core.LetRec { Core.rec_bindings; rec_body } ->
       let inner =
         Env.preallocate (List.map (fun b -> b.Core.rec_name) rec_bindings) env
@@ -446,14 +631,43 @@ let eval_default mode machine node env k =
         rec_bindings;
       Machine.eval machine rec_body inner k
   | Core.Set { Core.set_target; set_value } ->
-      (match mode with
-      | Mode.Lift ->
-          unsupported mode ~span ~level
-            "set during specialization (store splitting is not implemented)"
-      | Mode.Identity ->
-          Machine.eval machine set_value env (fun value ->
+      Machine.eval machine set_value env (fun value ->
+          match mode with
+          | Mode.Identity ->
               Env.assign_exn ~phase:(phase_of mode) ~span ~level env set_target value;
-              k Value.Unit))
+              k Value.Unit
+          | Mode.Lift -> (
+              let cell =
+                Env.lookup_exn ~phase:(phase_of mode) ~span ~level env set_target
+              in
+              match Store.slot cell with
+              | Some (Store.Residual { target; _ }) ->
+                  (* The residual program owns the place, so the write is one of
+                     its steps: emitted into the block in the order it happens,
+                     and worth nothing to the specializer, whose answer is the
+                     unit every assignment evaluates to. *)
+                  emit_set machine ~span ~target value;
+                  k Value.Unit
+              | Some (Store.Held _) -> (
+                  match Stage_value.dynamic_code value with
+                  | None ->
+                      Store.write cell value;
+                      k Value.Unit
+                  | Some code ->
+                      (* A value the specializer does not have, written to a place
+                         it was holding: the place has to become the residual
+                         program's, starting from what is being written. *)
+                      let target, binder_span =
+                        Emit.emit_binder ~from:span ~name:(Ident.name set_target) code
+                      in
+                      Store.promote cell ~target
+                        ~reference:(Value.Code (Core.var ~span:binder_span target));
+                      k Value.Unit)
+              | None ->
+                  unsupported mode ~span ~level
+                    (Printf.sprintf
+                       "assignment to `%s`, which the abstract store does not track"
+                       (Ident.name set_target))))
   | Core.App { Core.func; args } ->
       Machine.eval machine func env (fun callee ->
           match callee with
@@ -487,8 +701,17 @@ let apply_default mode machine ~call_site callee arguments k =
           ~expected:(string_of_int (List.length params))
       else
         let inline () =
-          Machine.eval machine clo_lambda.Core.lam_body
-            (Env.extend (List.combine params arguments) clo_env)
+          let inner = Env.extend (List.combine params arguments) clo_env in
+          let tracked =
+            match mode with
+            | Mode.Identity -> []
+            | Mode.Lift ->
+                track_parameters machine ~call_site ~lambda:clo_lambda ~env:inner params
+          in
+          fun k ->
+            Machine.eval machine clo_lambda.Core.lam_body inner (fun value ->
+                List.iter Store.release tracked;
+                k value)
         in
         match mode with
         | Mode.Identity -> inline () k
@@ -571,6 +794,9 @@ let machine ?(mode = Mode.Identity) () =
 
 let run ?mode machine ~env node =
   Specialize.reset ();
+  (* One write set per run, shared with the normalizer that will canonicalize
+     whatever this produces (ADR 0036). *)
+  Store.reset ~assigned:(Core.assigned_idents node);
   let wired_mode = mode_of_machine machine in
   let mode = Option.value mode ~default:wired_mode in
   if not (Mode.equal mode wired_mode) then

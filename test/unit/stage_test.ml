@@ -404,14 +404,17 @@ let test_stage_errors () =
   check_error ~mode:Mode.Lift "stage-time head on empty list"
     ~cause:(Error.Unexpected { found = "the empty list"; expected = "a non-empty list" })
     "(app (var head) (lit nil))";
-  check_error ~mode:Mode.Lift "set is rejected until store splitting exists"
+  (* Assignment is staged now (task 7.2), but only where the abstract store can
+     say who owns the place. A recursive group's name is not a binding the store
+     tracks, so the specializer says so rather than writing into its own state. *)
+  check_error ~mode:Mode.Lift "assignment the store does not track is refused"
     ~cause:
       (Error.Unsupported
          {
-           what = "set during specialization (store splitting is not implemented)";
+           what = "assignment to `f`, which the abstract store does not track";
            by = "the staged evaluator";
          })
-    "(let x (lit 0) (set x (lit 1)))"
+    "(letrec ((f (lam () (lit 1)))) (let _ (set f (lam () (lit 2))) (app (var f))))"
 
 let test_staging_invariants () =
   let registry, globals, named, scope, env = ground () in

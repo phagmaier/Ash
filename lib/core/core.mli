@@ -155,3 +155,18 @@ val equal_structure : t -> t -> bool
     structurally different. Use {!Alpha.equal} to compare meaning, or compare
     {!Alpha.canonicalize}d terms with this. Spans are ignored because they are
     metadata: where a term was written has nothing to do with what it is. *)
+
+val assigned_idents : t -> Ident.Set.t
+(** Every identity this term assigns, collected over the whole term — [Quote]
+    and [Reifier] bodies included, because those are code that may yet run.
+
+    This is the term's {e write set}, and it is defined once because two phases
+    must agree about it. {!Ash_collapse.Normalize} may substitute a variable for
+    its binder only when nothing writes to it, and the specializer's abstract
+    store ({!Ash_stage.Store}) may hold a binding rather than residualize it
+    only when it can see every write. A disagreement between the two would let
+    normalization rewrite a residual the store built into one that reads what a
+    later write put there.
+
+    Whole-term rather than per-scope on purpose: a closure built under a binding
+    can outlive it and be called after a write made somewhere else entirely. *)

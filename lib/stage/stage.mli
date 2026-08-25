@@ -3,6 +3,7 @@
     This library provides:
     - Evaluator modes ({!Mode}): standard {!Mode.Identity} and staged {!Mode.Lift}.
     - Static and dynamic value predicates and conversions ({!Value}).
+    - The abstract store the specializer splits at dynamic branches ({!Store}).
     - The staged CPS evaluator ({!Eval}). *)
 
 open Ash_core
@@ -12,6 +13,7 @@ module Mode = Mode
 module Value = Stage_value
 module Emit = Emit
 module Specialize = Specialize
+module Store = Store
 module Eval = Staged_eval
 
 val eval : ?mode:Mode.t -> env:Ash_core.Value.env -> Core.t -> Ash_core.Value.value

@@ -193,3 +193,29 @@ and equal_lambda x y =
 
 and equal_rec_binding x y =
   Ident.equal x.rec_name y.rec_name && equal_lambda x.rec_lambda y.rec_lambda
+
+(* The write set: every identity something in this term assigns.
+
+   One definition, because two consumers have to agree about it. The residual
+   normalizer needs it to decide that a variable is safe to substitute for its
+   binder (a write landing between the binding and a use would make the two
+   disagree), and the specializer's abstract store needs it to decide that a
+   binding may be held rather than residualized. If the two ever disagreed about
+   what a term writes, a residual the store built could be rewritten into one
+   that reads the wrong value.
+
+   Collected over the whole term rather than over any one scope: a closure built
+   under a binding can outlive it and be called after a write made somewhere
+   else entirely. [Quote] and [Reifier] bodies count too — they are code that may
+   yet run. *)
+let rec assigned_idents_into acc node =
+  let acc =
+    match node.shape with
+    | Set { set_target; set_value = _ } -> Ident.Set.add set_target acc
+    | Lit _ | Var _ | NamedVar _ | Lam _ | App _ | Let _ | LetRec _ | If _ | Quote _
+    | Reifier _ ->
+        acc
+  in
+  List.fold_left assigned_idents_into acc (children node)
+
+let assigned_idents node = assigned_idents_into Ident.Set.empty node

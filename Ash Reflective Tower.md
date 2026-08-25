@@ -219,7 +219,7 @@ Fix the policy before the specializer exists:
 | Class | Primitives | Specialization behaviour |
 |-------|-----------|--------------------------|
 | **Pure** | arithmetic, comparison, immutable list ops, `Code` constructors | fold when everything the primitive *inspects* is static (see below) |
-| **Allocation / mutation** | `cell_new`, `deref`, `set` | residualize by default; static store only under an explicit store-splitting discipline (Phase 7) |
+| **Allocation / mutation** | `cell_new`, `deref`, `set` | residualize by default; a `Set` on a binding is static only where the store-splitting discipline of §7.4 proves the specializer owns the cell (task 7.2); the allocation primitives still residualize |
 | **Observable effect** | `print`, `read`, IO | **always residualize.** Never execute at specialization time. |
 | **Control** | `call/cc`, `resume`, `abort` | bespoke; residualize unless the entire control flow is static |
 | **Reflection** | `lift`, `run`, `up`, `reflect`, reifier application | bespoke; this is the classification target |
@@ -727,6 +727,8 @@ use(x)
 
 the specializer cannot simply update its own `x`. It must emit both writes and **join the store at the merge point**. That is a well-known but genuinely separate problem in partial evaluation, and solving it is not a prerequisite for the headline collapse result. Don't let it block you.
 
+**Done (task 7.2) — the store is split.** A cell is either *held* — the specializer owns it, writes update it, reads fold, and nothing of it survives — or *residual* — the residual program owns it, writes become `Set` nodes and reads become a variable. The store is keyed by the cell rather than the binder, so two names for one cell stay one place and one binder evaluated twice stays two: two closures over the same `var` write to one residual binding, while a `var` local to a recursive function folds separately in every activation. Holding is a syntactic proof obligation asked once per binder — not free in any lambda, not in quoted data, not spelled by a `NamedVar`, no reifier in scope — and failing it residualizes rather than refuses. At a dynamic conditional every held cell either branch assigns is given up *before* the fork, because the residual program needs one place both branches write to and it has to be bound where both can see it; the stores are then joined, keeping only what outlives the branch and requiring both forks to describe it the same way. The example above becomes `let x = 0 in (if b then set x 1 else set x 2); x`, while a binding in the same program that no branch writes still folds to a constant. The domain is bindings, not heap allocations: `cell_new`/`deref`/`cell_set` and the open-group trio still residualize, which is why an `open fn` group is still §9's boundary sample. ADR 0036.
+
 ### 7.5 Recursion, memoization, termination
 
 - **Specialization points.** Memoize on `(function identity, static projection of args)` → residual function name; emit a residual `LetRec`; call it.
@@ -794,7 +796,7 @@ Memoization, generalization, budget. Arbitrary tower depths of ordinary programs
 ### Phase 7 — Mutation and effects `[3]`
 Store splitting at dynamic joins; effect residualization per D7.
 - **Done when:** the effect-order corpus produces identical observable output under `run(p)` and `run(collapse(n,p))`, and nothing prints during compilation.
-- **In progress:** effect policy is enforced (task 7.1). Nothing prints during compilation, and that is structural rather than incidental: the specializer refuses an always-residualizing class before it consults any rule that could fold, so a fold path added later inherits the refusal instead of having to remember it. `static_log` now exists as this section prescribes — its own class, run when the specializer meets it, leaving no residual call, writing to a stream that is not the program's output — so wanting compile-time visibility is no longer a reason to reach for `print`. Allocation and mutation still residualize; store splitting (7.2) and the effect-order corpus (7.3) remain (ADR 0035).
+- **In progress:** effect policy is enforced (task 7.1) and the store is split (task 7.2). Nothing prints during compilation, and that is structural rather than incidental: the specializer refuses an always-residualizing class before it consults any rule that could fold, so a fold path added later inherits the refusal instead of having to remember it. `static_log` now exists as this section prescribes — its own class, run when the specializer meets it, leaving no residual call, writing to a stream that is not the program's output — so wanting compile-time visibility is no longer a reason to reach for `print` (ADR 0035). `Set` then reached a residual for the first time: an abstract store keyed by cell identity decides per binding whether the specializer or the residual program owns it, forks at a conditional it cannot decide, and gives up any binding a branch writes before the fork so that both branches write to one place. Holding is proved, not assumed, and a binding that cannot be proved is residualized rather than refused (ADR 0036). Allocation primitives still residualize, so an `open fn` group is still interpretation the report counts. The effect-order corpus (7.3) remains.
 
 ### Phase 8 — `meta_with` `[2]`
 Overlay frames (D8), interaction with captured continuations.
@@ -913,7 +915,7 @@ The compiler is no longer just producing code. It is explaining which parts of t
 - [ ] `meta_with` by save/mutate/restore → unsound under captured continuations. (D8)
 - [ ] Uniform stage-polymorphism → `print` at compile time. (D7)
 - [ ] No let-insertion → exponential residual, duplicated effects. (§7.2)
-- [ ] Static store update across a dynamic branch → wrong values, silently. (§7.4)
+- [x] Static store update across a dynamic branch → wrong values, silently. (§7.4) *(Addressed: a held binding a branch assigns is given up before the fork, and the join refuses two forks it cannot reconcile rather than choosing one. ADR 0036.)*
 - [ ] Comparing residuals without normalizing → the invariance claim is vacuous.
 - [ ] No specialization budget → the collapser hangs and you can't distinguish hang from slow.
 - [ ] Claiming invariance for depth-observing programs → the theorem is false. (§9.3)

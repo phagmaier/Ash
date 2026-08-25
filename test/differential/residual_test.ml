@@ -7,8 +7,11 @@
    residual Core and then run. Anything the specializer folds wrongly shows up
    here as a difference, not as a smaller residual.
 
-   The effect, error, and control halves of the corpus are deliberately absent:
-   the pure fragment is §7.4 step 1, and store splitting is Phase 7. *)
+   The effect half joins it at task 7.2: store splitting is what lets a [Set]
+   reach a residual, and the corpus's mutation programs are the shapes that go
+   wrong first — a closure that writes what it captured, two closures that share
+   one binding, and argument order against a write. The error and control halves
+   are still absent: those are §7.4's later steps. *)
 
 open Ash_core
 open Ash_syntax
@@ -114,8 +117,12 @@ let agree name text =
             (Core_printer.to_string residual))
 
 let () =
-  List.iter (fun (name, text) -> agree name text) Corpus.values;
-  Printf.printf "source/residual corpus: %d pure programs compared\n" !compared;
+  List.iter (fun (name, text) -> agree ("value: " ^ name) text) Corpus.values;
+  let pure = !compared in
+  List.iter (fun (name, text) -> agree ("effect: " ^ name) text) Corpus.effects;
+  Printf.printf
+    "source/residual corpus: %d pure and %d mutating programs compared\n" pure
+    (!compared - pure);
   if !failures > 0 then (
     Printf.printf "%d source/residual difference(s)\n" !failures;
     exit 1)

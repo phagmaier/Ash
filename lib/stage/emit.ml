@@ -72,6 +72,17 @@ let is_trivial node =
   | Core.Let _ | Core.LetRec _ | Core.Set _ | Core.App _ ->
       false
 
+let insert buf ?name ?from node =
+  let span =
+    match from with
+    | Some s -> Span.generated ~by:"stage/let-insert" ~from:s
+    | None -> Span.generated ~by:"stage/let-insert" ~from:(Core.span node)
+  in
+  let binder = Ident.fresh (Option.value name ~default:"v") in
+  buf.items <- Value_binding { binder; value = node; span } :: buf.items;
+  incr emitted;
+  (binder, span)
+
 let emit ?name ?from node =
   if is_trivial node then
     node
@@ -79,16 +90,18 @@ let emit ?name ?from node =
     match current_buffer () with
     | None -> node
     | Some buf ->
-        let span =
-          match from with
-          | Some s -> Span.generated ~by:"stage/let-insert" ~from:s
-          | None -> Span.generated ~by:"stage/let-insert" ~from:(Core.span node)
-        in
-        let binder_name = Option.value name ~default:"v" in
-        let binder = Ident.fresh binder_name in
-        buf.items <- Value_binding { binder; value = node; span } :: buf.items;
-        incr emitted;
+        let binder, span = insert buf ?name ?from node in
         Core.var ~span binder
+
+(* A binding the caller needs to exist, whatever it binds. [emit] is an
+   optimization — a variable or a literal is cheaper repeated than named — but a
+   promoted store binding is a place the residual program assigns to, and a
+   literal substituted at its use sites is not a place. *)
+let emit_binder ?name ?from node =
+  match current_buffer () with
+  | None ->
+      invalid_arg "Emit.emit_binder: a residual binding needs an enclosing block"
+  | Some buf -> insert buf ?name ?from node
 
 let emit_val ?name ?from node =
   Value.Code (emit ?name ?from node)

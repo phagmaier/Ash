@@ -45,6 +45,13 @@ val emit : ?name:string -> ?from:Span.t -> Core.t -> Core.t
     [Var binder] is returned.
     If no buffer is active, [node] is returned directly. *)
 
+val emit_binder : ?name:string -> ?from:Span.t -> Core.t -> Ident.t * Span.t
+(** Bind [node] in the active block whatever it is, and return the binder
+    together with the span the binding was given. Unlike {!emit} this never
+    declines: the store promotes a held binding by naming its current value, and
+    a literal left unbound is not a place the residual program can assign to.
+    @raise Invalid_argument when no block is active. *)
+
 val emit_val : ?name:string -> ?from:Span.t -> Core.t -> Value.value
 (** Like {!emit}, but wraps the resulting expression in {!Value.Code}. *)
 

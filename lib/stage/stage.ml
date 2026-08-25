@@ -2,6 +2,7 @@ module Mode = Mode
 module Value = Stage_value
 module Emit = Emit
 module Specialize = Specialize
+module Store = Store
 module Eval = Staged_eval
 
 let eval = Staged_eval.eval

@@ -15,13 +15,24 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 7 — mutation and effects. 7.1 done.
-- **Next:** 7.2 — static-store splitting and dynamic joins
+- **Phase:** 7 — mutation and effects. 7.1 and 7.2 done.
+- **Next:** 7.3 — the effect-order differential corpus
 - **Last verified:** 2026-08-24 from a removed `_build` — `opam exec -- dune
   build @all`, `opam exec -- dune runtest --force`, `opam exec -- dune exec ash
   -- --help`, `opam exec -- dune exec ash -- --demos`, and
   `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1` all
-  pass. Task 6.3 gave residuals one canonical shape: administrative lets
+  pass. Task 7.2 split the store: a binding is either the specializer's — writes
+  update its cell, reads fold, nothing survives — or the residual program's,
+  with writes becoming `Set` nodes and reads a variable, and the store is keyed
+  by cell identity so aliases stay one place and two activations stay two. At a
+  conditional the specializer cannot decide, every held binding either branch
+  assigns is given up before the fork and the two stores are joined afterwards,
+  which is what makes §7.4's `if d then x := 1 else x := 2; use(x)` come out
+  right while a binding no branch writes still folds. `Core.assigned_idents` is
+  now one definition shared with the normalizer, so ADR 0033's write-set guards
+  decide something for the first time. Nothing pure moved: the whole pure corpus
+  specializes to bit-identical residuals. Task 6.3 gave residuals one canonical
+  shape: administrative lets
   flatten, trivial bindings substitute away, alpha-canonical renaming runs
   last, and no effect moves — idempotent by construction, pinned by unit tests
   over flattening, hygiene, effect-order counterexamples, and whole programs.
@@ -431,19 +442,28 @@ closure reification, which is not a call and has nothing to generalize.
     residual call — writing to a second stream that is not program-visible
     output. Allocation and mutation are unchanged and now pinned. ADR 0035.
 
-- [ ] **7.2 Implement static-store splitting and dynamic joins.**
+- [x] **7.2 Implement static-store splitting and dynamic joins.**
   - Fork and conservatively merge abstract stores while retaining alias/cell
     identity; residualize when proof is unavailable.
   - Accept: dynamic-branch mutation and alias fixtures match source behavior.
-  - This is what first lets `Core.Set` survive into a residual — today
-    specialization refuses it outright — which promotes the normalizer's
-    value-side guard (ADR 0033) from defensive to load-bearing: a variable is
-    substitutable only when nothing in the term assigns it, and the write set
-    has to stay whole-term, because a closure built under a binding can outlive
-    it and be called after a write made anywhere else. Keep the normalizer's
-    stated precondition in view too — it is sound on terms that can run, which
-    is every residual; a term with a genuinely unbound variable in value
-    position is out of scope by decision, not by oversight.
+  - `Ash_stage.Store` decides per binding who owns the cell: *held* means the
+    specializer owns it — writes update it, reads fold, nothing survives — and
+    *residual* means the residual program owns it, writes becoming `Set` nodes
+    and reads a variable. Keyed by the cell rather than the binder, so two names
+    for one cell stay one place and one binder evaluated twice stays two.
+    Holding is a syntactic proof asked once per binder — not free in any lambda,
+    not in quoted data, not spelled by a `NamedVar`, no reifier in scope — and
+    failing it residualizes rather than refuses. At a dynamic conditional every
+    held binding either branch assigns is given up *before* the fork, then the
+    two stores are joined, keeping only what outlives the branch and requiring
+    both forks to agree. `Core.assigned_idents` now lives in `Ash_core.Core` and
+    is read by both the store and the normalizer, which is what makes ADR 0033's
+    value-side guard load-bearing rather than defensive: a residual with a `Set`
+    is the first term where substituting a binding's initial value would answer
+    with the value before the branch. The domain is bindings, not heap
+    allocations — `cell_new`/`deref`/`cell_set` and the open-group trio still
+    residualize, so an `open fn` group is still the criterion's boundary sample.
+    ADR 0036.
 
 - [ ] **7.3 Build the effect-order differential corpus.**
   - Compare values, output, errors, and observable store at depths 0–5.
@@ -525,6 +545,98 @@ closure reification, which is not a call and has nothing to generalize.
 
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
+
+### 2026-08-24 — task 7.2
+
+- Completed: static-store splitting and dynamic joins, which is where `Core.Set`
+  first reaches a residual. Before this the specializer refused it outright.
+  - **A cell is held or residual (ADR 0036).** `Ash_stage.Store` decides, per
+    binding, whether the specializer owns the cell — writes update it, reads
+    fold, nothing survives — or the residual program does, writes becoming `Set`
+    nodes emitted in order and reads becoming a variable. A held cell's contents
+    live *in the cell*, so an ordinary `Var` read finds them with no store
+    lookup, and every decision is gated on the term's write set: a program that
+    assigns nothing takes exactly the path it took before. The whole pure corpus
+    specializes to bit-identical residuals, which is why every figure below is
+    unchanged.
+  - **Keyed by the cell, never the binder.** Two names for one cell are one
+    place — that is aliasing — and one binder evaluated twice is two places.
+    `Value.same_cell` gets both at once: two closures over one `var` write to
+    one residual binding, while `fn twice(n) = { var t = n; t := t * 2; t }`
+    called three times folds to a literal, each activation folding separately.
+  - **Holding is proved, not assumed.** `Store.holdable` is syntactic, local,
+    memoized per binder, and over-approximate: not free in any `Lam`/`LetRec`
+    body, not mentioned in a `Quote`, not spelled by a `NamedVar`, no `Reifier`
+    in scope. Failing is not refusing — the binding is residualized. The first
+    clause does the load-bearing work twice over: it is why no inlined callee can
+    assign a held binder, so the branches' *syntactic* write set is enough at a
+    fork, and it is why a promotion's binding always lands in a block that
+    dominates every later read of it.
+  - **Joins promote before they fork.** §7.4's own example
+    (`if d then x := 1 else x := 2; use(x)`) gives `x` up to the residual program
+    *before* specializing either branch, because the residual needs one place
+    both branches write to, bound where both — and everything after the join —
+    can see it. `Store.join` then keeps only what outlives the branch and
+    requires both forks to describe it the same way. In the same program a
+    binding no branch writes stays held: `var y = 5` folds into the addition
+    while `x` becomes a residual binding. That is the splitting.
+  - **One write set, two consumers.** `Core.assigned_idents` moved into
+    `Ash_core.Core`; the store and `Ash_collapse.Normalize` read the same
+    definition. This is what promotes ADR 0033's guards from defensive to
+    load-bearing: the promoted binding of §7.4's example is `let x = 0`, and a
+    normalizer with a narrower write set would substitute the literal into the
+    read after the join and answer 0 for both branches.
+  - **Considered and rejected:** residualizing every mutable binding (sound,
+    a tenth of the code, and makes "static store" vacuous — `var x = 1; x := x +
+    1; x * 10` would emit three operations instead of folding to 20); and
+    speculating both branches then restarting on disagreement to a fixpoint
+    (more precise, but the discarded attempts would have to sandbox the
+    emitted-binding count the budget watches, sticky generalizations, and the
+    compile-time log — a lot of machinery for a little precision).
+- Scope, deliberately: the store's domain is bindings, not heap allocations.
+  `cell_new`, `deref`, `cell_set` and the open-group trio are still
+  `Allocation_or_mutation` and still residualize, so an `open fn` group remains
+  the criterion suite's boundary sample and the report still counts surviving
+  evaluator-cell dereferences. Making allocation static needs an escape analysis
+  over values rather than scopes, and that is what Phase 9 will need.
+- Refusals, all three tested: an assignment to a cell the store does not track (a
+  `LetRec` name); a specialization point whose *specialized* parameter is
+  assigned and cannot be held, where the only place would be outside the residual
+  function and one call's write would be the next call's start; and a reifier
+  application or `reflect` while the store holds a binding, since the level the
+  environment goes to may write a cell the specializer already folded from.
+- Measurement: no counter changed meaning or value. The criterion suite still
+  proves its 73 depth-1 samples against the same 906,708-dispatch /
+  2,125,589-cell-read tower figures and the same 250 residual nodes; depth
+  results are still 417 invariant and 18 depth-sensitive checks. The golden
+  report gains two samples (a held store binding; mutation across a dynamic
+  branch) and replaces the "outside the fragment" one, which now shows an
+  assignment the store cannot place rather than assignment as such.
+- Tests: new `test/unit/store_test.ml` (held bindings, escaping bindings and
+  aliases, §7.4's branch both ways, one-sided writes, nested branches, split
+  versus held in one program, promotion on a dynamic write, specialization points
+  over an assigned parameter, the three refusals, `Store.join` directly, and the
+  normalizer's guard on a residual the store built);
+  `test/differential/residual_test.ml` now also compares the corpus's eight
+  mutation and evaluation-order programs; `collapse_test` and `stage_test`
+  re-pinned to where the boundary is now; `test/golden/collapse.expected`
+  re-pinned.
+- Documentation: ADR 0036; spec §7.4 step 3, §8 Phase 7, the §D7 class table, and
+  §10's static-store trap; README gains the abstract-store section and updates
+  the effect-class table and normalizer note.
+- Verified from a removed `_build` with OCaml 5.4.1 and Dune 3.24.2:
+  `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  `opam exec -- dune exec ash -- --help`, `opam exec -- dune exec ash --
+  --demos`, and `opam exec -- dune exec ash -- --collapse examples/fact.ash
+  --depth 1` all pass.
+- Known issues: `open fn` dereferences still residualize (Phase 9's work, and the
+  criterion's falsifiability sample). The join's disagreement refusal is a guard
+  at a site today's rules cannot reach — pre-promotion makes agreement the only
+  outcome — so it is tested against the module rather than through a program,
+  for the same reason 7.1's effect gate is kept.
+- Next: 7.3 — the effect-order differential corpus: compare values, output,
+  errors, and observable store at depths 0-5, on *normalized* residuals, and
+  require that compilation has no runtime effects.
 
 ### 2026-08-24 — task 7.1
 

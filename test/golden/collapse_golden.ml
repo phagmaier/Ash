@@ -77,7 +77,23 @@ let () =
      specialization does not. *)
   sample "observable output" (Metrics.Surface "println(\"hi\")\n42");
 
+  (* A binding the abstract store can hold (task 7.2): the specializer owns the
+     cell, so the assignment happens while specializing and the residual is the
+     answer. *)
+  sample "a store binding the specializer holds"
+    (Metrics.Core_notation "(let x (lit 1) (let _ (set x (lit 2)) (var x)))");
+
+  (* The same store, split at a branch the specializer cannot decide. The
+     binding is given up to the residual program before the fork, both branches
+     write to it there, and the read after the join is the residual's. This is
+     the sample where a residual [Set] survives. *)
+  sample "mutation across a dynamic branch"
+    (Metrics.Surface "fn(b) -> {\n  var x = 0\n  if b then x := 1 else x := 2\n  x\n}");
+
   (* Outside the fragment: the report says which program it could not stage and
-     why, rather than reporting a residual it does not have. *)
-  sample "a store operation"
-    (Metrics.Core_notation "(let x (lit 1) (let _ (set x (lit 2)) (var x)))")
+     why, rather than reporting a residual it does not have. Task 7.2 moved this
+     boundary without removing it — a recursive group's name is not a binding the
+     store tracks. *)
+  sample "an assignment the store cannot place"
+    (Metrics.Core_notation
+       "(letrec ((f (lam () (lit 1)))) (let _ (set f (lam () (lit 2))) (app (var f))))")

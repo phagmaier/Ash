@@ -170,11 +170,15 @@ let test_measurement () =
   check_int "and the materialized one counts levels that exist" ~expected:2
     materialized.Ash_tower.Tower.upper_levels
 
-(* A program outside the fragment is reported, not hidden. *)
+(* A program outside the fragment is reported, not hidden. Store splitting
+   (task 7.2) moved this boundary rather than removing it: an assignment the
+   abstract store can place is staged, and one it cannot is still said out
+   loud. *)
 let test_outside_the_fragment () =
   let metrics =
     Metrics.measure ~file:"m.ash" ~name:"set"
-      (Metrics.Core_notation "(let x (lit 1) (let _ (set x (lit 2)) (var x)))")
+      (Metrics.Core_notation
+         "(letrec ((f (lam () (lit 1)))) (let _ (set f (lam () (lit 2))) (app (var f))))")
   in
   check "the source still runs"
     (Metrics.agreement metrics.Metrics.source.Metrics.outcome (Metrics.Answered (Value.Num 2))
@@ -183,6 +187,25 @@ let test_outside_the_fragment () =
     (match metrics.Metrics.residual with Error _ -> true | Ok _ -> false);
   check "and the report can still be rendered"
     (String.length (Report.to_string metrics) > 0)
+
+(* Inside the fragment the store proves: the binding is the specializer's alone,
+   so the assignment happens at specialization time and nothing of it survives. *)
+let test_a_held_store_binding () =
+  let metrics =
+    Metrics.measure ~file:"m.ash" ~name:"held"
+      (Metrics.Core_notation "(let x (lit 1) (let _ (set x (lit 2)) (var x)))")
+  in
+  match metrics.Metrics.residual with
+  | Error error ->
+      incr failures;
+      Printf.printf "FAIL a held store binding staged: %s\n" (Error.to_string error)
+  | Ok residual ->
+      check "the residual agrees with the source"
+        (Metrics.agreement metrics.Metrics.source.Metrics.outcome
+           residual.Metrics.run.Metrics.outcome
+        = Metrics.Agrees);
+      check "and the assignment left nothing behind"
+        (Core.node_count residual.Metrics.term = 1)
 
 (* A measurement under a budget the program exceeds reports the generalization
    and why, and the residual it produces is still correct (task 6.2). *)
@@ -260,6 +283,7 @@ let () =
   test_survey ();
   test_measurement ();
   test_outside_the_fragment ();
+  test_a_held_store_binding ();
   test_generalization_is_reported ();
   test_budget_is_restored ();
   if !failures > 0 then (

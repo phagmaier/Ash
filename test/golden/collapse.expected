@@ -469,7 +469,7 @@ Basis
   above are the measured cost that collapse is set against, not a cost
   this residual removed.
 
-== collapse: a store operation ==
+== collapse: a store binding the specializer holds ==
 
   Program:                        sample.ash, 6 nodes
   Tower depth:                    1
@@ -478,10 +478,16 @@ Basis
 Sizes
   Expanded semantic tower:        12 nodes  (6 + 1 x 6)
   Materialized representation:    1 upper level, 50 global cells, 3 group cells
-  Residual:                       none: specialization failed
+  Residual:                       1 node
 
 Interpretation left in the residual
-  Not measured:                   sample.ash:1:23-38: stage error: `set during specialization (store splitting is not implemented)` is not supported by the staged evaluator
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 1
 
 Work
   Source run:                     6
@@ -489,6 +495,94 @@ Work
   Tower eval-cell derefs:         level 0: 6, level 1: 72
   Tower open-group derefs:        0
   Tower constructor dispatches:   36
+  Specialization:                 6
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         2
+  Tower:                          2  (agrees)
+  Residual:                       2  (agrees)
+  Source output:                  none
+  Specialization output:          none
+  Specialization log:             none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: mutation across a dynamic branch ==
+
+  Program:                        sample.ash, 11 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        17 nodes  (11 + 1 x 6)
+  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Residual:                       17 nodes
+
+Interpretation left in the residual
+  Interpreter residue:            0 nodes
+  Surviving eval-cell derefs:     0
+  Constructor dispatch sites:     0
+  NamedVar lookups residualized:  0
+  Evaluator calls:                0
+  Reflection boundaries:          none
+  Residual nodes by origin:       sample.ash 17
+
+Work
+  Source run:                     1
+  Tower run (depth 1):            13  (level 0: 1, level 1: 12)
+  Tower eval-cell derefs:         level 0: 1, level 1: 12
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   6
+  Specialization:                 11
+  Specialization points:          0  (0 calls)
+  Generalizations:                0
+  Residual run:                   1
+
+Outcome
+  Source:                         #<closure>
+  Tower:                          #<closure>  (carries identity: not comparable across runs)
+  Residual:                       #<closure>  (carries identity: not comparable across runs)
+  Source output:                  none
+  Specialization output:          none
+  Specialization log:             none
+  Residual output:                none
+
+Basis
+  The residual is the program specialized on its own, which is the pure
+  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  evaluator is static reflective collapse, task 9.1; the tower figures
+  above are the measured cost that collapse is set against, not a cost
+  this residual removed.
+
+== collapse: an assignment the store cannot place ==
+
+  Program:                        sample.ash, 8 nodes
+  Tower depth:                    1
+  Interposed interpreter:         6 nodes per level
+
+Sizes
+  Expanded semantic tower:        14 nodes  (8 + 1 x 6)
+  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Residual:                       none: specialization failed
+
+Interpretation left in the residual
+  Not measured:                   sample.ash:1:39-63: stage error: `assignment to `f`, which the abstract store does not track` is not supported by the staged evaluator
+
+Work
+  Source run:                     9
+  Tower run (depth 1):            93  (level 0: 9, level 1: 84)
+  Tower eval-cell derefs:         level 0: 9, level 1: 84
+  Tower open-group derefs:        0
+  Tower constructor dispatches:   42
   Specialization:                 4
   Specialization points:          0  (0 calls)
   Generalizations:                0
@@ -497,7 +591,7 @@ Work
 Outcome
   Source:                         2
   Tower:                          2  (agrees)
-  Residual:                       not produced: sample.ash:1:23-38: stage error: `set during specialization (store splitting is not implemented)` is not supported by the staged evaluator
+  Residual:                       not produced: sample.ash:1:39-63: stage error: `assignment to `f`, which the abstract store does not track` is not supported by the staged evaluator
   Source output:                  none
   Specialization output:          none
   Specialization log:             none

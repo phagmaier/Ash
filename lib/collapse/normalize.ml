@@ -56,7 +56,7 @@
 
 open Ash_core
 
-(* Every identity something assigns, anywhere in the term.
+(* Every identity something assigns, anywhere in the term: {!Core.assigned_idents}.
 
    Substituting a variable for a binder trades one read at the binding site for
    a read at each use, and the two disagree exactly when a write lands in
@@ -64,33 +64,12 @@ open Ash_core
    substituted body would see the new one. So a variable {e value} is
    substitutable only when nothing writes to it.
 
-   Collected over the whole term rather than over the binding's body, because a
-   closure built under the binding can outlive it and be called after a write
-   made somewhere else entirely. [Quote] and [Reifier] bodies count too: they
-   are code that may yet run. Literals need no such guard — nothing can assign
-   one. *)
-let rec assigned_idents acc node =
-  match Core.shape node with
-  | Core.Lit _ | Core.Var _ | Core.NamedVar _ -> acc
-  | Core.Set { Core.set_target; set_value } ->
-      assigned_idents (Ident.Set.add set_target acc) set_value
-  | Core.Lam lambda -> assigned_idents acc lambda.Core.lam_body
-  | Core.App { Core.func; args } ->
-      List.fold_left assigned_idents (assigned_idents acc func) args
-  | Core.Let { Core.let_value; let_body; _ } ->
-      assigned_idents (assigned_idents acc let_value) let_body
-  | Core.LetRec { Core.rec_bindings; rec_body } ->
-      List.fold_left
-        (fun acc binding ->
-          assigned_idents acc binding.Core.rec_lambda.Core.lam_body)
-        (assigned_idents acc rec_body)
-        rec_bindings
-  | Core.If { Core.condition; consequent; alternative } ->
-      List.fold_left assigned_idents
-        (assigned_idents acc condition)
-        [ consequent; alternative ]
-  | Core.Quote quoted | Core.Reifier { Core.reifier_body = quoted; _ } ->
-      assigned_idents acc quoted
+   The definition lives in {!Core} rather than here because the specializer's
+   abstract store reads the same set to decide which bindings it may hold
+   (ADR 0036). Two write sets that could drift apart would let this module
+   rewrite a residual the store built. Literals need no such guard — nothing can
+   assign one. *)
+let assigned_idents = Core.assigned_idents
 
 (* A value that may stand in for its binder: copying it to the use sites costs
    nothing and can be read as often as the body likes. *)
@@ -261,4 +240,4 @@ and substitute ~replacement ~for_ node =
    the identity. The write set is stable across both passes: no rewrite here
    introduces or removes a [Set], and renaming carries it along. *)
 let normalize node =
-  Alpha.canonicalize (rewrite ~assigned:(assigned_idents Ident.Set.empty node) node)
+  Alpha.canonicalize (rewrite ~assigned:(assigned_idents node) node)
