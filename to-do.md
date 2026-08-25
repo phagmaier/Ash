@@ -16,7 +16,9 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 ## Current state
 
 - **Phase:** 6 — depth and recursion control. Complete.
-- **Next:** 7.1 — enforce primitive effect policy during specialization
+- **Next:** 7.1 — enforce primitive effect policy during specialization. The
+  effect-class gate belongs beside `Staged_eval.static_reading`: both decide
+  before `may_fold` is consulted.
 - **Last verified:** 2026-08-24 from a removed `_build` — `opam exec -- dune
   build @all`, `opam exec -- dune runtest --force`, `opam exec -- dune exec ash
   -- --help`, `opam exec -- dune exec ash -- --demos`, and
@@ -424,10 +426,22 @@ closure reification, which is not a call and has nothing to generalize.
   - Fork and conservatively merge abstract stores while retaining alias/cell
     identity; residualize when proof is unavailable.
   - Accept: dynamic-branch mutation and alias fixtures match source behavior.
+  - This is what first lets `Core.Set` survive into a residual — today
+    specialization refuses it outright — which promotes the normalizer's
+    value-side guard (ADR 0033) from defensive to load-bearing: a variable is
+    substitutable only when nothing in the term assigns it, and the write set
+    has to stay whole-term, because a closure built under a binding can outlive
+    it and be called after a write made anywhere else. Keep the normalizer's
+    stated precondition in view too — it is sound on terms that can run, which
+    is every residual; a term with a genuinely unbound variable in value
+    position is out of scope by decision, not by oversight.
 
 - [ ] **7.3 Build the effect-order differential corpus.**
   - Compare values, output, errors, and observable store at depths 0–5.
   - Accept: tower and residual runs agree; compilation has no runtime effects.
+  - Compare *normalized* residuals, as 6.4 does: this corpus is what exercises
+    the normalizer's store guard end to end, and a store comparison against raw
+    residuals would pass for the wrong reason.
 
 ## Phase 8 — scoped meta-overrides
 
