@@ -55,6 +55,11 @@ and shape =
   | Quote of t
   | Splice of splice
   | Up of t
+  | Meta_with of meta_with
+
+and meta_with = { overrides : meta_override list; meta_body : t }
+
+and meta_override = { override_name : name; override_value : t }
 
 and binding = {
   binding_kind : binding_kind;
@@ -210,6 +215,11 @@ and quotation_pattern_binders expression =
       quotation_pattern_binders binary.left @ quotation_pattern_binders binary.right
   | Assignment assignment -> quotation_pattern_binders assignment.assignment_value
   | Group grouped | Quote grouped | Up grouped -> quotation_pattern_binders grouped
+  | Meta_with with_ ->
+      List.concat_map
+        (fun override -> quotation_pattern_binders override.override_value)
+        with_.overrides
+      @ quotation_pattern_binders with_.meta_body
   | Match match_ ->
       quotation_pattern_binders match_.scrutinee
       @ List.concat_map

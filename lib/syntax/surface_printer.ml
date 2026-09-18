@@ -42,6 +42,14 @@ let rec to_string expression =
         [ assignment.assignment_target.text; to_string assignment.assignment_value ]
   | Surface.Group grouped -> parenthesized "group" [ to_string grouped ]
   | Surface.Up body -> parenthesized "up" [ to_string body ]
+  | Surface.Meta_with with_ ->
+      parenthesized "meta_with"
+        (List.map
+           (fun override ->
+             parenthesized "="
+               [ override.Surface.override_name.text; to_string override.Surface.override_value ])
+           with_.Surface.overrides
+        @ [ to_string with_.Surface.meta_body ])
   | Surface.Match match_ ->
       parenthesized "match"
         (to_string match_.scrutinee

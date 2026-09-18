@@ -48,6 +48,7 @@ and primitive = {
     run:runner ->
     reflect:reflector ->
     meta:meta_reader ->
+    overlay:overlay_control ->
     value list ->
     (value -> answer) ->
     answer;
@@ -62,11 +63,24 @@ and reflector =
 
 and meta_reader = call_site:Span.t -> meta_query -> value
 
+and overlay_frame = {
+  overlay_eval : value option;
+  overlay_apply : value option;
+}
+
+and overlay_control = {
+  overlay_current : unit -> overlay_frame list;
+  overlay_push : overlay_frame -> unit;
+  overlay_restore : overlay_frame list -> unit;
+}
+
 and meta_query =
   | Below_eval_cell
   | Below_apply_cell
   | Below_global_env
   | Tower_depth
+  | Current_eval
+  | Current_apply
 
 and arity = Exactly of int | At_least of int
 

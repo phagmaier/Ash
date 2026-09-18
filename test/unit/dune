@@ -21,6 +21,7 @@
   tower_test
   reifier_test
   up_test
+  meta_with_test
   stage_test
   stage_fragment_test
   stage_recursion_test

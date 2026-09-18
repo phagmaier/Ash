@@ -6,6 +6,74 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-09-18 — tasks 8.1, 8.2 (Phase 8 done)
+
+- Completed: scoped meta-overrides, which closes Phase 8. 8.1 built the
+  persistent overlay frames and `meta_with`; 8.2 is the continuation
+  interaction the spec names as the overlay law.
+  - **The mechanism (`lib/runtime/machine.ml`, `lib/core/value.ml`).**
+    Each machine holds a mutable pointer to a persistent
+    `overlay_frame list` (`eval`/`apply` options, `None` falls through).
+    Pushing shares the tail, capturing shares the spine, leaving resets the
+    pointer; frames and persistent cells are never mutated (invariant 8).
+    `Machine.eval`/`apply` consult overlays before the group cell and run a
+    hit on the machine above (materializing on demand), so wrappers never
+    intercept themselves. Without an installed tower the wrapper runs locally
+    with overlays disabled — right value for delegating wrappers, top node
+    only; every law test runs on a tower, where every nested step is
+    intercepted.
+  - **The sugar (`lib/syntax/*`, `lib/runtime/primitives.ml`).**
+    `meta_with(eval = E, apply = F) { B }` parses `=`-bindings plus a block,
+    validates slots (`eval`/`apply` only, no duplicates) at lowering, reads
+    the outer effective evaluator for each right-hand side (which sees `eval`/
+    `apply` under those names), and calls Reflection `meta_with_run` with
+    `unit` for missing slots plus a nullary thunk for `B`. The body lowers
+    under the surrounding scope, so no frame ever enters an environment and
+    `NamedVar` cannot see one (locked decision, by construction). Core is
+    untouched; provenance `desugar/meta_with`. Two more Reflection readers
+    (`meta_current_eval`/`apply`) answer the effective evaluator. Every
+    `prim_impl` takes `~overlay`; `callcc` captures `overlay_current()`
+    alongside the level, and `Machine.capture_continuation` wraps reifier
+    suspensions and both dispatch continuations.
+  - **The law (`test/unit/meta_with_test.ml`, 8 tests).** Interception past
+    the outermost node with the answer preserved and nothing counted outside;
+    nested frames stacking most-recent-outermost; eval/apply slots independent
+    and combinable; persistent cells untouched (a `up`-installed counter still
+    counts after, and only it counts outside; `up`-read contents equal before
+    and after); unknown/repeated slots refused; capture-inside/invoke-outside
+    via an abandoned literal plus an outer escape (each continuation used
+    once — re-entrant double-use needs multi-shot, deferred per spec) with
+    the resumed literal answering through the restored overlay and ambient
+    calls answering unintercepted; and a nested error whose outer print
+    survives the inner division-by-zero.
+  - Falsified rather than assumed: removing the overlay-first lookup makes
+    nesting collapse to persistent-only; disabling the capture wrapper makes
+    the resume answer without interception; reverting `==` on continuations
+    or threading overlays through the lexical body scope breaks the
+    `NamedVar`/hygiene checks the same file pins.
+- Measurement: no counter changed meaning or value. The criterion suite still
+  proves its 73 depth-1 samples against the same 906,708-dispatch /
+  2,125,589-cell-read tower figures and the same 250 residual nodes; depth
+  results still 417 invariant and 18 depth-sensitive checks; every golden
+  output is unchanged except `collapse.expected`'s 50 → 53 global cells, which
+  is the registry growing by exactly the three new Reflection primitives.
+- Documentation: ADR 0038; spec §5.7 overlay law and §8 Phase 8 (now Done);
+  to-do 8.1/8.2 (now checked) and Current state.
+- Verified: `opam exec -- dune build @all`, `opam exec -- dune runtest
+  --force` (after `--auto-promote` for the cell count only), `opam exec --
+  dune exec ash -- --help`, `opam exec -- dune exec ash -- --demo tracing`,
+  `opam exec -- dune exec ash -- --demo level-2-counting`, and `opam exec --
+  dune exec ash -- --collapse examples/fact.ash --depth 1` all pass.
+- Known issues: no-tower (ground source) runs intercept only the top overlay
+  node (documented in ADR 0038 as deferred temp-upper work; tower runs, which
+  is what the laws measure, intercept every nested step). Re-entrant overlay
+  resumption (using one node continuation twice) needs multi-shot and is
+  deferred per spec; the law test is deliberately single-use throughout.
+  `Error.cause_equal` still compares provenance inside `Open_code` and
+  `Continuation_reuse` (noted at 7.3); neither reaches a residual today.
+- Next: 9.1 — specialize known persistent and scoped evaluator changes: inline
+  known wrappers at former dispatch sites while preserving effects.
+
 ### 2026-08-24 — task 7.3
 
 - Completed: the effect-order differential corpus, which closes Phase 7. Tasks

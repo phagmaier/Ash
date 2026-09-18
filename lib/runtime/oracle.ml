@@ -117,6 +117,13 @@ and apply ~span callee arguments =
           ~reflect:(fun ~call_site ~code:_ ~env:_ ~cont:_ _ ->
             unsupported ~span:call_site "reflect")
           ~meta:(fun ~call_site _ -> unsupported ~span:call_site "meta bindings")
+          ~overlay:
+            {
+              Value.overlay_current = (fun () -> []);
+              overlay_push =
+                (fun _ -> unsupported ~span "meta_with");
+              overlay_restore = (fun _ -> ());
+            }
           arguments
           (fun value -> value)
   | Value.Reifier _ -> unsupported ~span "reifier"

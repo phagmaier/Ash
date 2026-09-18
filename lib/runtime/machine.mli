@@ -146,6 +146,37 @@ val meta_apply_cell : t -> Value.cell
     part of the protocol, so a replacement that falls back to the default
     attributes it to the fallback's own call site. *)
 
+(** {1 Persistent overlay frames (spec §D8, Phase 8)}
+
+    [meta_with] pushes a frame rather than mutating a persistent cell
+    (invariant 8). Frames are immutable and shared; the machine holds only a
+    mutable pointer to the list. Lookup precedes the persistent cells, and
+    lexical [NamedVar] never sees this list. A captured continuation captures
+    the pointer in effect at capture time; invoking follows it without mutating
+    the ambient list. *)
+
+type overlay_frame = Value.overlay_frame = {
+  overlay_eval : Value.value option;
+  overlay_apply : Value.value option;
+}
+(** One pushed frame. [None] leaves the slot alone and falls through. *)
+
+val current_overlays : t -> overlay_frame list
+(** The pointer, shared rather than copied. *)
+
+val set_overlays : t -> overlay_frame list -> unit
+val push_overlay : t -> overlay_frame -> unit
+val overlay_control : t -> Value.overlay_control
+(** The three closures over this machine's pointer, passed to every primitive
+    alongside [apply] and [meta]. *)
+
+val capture_continuation :
+  t -> capture:Span.t -> (Value.value -> Value.answer) -> Value.continuation
+(** Capture the current overlay pointer alongside the level, wrapping [k] so
+    invoking restores it before resuming. Every Ash-visible continuation
+    ([callcc], reifier continuations, and the continuations handed to evaluator
+    replacements) is captured this way. *)
+
 val group_cell_count : t -> int
 (** Number of independently replaceable open-recursion cells owned by this
     machine. Kept here so tower-size accounting cannot drift from the group. *)

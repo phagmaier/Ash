@@ -80,7 +80,7 @@ let identity_primitive =
     prim_class = Effect_class.Pure;
     prim_observes = Observation.whole_values;
     prim_impl =
-      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with [ a ] -> k a | [] | _ :: _ :: _ -> k Value.Unit);
   }
 
@@ -117,6 +117,8 @@ let expected_classification =
     ("meta_error", reflection); ("meta_eval", reflection);
     ("meta_apply", reflection); ("meta_global", reflection);
     ("tower_level", reflection); ("tower_depth", reflection);
+    ("meta_current_eval", reflection); ("meta_current_apply", reflection);
+    ("meta_with_run", reflection);
   ]
 
 let sorted_names names = List.sort String.compare names
@@ -186,13 +188,19 @@ let test_classification () =
      match Primitives.find registry "static_log" with
      | None -> false
      | Some p ->
-         p.Value.prim_impl ~call_site:Span.unknown ~level:0
-           ~apply:(fun ~call_site:_ _ _ _ -> assert false)
-           ~lift:(fun ~call_site:_ _ -> assert false)
-           ~run:(fun ~call_site:_ _ _ -> assert false)
-           ~reflect:(fun ~call_site:_ ~code:_ ~env:_ ~cont:_ _ -> assert false)
-           ~meta:(fun ~call_site:_ _ -> assert false)
-           [ Value.Num 7 ] (fun v -> v)
+          p.Value.prim_impl ~call_site:Span.unknown ~level:0
+            ~apply:(fun ~call_site:_ _ _ _ -> assert false)
+            ~lift:(fun ~call_site:_ _ -> assert false)
+            ~run:(fun ~call_site:_ _ _ -> assert false)
+            ~reflect:(fun ~call_site:_ ~code:_ ~env:_ ~cont:_ _ -> assert false)
+            ~meta:(fun ~call_site:_ _ -> assert false)
+            ~overlay:
+              {
+                Value.overlay_current = (fun () -> []);
+                overlay_push = (fun _ -> assert false);
+                overlay_restore = (fun _ -> assert false);
+              }
+            [ Value.Num 7 ] (fun v -> v)
          = Value.Unit
          && Io.events (Primitives.io registry) = []
          && Io.written (Primitives.log registry) = [ "7\n" ]);
@@ -212,7 +220,8 @@ let test_classification () =
   check "reflection contains staging, closed-code execution, and the tower protocol"
     (List.equal String.equal
        [ "lift"; "run"; "reflect"; "meta_error"; "meta_eval"; "meta_apply";
-         "meta_global"; "tower_level"; "tower_depth" ]
+         "meta_global"; "tower_level"; "tower_depth"; "meta_current_eval";
+         "meta_current_apply"; "meta_with_run" ]
        (Primitives.by_class Effect_class.Reflection));
 
   check "an unregistered name has no class" (Primitives.class_of "nope" = None);
@@ -265,6 +274,12 @@ let test_arity () =
                     ~run:(fun ~call_site:_ _ k -> k Value.Unit)
                     ~reflect:(fun ~call_site:_ ~code:_ ~env:_ ~cont:_ k -> k Value.Unit)
                     ~meta:(fun ~call_site:_ _ -> Value.Unit)
+                    ~overlay:
+                      {
+                        Value.overlay_current = (fun () -> []);
+                        overlay_push = (fun _ -> ());
+                        overlay_restore = (fun _ -> ());
+                      }
                     args (fun v -> v))
             with
             | Ok _ ->
@@ -436,6 +451,14 @@ let type_expectations =
        nobody has reflected on has materialized nothing. *)
     ("tower_level", Total []);
     ("tower_depth", Total []);
+    (* The effective evaluator of the calling level answers even at the base
+       program: with no overlay pushed it is the persistent cell's default. *)
+    ("meta_current_eval", Total []);
+    ("meta_current_apply", Total []);
+    (* [unit] leaves a slot alone, so two units and a non-function thunk reach
+       the applier, which reports what it found. *)
+    ( "meta_with_run",
+      Rejects [ ([ Value.Unit; Value.Unit; n ], "a number", "a function") ] );
   ]
 
 let test_type_errors () =

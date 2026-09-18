@@ -73,7 +73,9 @@ let shift_up mode machine ~exp ~env ~reifier k =
   | Some upper ->
       across_levels mode machine ~span:(Core.span exp) "reifier application";
       let definition = reifier.Value.reif_def in
-      let continuation = Value.continuation ~capture:(Core.span exp) ~level k in
+      let continuation =
+        Machine.capture_continuation machine ~capture:(Core.span exp) k
+      in
       let meta =
         [
           (definition.Core.exp_param, Value.Code exp);
@@ -112,6 +114,64 @@ let meta_view mode machine ~call_site query =
   | Value.Below_apply_cell -> Value.Cell (Machine.meta_apply_cell (below "apply"))
   | Value.Below_global_env -> Value.Environment (Machine.global_env (below "global"))
   | Value.Tower_depth -> Value.Num (Machine.tower_depth machine)
+  | Value.Current_eval -> (
+      match Machine.current_overlays machine with
+      | { Value.overlay_eval = Some value; _ } :: _ -> value
+      | { Value.overlay_eval = None; _ } :: rest -> (
+          let rec outer = function
+            | [] -> (
+                match Value.cell_contents (Machine.meta_eval_cell machine) with
+                | Some contents -> contents
+                | None ->
+                    fail mode ~span:call_site ~level
+                      (Error.Unsupported
+                         {
+                           what = "eval";
+                           by = "the current level, whose evaluator cell is empty";
+                         }))
+            | { Value.overlay_eval = Some value; _ } :: _ -> value
+            | { Value.overlay_eval = None; _ } :: more -> outer more
+          in
+          outer rest)
+      | [] -> (
+          match Value.cell_contents (Machine.meta_eval_cell machine) with
+          | Some contents -> contents
+          | None ->
+              fail mode ~span:call_site ~level
+                (Error.Unsupported
+                   {
+                     what = "eval";
+                     by = "the current level, whose evaluator cell is empty";
+                   })))
+  | Value.Current_apply -> (
+      match Machine.current_overlays machine with
+      | { Value.overlay_apply = Some value; _ } :: _ -> value
+      | { Value.overlay_apply = None; _ } :: rest -> (
+          let rec outer = function
+            | [] -> (
+                match Value.cell_contents (Machine.meta_apply_cell machine) with
+                | Some contents -> contents
+                | None ->
+                    fail mode ~span:call_site ~level
+                      (Error.Unsupported
+                         {
+                           what = "apply";
+                           by = "the current level, whose evaluator cell is empty";
+                         }))
+            | { Value.overlay_apply = Some value; _ } :: _ -> value
+            | { Value.overlay_apply = None; _ } :: more -> outer more
+          in
+          outer rest)
+      | [] -> (
+          match Value.cell_contents (Machine.meta_apply_cell machine) with
+          | Some contents -> contents
+          | None ->
+              fail mode ~span:call_site ~level
+                (Error.Unsupported
+                   {
+                     what = "apply";
+                     by = "the current level, whose evaluator cell is empty";
+                   })))
 
 let run_code mode machine ~call_site node k =
   let global = Machine.global_env machine in
@@ -444,6 +504,7 @@ let apply_primitive mode machine ~call_site primitive arguments k =
       ~reflect:(fun ~call_site ~code ~env ~cont k ->
         reflect_down mode machine ~call_site ~code ~env ~cont k)
       ~meta:(fun ~call_site query -> meta_view mode machine ~call_site query)
+      ~overlay:(Machine.overlay_control machine)
       arguments k
   in
   let residualize () =

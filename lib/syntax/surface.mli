@@ -66,6 +66,14 @@ and shape =
   | Up of t
       (** [up { … }]: the body evaluates one level up, with the meta bindings of
           spec §5.2 in scope, and the level below resumes with its value. *)
+  | Meta_with of meta_with
+      (** [meta_with(eval = E, apply = F) { … }]: push an overlay frame for the
+          body's extent (spec §5.5, D8). Only [eval] and [apply] name slots;
+          anything else is refused at lowering. *)
+
+and meta_with = { overrides : meta_override list; meta_body : t }
+
+and meta_override = { override_name : name; override_value : t }
 
 and binding = {
   binding_kind : binding_kind;

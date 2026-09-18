@@ -16,14 +16,34 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 7 — mutation and effects. Done (7.1, 7.2, 7.3).
-- **Next:** 8.1 — persistent overlay frames and `meta_with`
-- **Last verified:** 2026-08-24 — `opam exec -- dune build @all`,
+- **Phase:** 8 — scoped meta-overrides. Done (8.1, 8.2).
+- **Next:** 9.1 — specialize known persistent and scoped evaluator changes
+- **Last verified:** 2026-09-18 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
   `opam exec -- dune exec ash -- --demo tracing`,
   `opam exec -- dune exec ash -- --demo level-2-counting`, and
   `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1` all
-  pass. Task 7.3 measured what 7.1 and 7.2 built. The effect-order corpus is 15
+  pass. Phase 8 measured what D8 chose: `meta_with(eval = …, apply = …) { … }`
+  pushes a persistent overlay frame — never save/mutate/restore — lookup
+  precedes the persistent cells, `NamedVar` never sees a frame (the body lowers
+  under the surrounding scope; only right-hand sides bind `eval`/`apply`, to
+  the outer effective evaluator), and every Ash-visible continuation captures
+  the pointer in effect at capture time and follows it on invoke without
+  mutating ambient state. `test/unit/meta_with_test.ml` proves it in 8 tests:
+  interception past the outermost node with the answer preserved and nothing
+  counted outside; nested frames stacking most-recent-outermost; eval/apply
+  slots independent and combinable; persistent cells untouched (a persistent
+  replacement installed with `up` still counts after, and only it counts
+  outside); unknown/repeated slots refused at lowering; capture-inside/
+  invoke-outside re-entering the captured pointer (abandon-then-escape, one
+  shot respected throughout — re-entrant double-use still needs multi-shot and
+  is deferred per spec) with ambient calls answering unintercepted; and a
+  nested error whose outer print survives the inner division-by-zero. ADR 0038.
+  Nothing pure moved: the criterion suite still proves its 73 depth-1 samples
+  against the same 906,708-dispatch / 2,125,589-cell-read tower figures and the
+  same 250 residual nodes; the registry grows 50 → 53 Reflection primitives
+  (`meta_current_eval`, `meta_current_apply`, `meta_with_run`), which is the
+  only golden change (53 global cells). Task 7.3 measured what 7.1 and 7.2 built. The effect-order corpus is 15
   programs that state their observation as an answer plus the expressions that
   read the store back, 3 whose failure the specializer had to leave in the
   residual, and 1 recorded boundary; at every depth 0–5 the tower run and the
@@ -78,7 +98,7 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
   hygienic let-insertion (5.2), the static/dynamic value model and
   `maybe-lift` mode (5.1), lazy tower (depths 0–5), the hygienic desugarer,
   `open fn` groups, the self-interpreter (`lib/self/eval.ash`) at layers 1 and
-  2, the 50-primitive registry, the full regression suite (unit, differential,
+  2, the 53-primitive registry, the full regression suite (unit, differential,
   laws, golden), and both packaged milestone demos.
 - **Blocker:** none
 
@@ -521,15 +541,24 @@ instead of becoming a residual failure in that branch.
 
 ## Phase 8 — scoped meta-overrides
 
-- [ ] **8.1 Implement persistent overlay frames and `meta_with`.**
+- [x] **8.1 Implement persistent overlay frames and `meta_with`.**
   - Overlay meta lookup precedes persistent cells; lexical `NamedVar` never sees
     overlays. Never use save/mutate/restore.
   - Accept: nested overrides shadow correctly without changing persistent state.
+  - Done (ADR 0038): `Machine.overlays` is a pointer to a persistent
+    `Value.overlay_frame list`; `meta_with` lowers to `meta_current_*` reads
+    plus `meta_with_run`; `test/unit/meta_with_test.ml` proves interception,
+    nesting, slot independence, persistent untouched, and surface refusals.
 
-- [ ] **8.2 Capture overlay context in continuations.**
+- [x] **8.2 Capture overlay context in continuations.**
   - Invocation follows the captured context pointer without mutating ambient
     context.
   - Accept: capture-inside/invoke-outside and nested-error law tests pass.
+  - Done (ADR 0038): `Machine.capture_continuation` wraps every Ash-visible
+    continuation and `callcc` captures `overlay_current()`; the law test
+    captures a node continuation inside, abandons through an outer escape, and
+    resumes once from the outside with the overlay restored and ambient clean
+    (one-shot respected; re-entrant double-use still needs multi-shot).
 
 ## Phase 9 — statically known reflective collapse
 

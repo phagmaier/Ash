@@ -574,7 +574,7 @@ All but the overlay law are tested in `test/laws/tower_laws_test.ml`, at depths 
 - [x] **Open recursion (OR)** — patching `eval` intercepts *every* recursive evaluation step, at arbitrary AST depth. Test in Phase 2. *(Done: `test/laws/open_recursion_test.ml`, including with the patched interpreter itself being interpreted; and at tower depth in `tower_laws_test.ml`, where the number of intercepted steps is shown not to depend on the tower's depth.)*
 - [x] **Reifier identity** — `id` above is observationally `fn(x) -> x`, including for effectful and non-terminating arguments. *(Done: value, effect order, closure, and two failure shapes; nontermination by a counted Ash step cap, never by wall time.)*
 - [x] **Level independence** — mutating `eval` at level *n+1* affects levels ≤ *n* and not level *n+1*'s own execution. *(Done, at depths 0–2. The negative half is the sharp one: a replacement that intercepted its own level would not return from its first step.)*
-- [ ] **Overlay discipline** — a continuation captured inside a `meta_with` extent and invoked outside it sees the overlay; the ambient meta-context is unaffected. *(Phase 8; `meta_with` does not exist yet.)*
+- [x] **Overlay discipline** — a continuation captured inside a `meta_with` extent and invoked outside it sees the overlay; the ambient meta-context is unaffected. *(Done: `test/unit/meta_with_test.ml` — nested frames shadow and restore without touching persistent cells, and capture-inside/invoke-outside re-enters the captured pointer while ambient calls answer without interception; one-shot respected throughout, re-entrant reuse still deferred to multi-shot. ADR 0038.)*
 - [x] **Error propagation** — an error at level *n* is catchable at level *n+1* and only there. *(Done as ownership plus non-resumption: Core has no handler form, so "catchable at *n+1*" is observed as the error being attributed to *n+1* and level *n* never resuming. A primitive's own argument diagnostics still carry no level — ADR 0023 deferred that deliberately, and a test pins the current behaviour.)*
 - [x] **One-shot enforcement** — second invocation of a continuation raises, rather than silently corrupting. *(Done, across the level boundary and at depth: the continuation is stored in a cell the level below shares, so it outlives the transfer.)*
 
@@ -803,6 +803,7 @@ Store splitting at dynamic joins; effect residualization per D7.
 ### Phase 8 — `meta_with` `[2]`
 Overlay frames (D8), interaction with captured continuations.
 - **Done when:** the overlay law in §5.7 passes, including capture-inside / invoke-outside.
+- **Done:** persistent overlay frames with `meta_with(eval = …, apply = …) { … }` (never save/mutate/restore), overlay lookup preceding persistent cells, `NamedVar` never seeing overlays, and continuations capturing the overlay pointer — measured by `test/unit/meta_with_test.ml` (8 tests: interception, nesting, slot independence, persistent untouched, surface refusals, capture/invoke with restored overlay and unaffected ambient, nested error). Registry 50 → 53 Reflection primitives; pure collapse figures unchanged (906,708 dispatches, 2,125,589 cell reads, 250 residual nodes). ADR 0038.
 
 ### Phase 9 — Static reflection collapses `[3]`
 Reflective modifications known at specialization time.

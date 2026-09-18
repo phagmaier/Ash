@@ -96,6 +96,7 @@ and primitive = {
     run:runner ->
     reflect:reflector ->
     meta:meta_reader ->
+    overlay:overlay_control ->
     value list ->
     (value -> answer) ->
     answer;
@@ -140,7 +141,17 @@ and primitive = {
           [level] is the tower level that evaluation belongs to, counted from
           the base program (spec §D9). A primitive that captures a continuation
           or raises needs it, because the same shared primitive value runs at
-          every level. Primitives that need none of this ignore all six
+          every level.
+
+          [overlay] is the calling machine's overlay stack (spec §D8): the
+          persistent list of frames [meta_with] pushes. [callcc] captures the
+          current list alongside the continuation so invoking it restores the
+          extent it was captured in; [meta_with_run] pushes a frame, runs its
+          thunk through [apply], and restores the saved list on return or
+          failure. Frames are never mutated, only the machine's pointer to
+          them — leaving an extent never touches the persistent cells, and a
+          captured list outlives the extent that pushed it through structural
+          sharing. Primitives that need none of this ignore all seven
           arguments. *)
 }
 
@@ -181,6 +192,36 @@ and meta_query =
           one deliberately depth-sensitive observation of §D9: [level] is
           relative and says nothing about the tower, while this says how deep the
           tower actually is. *)
+  | Current_eval
+      (** The effective evaluator of the calling level: the innermost overlay
+          frame overriding [eval], or the persistent cell's contents when no
+          frame does (spec §D8, Phase 8). This is what [meta_with]'s right-hand
+          sides wrap. *)
+  | Current_apply
+      (** Likewise for [apply]. *)
+
+and overlay_frame = {
+  overlay_eval : value option;
+  overlay_apply : value option;
+}
+(** One pushed [meta_with] frame (spec §D8). [None] means the frame leaves that
+    slot alone and lookup falls through to the next frame, then to the
+    persistent cell. Frames are immutable; the machine holds a mutable pointer
+    to the list, so pushing shares the tail and capturing shares the spine. *)
+
+and overlay_control = {
+  overlay_current : unit -> overlay_frame list;
+  overlay_push : overlay_frame -> unit;
+  overlay_restore : overlay_frame list -> unit;
+}
+(** The calling machine's overlay stack, as three closures over it. Passed to
+    every primitive alongside [apply] and [meta] because one registry serves
+    the whole tower: only the applying evaluator knows which machine is asking.
+    [overlay_current] answers the pointer (shared, never copied);
+    [overlay_push] prepends a frame; [overlay_restore] resets the pointer,
+    which is how [meta_with_run] leaves its extent and how a captured
+    continuation re-enters the extent it was captured in. Neither mutates a
+    frame or a persistent cell. *)
 
 and arity = Exactly of int | At_least of int
 

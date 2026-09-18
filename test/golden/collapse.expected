@@ -6,7 +6,7 @@
 
 Sizes
   Expanded semantic tower:        25 nodes  (19 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       1 node
 
 Interpretation left in the residual
@@ -100,7 +100,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        37 nodes  (19 + 3 x 6)
-  Materialized representation:    3 upper levels, 150 global cells, 9 group cells
+  Materialized representation:    3 upper levels, 159 global cells, 9 group cells
   Residual:                       1 node
 
 Interpretation left in the residual
@@ -147,7 +147,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        14 nodes  (8 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       12 nodes
 
 Interpretation left in the residual
@@ -194,7 +194,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        14 nodes  (8 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       2 nodes
 
 Interpretation left in the residual
@@ -241,7 +241,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        26 nodes  (20 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       52 nodes
 
 Interpretation left in the residual
@@ -288,7 +288,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        28 nodes  (22 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       165 nodes
 
 Interpretation left in the residual
@@ -336,7 +336,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        35 nodes  (29 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       45 nodes
 
 Interpretation left in the residual
@@ -383,7 +383,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        15 nodes  (9 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       13 nodes
 
 Interpretation left in the residual
@@ -430,7 +430,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        11 nodes  (5 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       5 nodes
 
 Interpretation left in the residual
@@ -477,7 +477,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        12 nodes  (6 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       1 node
 
 Interpretation left in the residual
@@ -524,7 +524,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        17 nodes  (11 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       17 nodes
 
 Interpretation left in the residual
@@ -571,7 +571,7 @@ Basis
 
 Sizes
   Expanded semantic tower:        14 nodes  (8 + 1 x 6)
-  Materialized representation:    1 upper level, 50 global cells, 3 group cells
+  Materialized representation:    1 upper level, 53 global cells, 3 group cells
   Residual:                       none: specialization failed
 
 Interpretation left in the residual

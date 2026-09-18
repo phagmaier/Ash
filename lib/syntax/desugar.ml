@@ -65,7 +65,7 @@ let required_primitives =
     "list"; "list?"; "empty?"; "head"; "tail"; "code?"; "code_view";
     "code_splice"; "code_match"; "match_error"; "open_cell"; "open_deref";
     "open_set"; "resume"; "meta_eval"; "meta_apply"; "meta_global";
-    "tower_level";
+    "tower_level"; "meta_current_eval"; "meta_current_apply"; "meta_with_run";
   ]
 
 let fail ~span cause = Error.raise_cause ~phase:Error.Desugar ~span cause
@@ -88,6 +88,7 @@ let by_match = "desugar/match"
 let by_open = "desugar/open"
 let by_quote = "desugar/quote"
 let by_up = "desugar/up"
+let by_meta_with = "desugar/meta_with"
 
 let bind_name ?(open_cell = false) scope ~assignable name ident =
   { scope with lexical = Names.add name { ident; assignable; open_cell } scope.lexical }
@@ -356,6 +357,9 @@ let rec lower mode scope (node : Surface.t) =
             ~value:(lower mode scope assignment_value))
   | Surface.Group inner -> lower mode scope inner
   | Surface.Up body -> lower_up mode scope ~span ~body
+  | Surface.Meta_with with_ ->
+      lower_meta_with mode scope ~span ~overrides:with_.Surface.overrides
+        ~body:with_.Surface.meta_body
   | Surface.Match { Surface.scrutinee; clauses } ->
       lower_match mode scope ~span ~scrutinee ~clauses
   | Surface.Quote quoted -> (
@@ -410,7 +414,7 @@ and lower_pipeline mode scope ~span ~left ~right =
   | Surface.Function _ | Surface.Block _ | Surface.Conditional _
   | Surface.List_literal _ | Surface.Unary _ | Surface.Binary _ | Surface.Assignment _
   | Surface.Group _ | Surface.Match _ | Surface.Quote _ | Surface.Splice _
-  | Surface.Up _ ->
+  | Surface.Up _ | Surface.Meta_with _ ->
       gen by_pipe
         (Core.app ~span ~func:(lower mode scope right) ~args:[ piped ])
 
@@ -478,6 +482,106 @@ and lower_up mode scope ~span ~body =
        ~func:(gen by_up (Core.reifier ~span ~exp ~env ~cont ~body:reifier_body))
        ~args:[])
 
+(* {1 Scoped meta-overrides}
+
+   [meta_with(eval = E, apply = F) { B }] pushes an overlay frame for [B]'s
+   extent (spec §5.5, D8): overlay lookup precedes the persistent cells, and
+   leaving the extent resets the machine's pointer rather than mutating any
+   cell back. The right-hand sides wrap the effective evaluator, so each sees
+   the outer [eval]/[apply] under those printed names — the same shadowing an
+   [up] body gets — while [B] itself runs with the pushed frame in effect for
+   every step it takes. A direct [eval] read in [B] answers the pushed value
+   when its slot was overridden and the outer one otherwise, which is what
+   makes [parameterize]-style nesting read correctly as well as run correctly.
+
+   Lowered with three new Reflection primitives rather than a new Core form:
+   [meta_current_eval]/[meta_current_apply] read the effective evaluator, and
+   [meta_with_run] pushes a frame ([unit] for "leave alone"), runs a nullary
+   thunk, and restores — including on failure, so an error never leaks an
+   extent. Core is untouched. *)
+and lower_meta_with mode scope ~span ~overrides ~body =
+  let slot_names = [ "eval"; "apply" ] in
+  List.iter
+    (fun override ->
+      let text = override.Surface.override_name.Surface.text in
+      if not (List.mem text slot_names) then
+        fail ~span:override.Surface.override_name.Surface.span
+          (Error.Unexpected
+             {
+               found = Printf.sprintf "the override `%s`" text;
+               expected = "an override of `eval` or `apply`";
+             }))
+    overrides;
+  let seen = ref [] in
+  List.iter
+    (fun override ->
+      let text = override.Surface.override_name.Surface.text in
+      if List.mem text !seen then
+        fail ~span:override.Surface.override_name.Surface.span
+          (Error.Duplicate_binder text)
+      else seen := text :: !seen)
+    overrides;
+  let reader name =
+    gen by_meta_with
+      (Core.app ~span ~func:(primitive scope ~by:by_meta_with ~span name) ~args:[])
+  in
+  let bind binder value rest =
+    gen by_meta_with (Core.let_ ~span ~binder ~value ~body:rest)
+  in
+  let outer_eval_tmp = Ident.fresh "outer_eval" in
+  let outer_apply_tmp = Ident.fresh "outer_apply" in
+  let eval_ident = Ident.fresh "eval" in
+  let apply_ident = Ident.fresh "apply" in
+  let rhs_scope =
+    bind_names scope ~assignable:false
+      [ ("eval", eval_ident); ("apply", apply_ident) ]
+  in
+  (* Right-hand sides in source order, each seeing the outer evaluator. A slot
+     with no override passes [unit], which [meta_with_run] reads as "alone". *)
+  let new_binders =
+    List.map
+      (fun override ->
+        let binder = Ident.fresh (override.Surface.override_name.Surface.text ^ "_override") in
+        let value = lower mode rhs_scope override.Surface.override_value in
+        (override.Surface.override_name.Surface.text, binder, value))
+      overrides
+  in
+  let arg_of text =
+    match List.find_opt (fun (name, _, _) -> String.equal name text) new_binders with
+    | Some (_, binder, _) -> gen by_meta_with (Core.var ~span binder)
+    | None -> gen by_meta_with (Core.lit ~span Constant.Unit)
+  in
+  (* The body runs with the pushed frame in effect for every step it takes, but
+     the frame is never a lexical binding: [NamedVar] searches only explicit
+     environments and never sees an overlay (locked decision), and a direct
+     [eval] read in the body answers whatever the surrounding scope binds, not
+     the pushed value. The right-hand sides above are the one place [eval] and
+     [apply] name the effective evaluator, and they see the outer one. *)
+  let thunk =
+    gen by_meta_with
+      (Core.lam ~span ~params:[] ~body:(lower mode scope body))
+  in
+  let call =
+    call_primitive scope ~by:by_meta_with ~span "meta_with_run"
+      [
+        arg_of "eval";
+        arg_of "apply";
+        thunk;
+      ]
+  in
+  let with_new =
+    List.fold_right
+      (fun (_, binder, value) rest -> bind binder value rest)
+      new_binders call
+  in
+  bind outer_eval_tmp (reader "meta_current_eval")
+    (bind outer_apply_tmp (reader "meta_current_apply")
+       (bind eval_ident
+          (gen by_meta_with (Core.var ~span outer_eval_tmp))
+          (bind apply_ident
+             (gen by_meta_with (Core.var ~span outer_apply_tmp))
+             with_new)))
+
 (* {1 Statements}
 
    A statement list is a right-nested chain of [Let]s. Definitions bind for the
@@ -542,7 +646,7 @@ and lower_function_group mode scope ~span ~open_group ~group ~rest =
         | Surface.Call _ | Surface.Block _ | Surface.Conditional _
         | Surface.List_literal _ | Surface.Unary _ | Surface.Binary _
         | Surface.Assignment _ | Surface.Group _ | Surface.Match _ | Surface.Quote _
-        | Surface.Splice _ | Surface.Up _ ->
+        | Surface.Splice _ | Surface.Up _ | Surface.Meta_with _ ->
             invalid_arg "Desugar.lower_function_group: not a named function")
       group
   in

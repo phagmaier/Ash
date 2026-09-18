@@ -243,21 +243,24 @@ let make ~name ~arity ~cls ?(observes = Observation.whole_values) impl =
 
 let nullary name cls impl =
   let arity = Value.Exactly 0 in
-  make ~name ~arity ~cls (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+  make ~name ~arity ~cls
+    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
       match args with
       | [] -> k (impl ~span:call_site)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let unary ?observes name cls impl =
   let arity = Value.Exactly 1 in
-  make ~name ~arity ~cls ?observes (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+  make ~name ~arity ~cls ?observes
+    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
       match args with
       | [ a ] -> k (impl ~span:call_site a)
       | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
 
 let binary ?observes name cls impl =
   let arity = Value.Exactly 2 in
-  make ~name ~arity ~cls ?observes (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+  make ~name ~arity ~cls ?observes
+    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
       match args with
       | [ a; b ] -> k (impl ~span:call_site a b)
       | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
@@ -320,7 +323,7 @@ let pure =
         Value.Num (List.length (items ~span a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
       ~observes:(Observation.uniform Observation.Unobserved)
-      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k -> k (Value.List args));
+      (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k -> k (Value.List args));
     (* The one type test Ash has. The self-interpreter needs it because its
        value domain distinguishes an interpreted closure — a list carrying a
        private tag — from an interpreted scalar, and every other list operation
@@ -354,7 +357,7 @@ let pure =
     unary "code_name" Effect_class.Pure (fun ~span value ->
         Value.Str (Ident.name (code_variable ~span value)));
     make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ template; marker; replacement ] ->
             let template = code ~span:call_site template in
@@ -365,7 +368,7 @@ let pure =
             wrong_arity ~span:call_site ~name:"code_splice"
               ~arity:(Value.Exactly 3) args);
     make ~name:"code_match" ~arity:(Value.At_least 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | template :: subject :: markers ->
             let template = code ~span:call_site template in
@@ -396,7 +399,7 @@ let pure =
        node rather than at the helper call in [eval.ash]. The descriptor is a
        closed protocol, not an arbitrary host exception escape hatch. *)
     make ~name:"raise_at" ~arity:(Value.Exactly 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args _k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args _k ->
         match args with
         | [ site; descriptor ] ->
             (* An interpreted level fails where the ground evaluator would, so
@@ -507,7 +510,7 @@ let compile_time log =
 let control =
   [
     make ~name:"callcc" ~arity:(Value.Exactly 1) ~cls:Effect_class.Control
-      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay args k ->
         match args with
         | [ receiver ] ->
             (* [k] is the continuation of the [callcc] call itself, so invoking
@@ -515,8 +518,15 @@ let control =
                would have returned into. The level is the applying evaluator's:
                one registry serves the whole tower, so a captured continuation
                records where it came from and a reifier holding one cannot
-               resume it on the wrong machine. *)
-            let captured = Value.continuation ~capture:call_site ~level k in
+               resume it on the wrong machine. It also captures the overlay
+               pointer in effect here (§D8): invoking later re-enters that
+               extent without mutating the ambient list. *)
+            let captured_overlays = overlay.Value.overlay_current () in
+            let captured =
+              Value.continuation ~capture:call_site ~level (fun value ->
+                  overlay.Value.overlay_restore captured_overlays;
+                  k value)
+            in
             apply ~call_site receiver [ Value.Continuation captured ] k
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"callcc" ~arity:(Value.Exactly 1) args);
@@ -527,7 +537,7 @@ let control =
        exactly one argument. The continuation it transfers to ignores the
        continuation of this call: [resume] does not return. *)
     make ~name:"resume" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ cont; value ] ->
             apply ~call_site (continuation ~span:call_site cont) [ value ] k
@@ -548,7 +558,7 @@ let control =
        does not, residualizes it. That is the same treatment [callcc] gets, and
        for the same reason. *)
     make ~name:"invoke" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ callee; arguments ] ->
             apply ~call_site callee (items ~span:call_site arguments) k
@@ -558,7 +568,7 @@ let control =
        supplied as Code. This is the source-preserving application path used by
        the real-Code self-interpreter. *)
     make ~name:"invoke_at" ~arity:(Value.Exactly 3) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ site; callee; arguments ] ->
             let call_site = source_span ~span:call_site site in
@@ -581,7 +591,7 @@ let control =
    primitive with its own class and its own site in a residual program. *)
 let meta_reader name query =
   make ~name ~arity:(Value.Exactly 0) ~cls:Effect_class.Reflection
-    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta args k ->
+    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta ~overlay:_ args k ->
       match args with
       | [] -> k (meta ~call_site query)
       | _ :: _ -> wrong_arity ~span:call_site ~name ~arity:(Value.Exactly 0) args)
@@ -589,13 +599,13 @@ let meta_reader name query =
 let reflection =
   [
     make ~name:"lift" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ value ] -> k (Value.Code (lift ~call_site value))
         | [] | _ :: _ :: _ ->
             wrong_arity ~span:call_site ~name:"lift" ~arity:(Value.Exactly 1) args);
     make ~name:"run" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ value ] -> run ~call_site (code ~span:call_site value) k
         | [] | _ :: _ :: _ ->
@@ -606,7 +616,7 @@ let reflection =
        identity function — the argument is evaluated once, on the level that
        wrote it, with that level's effects in that order. *)
     make ~name:"reflect" ~arity:(Value.Exactly 3) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect ~meta:_ args k ->
+      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect ~meta:_ ~overlay:_ args k ->
         match args with
         | [ subject; env; cont ] ->
             reflect ~call_site
@@ -621,7 +631,7 @@ let reflection =
        specialization would report the failure at whatever level the specializer
        happened to run at, which is the same mistake D7 names for [print]. *)
     make ~name:"meta_error" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args _k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args _k ->
         match args with
         | [ message ] ->
             Error.raise_cause ~phase:Error.Evaluate ~span:call_site ~level
@@ -645,7 +655,7 @@ let reflection =
        the base program always answers 0 (§D9). This is the relative numbering
        that keeps depth out of the invariance claim. *)
     make ~name:"tower_level" ~arity:(Value.Exactly 0) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [] -> k (Value.Num level)
         | _ :: _ ->
@@ -656,6 +666,54 @@ let reflection =
        point — the collapse report can detect it syntactically instead of having
        to prove it. *)
     meta_reader "tower_depth" Value.Tower_depth;
+    (* The effective evaluator of the calling level (spec §D8). The innermost
+       overlay frame overriding the slot wins, otherwise the persistent cell's
+       contents. This is what [meta_with]'s right-hand sides wrap: reading it
+       never creates an overlay, and writing it is not possible — pushing is
+       [meta_with_run]'s job. *)
+    meta_reader "meta_current_eval" Value.Current_eval;
+    meta_reader "meta_current_apply" Value.Current_apply;
+    (* Dynamically scoped overlay (spec §5.5, D8). [eval_override] and
+       [apply_override] are the new slot values, or [unit] for "leave alone";
+       [thunk] is a nullary function whose body runs with the pushed frame.
+       Frames are never mutated and persistent cells never touched: pushing
+       shares the tail, capturing shares the spine, and leaving resets the
+       pointer — including on failure, so an error inside the extent does not
+       leak it. A continuation captured inside and invoked outside re-enters the
+       captured list (see [callcc] and [Machine.capture_continuation]). *)
+    make ~name:"meta_with_run" ~arity:(Value.Exactly 3) ~cls:Effect_class.Reflection
+      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay args k ->
+        match args with
+        | [ eval_override; apply_override; thunk ] ->
+            let slot = function
+              | Value.Unit -> None
+              | (Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _
+                | Value.List _ | Value.Closure _ | Value.Reifier _
+                | Value.Continuation _ | Value.Environment _ | Value.Cell _
+                | Value.Code _ | Value.Primitive _) as value ->
+                  Some value
+            in
+            let frame =
+              {
+                Value.overlay_eval = slot eval_override;
+                overlay_apply = slot apply_override;
+              }
+            in
+            (match frame with
+            | { Value.overlay_eval = None; Value.overlay_apply = None } ->
+                apply ~call_site thunk [] k
+            | _ ->
+                let saved = overlay.Value.overlay_current () in
+                overlay.Value.overlay_push frame;
+                (try apply ~call_site thunk [] (fun value ->
+                     overlay.Value.overlay_restore saved;
+                     k value)
+                 with exn ->
+                   overlay.Value.overlay_restore saved;
+                   raise exn))
+        | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
+            wrong_arity ~span:call_site ~name:"meta_with_run"
+              ~arity:(Value.Exactly 3) args);
   ]
 
 let build io log dereferences =

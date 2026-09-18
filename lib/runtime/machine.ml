@@ -5,6 +5,11 @@ type args_cont = Value.value list -> Value.answer
 
 type evaluator_mode = Ground | Staged_identity | Staged_lift
 
+type overlay_frame = Value.overlay_frame = {
+  overlay_eval : Value.value option;
+  overlay_apply : Value.value option;
+}
+
 type t = {
   mutable eval_cell : eval_fn;
   mutable apply_cell : apply_fn;
@@ -13,6 +18,7 @@ type t = {
   mutable levels : levels option;
   mutable meta_eval : Value.cell option;
   mutable meta_apply : Value.cell option;
+  mutable overlays : overlay_frame list;
   mutable steps : int;
   mutable eval_calls : int;
   mutable apply_calls : int;
@@ -43,6 +49,7 @@ let create ?(evaluator_mode = Ground) ~eval ~apply ~eval_list () =
     levels = None;
     meta_eval = None;
     meta_apply = None;
+    overlays = [];
     steps = 0;
     eval_calls = 0;
     apply_calls = 0;
@@ -55,23 +62,121 @@ let create ?(evaluator_mode = Ground) ~eval ~apply ~eval_list () =
 
 let evaluator_mode machine = machine.evaluator_mode
 
+(* {1 Persistent overlay frames (spec §D8, Phase 8)}
+
+   A machine holds a mutable pointer to a persistent list of frames. Pushing
+   prepends and shares the tail; capturing shares the spine; leaving an extent
+   resets the pointer. Frames themselves are never mutated, and the persistent
+   group cells are never touched by an overlay — that is what makes this
+   dynamic scope rather than save/mutate/restore (invariant 8). Lookup precedes
+   the persistent cells: the innermost frame overriding a slot wins, a frame
+   that leaves a slot alone ([None]) falls through, and no frame means the
+   persistent cell decides. Lexical [NamedVar] never sees this list: it searches
+   only explicit environments, so overlays are invisible to it by
+   construction. *)
+
+let rec find_eval_override = function
+  | [] -> None
+  | { overlay_eval = Some value; _ } :: _ -> Some value
+  | { overlay_eval = None; _ } :: rest -> find_eval_override rest
+
+let rec find_apply_override = function
+  | [] -> None
+  | { overlay_apply = Some value; _ } :: _ -> Some value
+  | { overlay_apply = None; _ } :: rest -> find_apply_override rest
+
+let current_overlays machine = machine.overlays
+let set_overlays machine overlays = machine.overlays <- overlays
+let push_overlay machine frame = machine.overlays <- frame :: machine.overlays
+
+let overlay_control machine : Value.overlay_control =
+  {
+    Value.overlay_current = (fun () -> machine.overlays);
+    overlay_push = (fun frame -> machine.overlays <- frame :: machine.overlays);
+    overlay_restore = (fun saved -> machine.overlays <- saved);
+  }
+
+(* A captured continuation captures a pointer to the meta-context in effect at
+   capture time (spec §D8). Invoking follows that pointer: the target machine's
+   pointer is reset to the captured list before the suspended computation
+   resumes, without mutating the ambient list or any persistent cell. The list
+   is persistent, so the captured spine outlives the extent that pushed it. *)
+let capture_continuation machine ~capture k =
+  let captured = machine.overlays in
+  let captured_level =
+    match machine.levels with None -> 0 | Some levels -> levels.level_index
+  in
+  Value.continuation ~capture ~level:captured_level (fun value ->
+      machine.overlays <- captured;
+      k value)
+
 (* The dereference points. Reading the cell here, on every call, is what makes a
    replacement take effect from the next step rather than the next top-level
-   evaluation. *)
+   evaluation. Overlays are consulted first: a frame that overrides the slot
+   runs on the machine above (materializing it on demand, like the persistent
+   dispatcher below), so the wrapper never intercepts its own execution. *)
 
-let eval machine node env k =
+let above_opt machine =
+  match machine.levels with
+  | None -> None
+  | Some levels -> Some (levels.level_above ())
+
+let rec eval machine node env k =
   machine.steps <- machine.steps + 1;
   machine.eval_calls <- machine.eval_calls + 1;
   machine.cell_dereferences <- machine.cell_dereferences + 1;
-  let current = machine.eval_cell in
-  current machine node env k
+  match find_eval_override machine.overlays with
+  | Some override -> (
+      let span = Core.span node in
+      match above_opt machine with
+      | Some upper ->
+          let cont = capture_continuation machine ~capture:span k in
+          apply upper ~call_site:span override
+            [
+              Value.Code node;
+              Value.Environment env;
+              Value.Continuation cont;
+            ]
+            (fun answer -> answer)
+      | None ->
+          (* No tower installed: there is no machine above to run the wrapper
+             on, so run it here with overlays disabled. Otherwise the wrapper's
+             own body would re-enter this same frame and diverge. The captured
+             continuation still restores the extent for what follows. *)
+          let cont = capture_continuation machine ~capture:span k in
+          machine.overlays <- [];
+          apply machine ~call_site:span override
+            [
+              Value.Code node;
+              Value.Environment env;
+              Value.Continuation cont;
+            ]
+            (fun answer -> answer))
+  | None ->
+      let current = machine.eval_cell in
+      current machine node env k
 
-let apply machine ~call_site callee arguments k =
+and apply machine ~call_site callee arguments k =
   machine.steps <- machine.steps + 1;
   machine.apply_calls <- machine.apply_calls + 1;
   machine.cell_dereferences <- machine.cell_dereferences + 1;
-  let current = machine.apply_cell in
-  current machine ~call_site callee arguments k
+  match find_apply_override machine.overlays with
+  | Some override -> (
+      match above_opt machine with
+      | Some upper ->
+          let cont = capture_continuation machine ~capture:call_site k in
+          apply upper ~call_site override
+            [ callee; Value.List arguments; Value.Continuation cont ]
+            (fun answer -> answer)
+      | None ->
+          let cont = capture_continuation machine ~capture:call_site k in
+          machine.overlays <- [];
+          apply machine ~call_site override
+            [ callee; Value.List arguments; Value.Continuation cont ]
+            (fun answer -> answer))
+  | None ->
+      let current = machine.apply_cell in
+      current machine ~call_site callee arguments k
 
 let eval_list machine nodes env k =
   machine.steps <- machine.steps + 1;
@@ -151,7 +256,8 @@ let default_eval_value machine base =
       prim_class = Effect_class.Reflection;
       prim_observes = Observation.whole_values;
       prim_impl =
-        (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+        (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_
+            args k ->
           match args with
           | [ code; environment; cont ] -> (
               match (code, environment) with
@@ -172,7 +278,8 @@ let default_apply_value machine base =
       prim_class = Effect_class.Reflection;
       prim_observes = Observation.whole_values;
       prim_impl =
-        (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+        (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_
+            args k ->
           match args with
           | [ callee; arguments; cont ] -> (
               match arguments with
@@ -215,9 +322,9 @@ let meta_eval_cell machine =
                   Value.Environment env;
                   (* This level's continuation, one-shot like every other (§D4).
                      A replacement that never invokes it abandons this level, the
-                     same way an unresumed reifier does. *)
-                  Value.Continuation
-                    (Value.continuation ~capture:span ~level:(level machine) k);
+                     same way an unresumed reifier does. Captured with its
+                     overlay pointer (§D8). *)
+                  Value.Continuation (capture_continuation machine ~capture:span k);
                 ]
                 (fun answer -> answer)
           (* [Value.cell] creates the cell filled and [open_set] only ever fills
@@ -247,7 +354,7 @@ let meta_apply_cell machine =
                   callee;
                   Value.List arguments;
                   Value.Continuation
-                    (Value.continuation ~capture:call_site ~level:(level machine) k);
+                    (capture_continuation machine ~capture:call_site k);
                 ]
                 (fun answer -> answer)
           | None -> base machine ~call_site callee arguments k);

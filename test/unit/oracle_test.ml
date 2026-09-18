@@ -294,7 +294,7 @@ let test_frozen () =
       prim_class = Effect_class.Observable_effect;
       prim_observes = Observation.whole_values;
       prim_impl =
-        (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ args k ->
+        (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
           logged := args;
           k Value.Unit);
     }

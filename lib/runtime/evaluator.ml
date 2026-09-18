@@ -37,8 +37,12 @@ let shift_up machine ~exp ~env ~reifier k =
   | Some upper ->
       let definition = reifier.Value.reif_def in
       (* The continuation belongs to level [n]: it resumes that machine's
-         computation, and it is one-shot like every other (spec §D4). *)
-      let continuation = Value.continuation ~capture:(Core.span exp) ~level k in
+         computation, and it is one-shot like every other (spec §D4). It also
+         captures that level's overlay pointer (§D8), so invoking it from above
+         re-enters the extent it was captured in. *)
+      let continuation =
+        Machine.capture_continuation machine ~capture:(Core.span exp) k
+      in
       let meta =
         [
           (definition.Core.exp_param, Value.Code exp);
@@ -86,6 +90,64 @@ let meta_view machine ~call_site query =
   | Value.Below_apply_cell -> Value.Cell (Machine.meta_apply_cell (below "apply"))
   | Value.Below_global_env -> Value.Environment (Machine.global_env (below "global"))
   | Value.Tower_depth -> Value.Num (Machine.tower_depth machine)
+  | Value.Current_eval -> (
+      match Machine.current_overlays machine with
+      | { Value.overlay_eval = Some value; _ } :: _ -> value
+      | { Value.overlay_eval = None; _ } :: rest -> (
+          let rec outer = function
+            | [] -> (
+                match Value.cell_contents (Machine.meta_eval_cell machine) with
+                | Some contents -> contents
+                | None ->
+                    fail ~span:call_site ~level
+                      (Error.Unsupported
+                         {
+                           what = "eval";
+                           by = "the current level, whose evaluator cell is empty";
+                         }))
+            | { Value.overlay_eval = Some value; _ } :: _ -> value
+            | { Value.overlay_eval = None; _ } :: more -> outer more
+          in
+          outer rest)
+      | [] -> (
+          match Value.cell_contents (Machine.meta_eval_cell machine) with
+          | Some contents -> contents
+          | None ->
+              fail ~span:call_site ~level
+                (Error.Unsupported
+                   {
+                     what = "eval";
+                     by = "the current level, whose evaluator cell is empty";
+                   })))
+  | Value.Current_apply -> (
+      match Machine.current_overlays machine with
+      | { Value.overlay_apply = Some value; _ } :: _ -> value
+      | { Value.overlay_apply = None; _ } :: rest -> (
+          let rec outer = function
+            | [] -> (
+                match Value.cell_contents (Machine.meta_apply_cell machine) with
+                | Some contents -> contents
+                | None ->
+                    fail ~span:call_site ~level
+                      (Error.Unsupported
+                         {
+                           what = "apply";
+                           by = "the current level, whose evaluator cell is empty";
+                         }))
+            | { Value.overlay_apply = Some value; _ } :: _ -> value
+            | { Value.overlay_apply = None; _ } :: more -> outer more
+          in
+          outer rest)
+      | [] -> (
+          match Value.cell_contents (Machine.meta_apply_cell machine) with
+          | Some contents -> contents
+          | None ->
+              fail ~span:call_site ~level
+                (Error.Unsupported
+                   {
+                     what = "apply";
+                     by = "the current level, whose evaluator cell is empty";
+                   })))
 
 (* Every recursive call below goes through [Machine], never directly to one of
    these functions: that is what makes a replaced cell intercept the next step
@@ -245,6 +307,7 @@ let apply_default machine ~call_site callee arguments k =
           ~reflect:(fun ~call_site ~code ~env ~cont k ->
             reflect_down machine ~call_site ~code ~env ~cont k)
           ~meta:(fun ~call_site query -> meta_view machine ~call_site query)
+          ~overlay:(Machine.overlay_control machine)
           arguments k
   | Value.Reifier _ ->
       (* Reification needs the unevaluated call expression, which [eval] has and
