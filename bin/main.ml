@@ -15,14 +15,25 @@ let list_demos () =
   exit 0
 
 let run_demo name =
-  match Ash_examples.Demo.find name with
-  | Some demo ->
-      print_string (Ash_examples.Demo.report_to_string (Ash_examples.Demo.run demo));
-      exit 0
-  | None ->
-      Printf.eprintf "ash: no demo named `%s`. Known demos: %s\n" name
-        (String.concat ", " Ash_examples.Demo.names);
-      exit 2
+  let protect f =
+    try f ()
+    with
+    | Ash_core.Error.Ash_error error ->
+        Printf.eprintf "ash: %s\n" (Ash_core.Error.to_string error);
+        exit 1
+    | Stack_overflow ->
+        Printf.eprintf "ash: host stack exhausted while running the demo\n";
+        exit 1
+  in
+  protect (fun () ->
+      match Ash_examples.Demo.find name with
+      | Some demo ->
+          print_string (Ash_examples.Demo.report_to_string (Ash_examples.Demo.run demo));
+          exit 0
+      | None ->
+          Printf.eprintf "ash: no demo named `%s`. Known demos: %s\n" name
+            (String.concat ", " Ash_examples.Demo.names);
+          exit 2)
 
 (* The collapse report (spec §9.4). The depth is an ordinary option, so it is
    collected first and acted on after parsing rather than depending on the order
@@ -33,20 +44,26 @@ let show_residual = ref false
 let json = ref false
 
 let read_file path =
-  match open_in_bin path with
-  | channel ->
-      let length = in_channel_length channel in
-      let contents = really_input_string channel length in
-      close_in channel;
-      Some contents
-  | exception Sys_error _ -> None
+  try
+    let channel = open_in_bin path in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr channel)
+      (fun () ->
+        let length = in_channel_length channel in
+        Some (really_input_string channel length))
+  with Sys_error _ -> None
 
 let run_collapse path =
+  if !depth < 0 then (
+    Printf.eprintf "ash: --depth must be non-negative, got %d\n" !depth;
+    exit 2);
   match read_file path with
   | None ->
       Printf.eprintf "ash: cannot read `%s`\n" path;
       exit 2
   | Some source -> (
+      (if !json && !show_residual then
+         Printf.eprintf "ash: warning: --show-residual is ignored with --json\n");
       match
         (if !json then
            Ash_collapse.Collapse.json_report ~depth:!depth ~file:path ~name:path
@@ -61,6 +78,9 @@ let run_collapse path =
           exit 0
       | exception Ash_core.Error.Ash_error error ->
           Printf.eprintf "ash: %s\n" (Ash_core.Error.to_string error);
+          exit 1
+      | exception Stack_overflow ->
+          Printf.eprintf "ash: host stack exhausted while collapsing `%s`\n" path;
           exit 1)
 
 let options =

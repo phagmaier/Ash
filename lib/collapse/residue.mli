@@ -39,6 +39,14 @@ type t = {
       (** Applications of [code_view] or [code_match]: a Core constructor being
           dispatched on at runtime. *)
   named_var_lookups : int;  (** [NamedVar] nodes: lookups by printed name. *)
+  control_sites : int;
+      (** Applications of surviving control-class operations other than
+          [resume] — [invoke], [invoke_at], [callcc] — plus the open-group
+          cell operations [open_set] and [open_cell]. These dispatch through
+          the evaluator's own machinery rather than compiling to ordinary
+          calls, so they are interpretation sites. [resume] is excluded:
+          transferring to a first-class continuation is ordinary control
+          flow, the continuation analogue of applying a closure. *)
   reflection_boundaries : (string * int) list;
       (** Applications of reflection-class primitives, by primitive name, sorted.
           Empty for the pure fragment. *)

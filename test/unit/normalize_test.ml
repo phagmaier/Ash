@@ -240,6 +240,45 @@ let test_effects () =
     (same_run (run ~registry env effectful_flatten) (run ~registry env flattened));
   check_idempotent "effectful flattening" effectful_flatten
 
+(* {1 Reflective name lookup} *)
+
+let test_named_var () =
+  (* A [NamedVar] resolves by printed name against the lexical environment at
+     run time, so it can observe a binding no ordinary variable mentions.
+     Dropping the binding dangles the lookup: the program answers 5, the
+     broken normal form fails unbound. *)
+  let by_name = read scope "(let x (lit 5) (named-var \"x\"))" in
+  let kept =
+    match Core.shape (Normalize.normalize by_name) with
+    | Core.Let _ -> true
+    | _ -> false
+  in
+  check "a same-name NamedVar keeps its binding" kept;
+  check "a same-name NamedVar runs the same"
+    (same_run (run ~registry env by_name)
+       (run ~registry env (Normalize.normalize by_name)));
+  check_idempotent "a same-name NamedVar" by_name;
+
+  (* Same through the substitution path: the ordinary use would fold, but the
+     binding must survive for the reflective one. *)
+  let mixed =
+    read scope "(let x (lit 5) (app (var list) (var x) (named-var \"x\")))"
+  in
+  check "a NamedVar beside an ordinary use runs the same"
+    (same_run (run ~registry env mixed)
+       (run ~registry env (Normalize.normalize mixed)));
+  check_idempotent "a NamedVar beside an ordinary use" mixed;
+
+  (* A [NamedVar] spelling a different name constrains nothing: the unused
+     binding still drops. *)
+  let other =
+    read scope "(let x (lit 5) (let w (named-var \"w\") (var y)))"
+  in
+  equals_normalized "a different-name NamedVar drops the binding"
+    "(let w (named-var \"w\") (var y))"
+    (Normalize.normalize other);
+  check_idempotent "a different-name NamedVar" other
+
 (* {1 Data that is not code to be rewritten} *)
 
 let test_data () =
@@ -333,6 +372,8 @@ let () =
      Printf.printf "effects ok\n";
      test_data ();
      Printf.printf "data ok\n";
+     test_named_var ();
+     Printf.printf "named var ok\n";
      test_semantics ();
      Printf.printf "semantics ok\n";
      test_provenance ();

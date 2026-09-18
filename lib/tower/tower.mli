@@ -29,7 +29,13 @@ type materialized_runtime_size = {
   reachable_words : int;
       (** OCaml heap words reachable from the tower value, including the ground
           baseline and shared registry. This is an actual representation
-          measurement, not an interpreter-AST estimate. *)
+          measurement, not an interpreter-AST estimate. Note the deliberate
+          asymmetry in this record: the cell counts are marginal (upper levels
+          only, matching {!materialized} — at depth 0 they read zero although
+          the ground level retains its globals and group cells), while
+          [reachable_words] is a total (ground and registry included). Read
+          them as "what this depth added" beside "what exists altogether",
+          never as two views of one quantity. *)
 }
 
 type expanded_semantic_size = {

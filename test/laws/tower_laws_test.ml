@@ -498,14 +498,15 @@ let test_error_propagation () =
       Printf.printf "FAIL reflected code that fails did not fail: %s\n"
         (outcome_to_string reflected.outcome));
 
-  (* Stated so that closing the gap is a visible change rather than a silent one:
-     a primitive's own diagnostic is still unattributed. When ADR 0023's deferred
-     item is taken up, this assertion is what fails first. *)
+  (* ADR 0023 deferred threading the level through primitive argument
+     diagnostics; the review repairs closed that gap, so a primitive's own
+     diagnostic now reports the level that ran it. At depth 0 that is level 0,
+     which renders exactly as the old unattributed diagnostic did. *)
   let primitive_failure = observe ~depth:0 (core_term "(app (var /) (lit 1) (lit 0))") in
   match primitive_failure.outcome with
   | Failed error ->
-      check "a primitive's own diagnostic still carries no level (ADR 0023, deferred)"
-        (error.Error.level = None)
+      check "a primitive's own diagnostic carries its level (ADR 0023 closed)"
+        (error.Error.level = Some 0)
   | (Answered _ | Unlowerable _) ->
       incr failures;
       Printf.printf "FAIL division by zero did not fail: %s\n"

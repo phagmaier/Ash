@@ -16,6 +16,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 1
 
@@ -70,6 +71,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 1
 
@@ -124,6 +126,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 1
 
@@ -178,6 +181,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 12
 
@@ -232,6 +236,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 2
 
@@ -286,6 +291,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 52
 
@@ -340,6 +346,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 165
 
@@ -395,8 +402,11 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        2
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 45
+    open_cell:                    sample.ash:1:1-2:36 — evaluator-group cell operation survives
+    open_set:                     sample.ash:1:1-2:36 — evaluator-group cell operation survives
     open_deref:                   sample.ash:2:25-29 — evaluator or open-group cell read survives
     open_deref:                   sample.ash:3:10-14 — evaluator or open-group cell read survives
 
@@ -452,6 +462,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     1
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 13
     code_view:                    sample.ash:1:17-76 — constructor dispatch survives
@@ -507,6 +518,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 5
 
@@ -561,6 +573,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 1
 
@@ -615,6 +628,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 17
 

@@ -239,6 +239,16 @@ let run_code machine ~call_site node k =
 let lift_value machine ~call_site value =
   let generated = Span.generated ~by:"lift" ~from:call_site in
   let level = Machine.level machine in
+  (* Looked up once per [lift_value] call, not once per nesting level: nested
+     lists used to pay a full by-name global scan each level down. Lazy so that
+     lifting a scalar on a machine without a [list] global still succeeds —
+     the lookup only runs when a non-empty list actually needs it. *)
+  let list_ident =
+    lazy
+      (fst
+         (Env.lookup_by_name_exn ~phase:Error.Evaluate ~span:call_site ~level
+            (Machine.global_env machine) "list"))
+  in
   let rec lift path value =
     match value with
     | Value.Num number -> Core.lit ~span:generated (Constant.Num number)
@@ -248,15 +258,11 @@ let lift_value machine ~call_site value =
     | Value.Unit -> Core.lit ~span:generated Constant.Unit
     | Value.List [] -> Core.lit ~span:generated Constant.Nil
     | Value.List items ->
-        let list_ident, _ =
-          Env.lookup_by_name_exn ~phase:Error.Evaluate ~span:call_site ~level
-            (Machine.global_env machine) "list"
-        in
         let arguments =
           List.mapi (fun index item -> lift ((index + 1) :: path) item) items
         in
         Core.app ~span:generated
-          ~func:(Core.var ~span:generated list_ident)
+          ~func:(Core.var ~span:generated (Lazy.force list_ident))
           ~args:arguments
     | Value.Code node -> node
     | ( Value.Closure _ | Value.Reifier _ | Value.Continuation _

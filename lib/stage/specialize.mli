@@ -66,10 +66,6 @@ val key : lambda:Core.lambda -> env:Value.env -> arguments:Value.value list -> k
 val arguments : key -> projection list
 (** The key's argument projections, in call order. *)
 
-val parameter_count : key -> int
-(** How many argument positions of [key] are {!Unknown}, and so become
-    parameters of the residual function. *)
-
 val lookup : key -> point option
 (** The specialization point for [key], if one is in scope here. *)
 

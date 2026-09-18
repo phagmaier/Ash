@@ -680,6 +680,12 @@ and lower_function_group mode scope ~span ~open_group ~group ~rest =
           Core.rec_binding ~span:definition_span ~name:ident lambda)
         definitions binders
     in
+    (* The group node is marked generated: unlike a statement [let], which
+       mirrors one source binding, a [LetRec] group is a construct the surface
+       never wrote — several [fn] items became one node. Statement lets keep
+       their source span unmarked for the same reason in reverse. Nothing reads
+       this tag yet; it is provenance for diagnostics, in the same spirit as
+       the [desugar/meta_with] tag the staged protocol does read. *)
     gen by_fn
       (Core.letrec ~span:group_span ~bindings
          ~body:(lower_rest mode inner ~span ~after:group_span rest))

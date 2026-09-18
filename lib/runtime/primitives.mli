@@ -82,7 +82,9 @@
     the same wherever it comes from, and it is checked again inside the primitive
     because an implementation is a total function. Argument types are checked by
     the primitive, left to right, matching the order Ash evaluates arguments in,
-    and reported at the call site. [invoke_at] and [raise_at] deliberately use
+    and reported at the call site. Every failure a primitive raises carries the
+    level of the evaluator that ran it: the values are shared across the tower,
+    so the level arrives as an argument alongside the callbacks. [invoke_at] and [raise_at] deliberately use
     the span of a Code argument instead, so an interpreted failure points into
     the subject program rather than the evaluator helper. *)
 

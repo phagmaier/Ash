@@ -59,6 +59,10 @@ let hex_value ~span ch =
   | _ -> fail ~span (Error.Unexpected { found = Printf.sprintf "`%c`" ch; expected = "a hexadecimal digit" })
 
 let read_string_literal c ~start =
+  (* Deliberately more lenient than the surface lexer's strings: raw newlines
+     are accepted here, so the Core notation is a superset of what surface
+     programs can write. Round-tripping is unaffected — the printer only emits
+     escapes — and hand-written multi-line Core strings read fine. *)
   advance c (* the opening quote *);
   let buffer = Buffer.create 16 in
   let rec loop () =

@@ -183,8 +183,12 @@ val capture_continuation :
     replacements) is captured this way. *)
 
 val group_cell_count : t -> int
-(** Number of independently replaceable open-recursion cells owned by this
-    machine. Kept here so tower-size accounting cannot drift from the group. *)
+(** Number of open-recursion cells owned by this machine: [eval], [apply], and
+    [eval_list]. Only the first two are replaceable from Ash (there is no
+    [meta_eval_list] cell, deliberately — argument evaluation routes through
+    [eval], so it is intercepted anyway); the third still counts here because
+    tower-size accounting must not drift from the host group. Kept here so the
+    report measures what is actually installed. *)
 
 (** {1 Global environment} *)
 

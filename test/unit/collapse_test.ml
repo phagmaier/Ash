@@ -76,6 +76,32 @@ let test_survey () =
   check_int "NamedVar is a residualized lookup by name" ~expected:1
     named_var.Residue.named_var_lookups;
 
+  (* Control-class operations the specializer punts on are surviving
+     interpreter machinery too: invoking a runtime callee, reifying the
+     evaluator's continuation, and the open-group cell operations behind
+     [open fn] all dispatch through machinery the residual still runs. *)
+  let invoke = survey "(app (var invoke) (var x) (app (var list) (lit 1)))" in
+  check_int "invoke is a surviving control operation" ~expected:1
+    invoke.Residue.control_sites;
+  check_int "the invoke site is located" ~expected:1
+    (List.length invoke.Residue.sites);
+
+  let callcc = survey "(app (var callcc) (var x))" in
+  check_int "callcc is a surviving control operation" ~expected:1
+    callcc.Residue.control_sites;
+
+  let open_set = survey "(app (var open_set) (var c) (var x))" in
+  check_int "open_set is a surviving group operation" ~expected:1
+    open_set.Residue.control_sites;
+
+  (* [resume] is the exception: transferring to a first-class continuation is
+     ordinary control flow, the continuation analogue of applying a closure,
+     and it appears in fully static [up] residuals. Counting it would call
+     the Phase 9 demo residue. *)
+  let resume = survey "(app (var resume) (var r) (lit 1))" in
+  check_int "resume is ordinary control transfer, not residue" ~expected:0
+    resume.Residue.control_sites;
+
   (* Hygiene: a local binder that prints like a primitive is a different
      identity and denotes nothing. A survey that matched printed names would
      count this one. *)

@@ -515,10 +515,14 @@ let static_meta_protocol primitive arguments =
       true
   | "open_deref", [ Value.Cell cell ] -> Specialize.is_meta_cell cell
   | "open_set", [ Value.Cell cell; replacement ] ->
-      Specialize.is_meta_cell cell && Stage_value.is_static replacement
+      (* The replacement becomes evaluator configuration, so it must be known
+         all the way down: a partially static list with dynamic elements would
+         install residual syntax as the machine's behavior. *)
+      Specialize.is_meta_cell cell && Stage_value.is_purely_static replacement
   | "resume", [ Value.Continuation _; _ ] -> true
   | "meta_with_run", [ eval_override; apply_override; Value.Closure _ ] ->
-      Stage_value.is_static eval_override && Stage_value.is_static apply_override
+      Stage_value.is_purely_static eval_override
+      && Stage_value.is_purely_static apply_override
   | "eval", [ Value.Code _; Value.Environment _; Value.Continuation _ ] -> true
   | "apply", [ _; Value.List _; Value.Continuation _ ] -> true
   | _ -> false
@@ -604,10 +608,14 @@ let apply_primitive mode machine ~call_site primitive arguments k =
 
 (* A dynamic choice of evaluator must retain the whole scoped meta operation:
    staging its thunk under the evaluator currently installed would erase the
-   runtime choice.  The desugarer gives the outer [outer_eval] let a distinct
+   runtime choice. The desugarer gives the outer [outer_eval] let a distinct
    provenance marker, so this boundary is one operation, not the surrounding
-   program.  An [If] in the operation is a conservative indication of a choice;
-   retaining a statically decidable one costs optimization but is sound. *)
+   program. An [If] in the operation is a conservative indication of a choice;
+   retaining a statically decidable one costs optimization but is sound.
+   Matching on the binder name and generator tag couples this to the
+   desugarer's lowering; if either changes, the boundary silently stops being
+   detected and dynamic scoped choices stage as though static — unsound. The
+   dynamic-reflection laws pin the shape from the test side. *)
 let dynamic_meta_with node =
   match Core.shape node with
   | Core.Let { Core.let_binder; _ } ->

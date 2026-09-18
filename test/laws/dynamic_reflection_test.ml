@@ -40,11 +40,13 @@ let check_case name expected source =
         (survey.eval_cell_dereferences = residual.residue.eval_cell_dereferences
          && survey.dispatch_sites = residual.residue.dispatch_sites
          && survey.named_var_lookups = residual.residue.named_var_lookups
+         && survey.control_sites = residual.residue.control_sites
          && survey.reflection_boundaries = residual.residue.reflection_boundaries);
       check (name ^ ": site totals")
         (List.length survey.sites
          = survey.eval_cell_dereferences + survey.evaluator_calls
            + survey.dispatch_sites + survey.named_var_lookups
+           + survey.control_sites
            + List.fold_left (fun total (_, n) -> total + n) 0
                survey.reflection_boundaries)
 
@@ -105,6 +107,10 @@ let () =
     stacked_persistent_choice;
   check_case "dynamic evaluator observes a trivial let" Classification.Opaque
     persistent_observes_trivial_let;
+  (* A residualized [invoke] is surviving control machinery even though every
+     value agrees: without the control-site count this would classify FULL. *)
+  check_case "surviving invoke is partial, not full" Classification.Partial
+    "let f = fn(x) -> x + 40\ninvoke(f, list(2))";
   let named =
     Metrics.measure ~depth:1 ~file:"dynamic_reflection.ash"
       ~name:"dynamic name lookup"

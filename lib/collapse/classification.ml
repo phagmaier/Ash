@@ -161,6 +161,7 @@ let classify (metrics : Metrics.t) =
       let interpretation_survives =
         residue.eval_cell_dereferences > 0 || residue.evaluator_calls > 0
         || residue.dispatch_sites > 0 || residue.named_var_lookups > 0
+        || residue.control_sites > 0
         || reflection_survives
         || Residue.interpreter_residue residue ~own:metrics.file > 0
       in

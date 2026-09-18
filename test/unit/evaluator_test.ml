@@ -260,12 +260,47 @@ let test_reflective_forms () =
       Printf.printf "FAIL applying a continuation transferred nowhere: %s\n"
         (Error.to_string error)
 
+(* Primitive failures belong to the level whose evaluator ran them. The
+   evaluator always knew its level; the primitives used to drop it, so a type
+   error raised inside a level-1 reifier body reported nowhere instead of
+   level 1. *)
+let test_primitive_error_level () =
+  let tower = Ash_tower.Tower.create () in
+  let upper = Ash_tower.Tower.materialize_above tower ~level:0 in
+  let env = Ash_tower.Level.global upper in
+  let scope =
+    Core_reader.scope_of_list
+      (List.map
+         (fun ident -> (Ident.name ident, ident))
+         (Ident.Set.elements (Env.idents env)))
+  in
+  let run_level text =
+    match
+      Ash_tower.Level.run upper (Core_reader.read ~scope ~file:"e.ash" text)
+    with
+    | _ -> None
+    | exception Error.Ash_error error -> Some error
+  in
+  let check_level name expected text =
+    match run_level text with
+    | Some error ->
+        check name (Option.equal Int.equal error.Error.level expected)
+    | None -> check (name ^ " (no error raised)") false
+  in
+  check_level "a primitive type error at level 1 reports level 1" (Some 1)
+    "(app (var +) (lit 1) (lit \"s\"))";
+  check_level "a primitive arity error at level 1 reports level 1" (Some 1)
+    "(app (var +) (lit 1))";
+  check_level "division by zero at level 1 reports level 1" (Some 1)
+    "(app (var /) (lit 1) (lit 0))"
+
 let () =
   test_factorial ();
   test_tail_calls ();
   test_open_recursion ();
   test_counters ();
   test_reflective_forms ();
+  test_primitive_error_level ();
   if !failures > 0 then (
     Printf.printf "%d evaluator assertion(s) failed\n" !failures;
     exit 1)

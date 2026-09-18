@@ -279,8 +279,17 @@ let measure ?(depth = 1) ?budget ~file ~name program =
   start ~registry ~machines:[];
   let configured = Ash_stage.Specialize.budget () in
   Option.iter Ash_stage.Specialize.set_budget budget;
-  let staging_machine, staged = specialize_with_stats ~depth ~tower ~env term in
-  Ash_stage.Specialize.set_budget configured;
+  (* A host exception mid-specialization (a bug, never an Ash failure, which is
+     a value here) must not leave the custom budget installed for whatever
+     measures next. *)
+  let staging_machine, staged =
+    Fun.protect
+      ~finally:(fun () -> Ash_stage.Specialize.set_budget configured)
+      (fun () ->
+        let staging_machine, staged = specialize_with_stats ~depth ~tower ~env term in
+        Ash_stage.Specialize.set_budget configured;
+        (staging_machine, staged))
+  in
   let specialization =
     {
       steps = Machine.steps staging_machine;

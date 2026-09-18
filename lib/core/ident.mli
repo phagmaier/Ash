@@ -40,6 +40,11 @@ val name : t -> string
 (** The printed name. Never use it to decide identity. *)
 
 val id : t -> int
+
+(** Identity is the ID alone: equal identifiers print alike, but identifiers
+    that print alike are not necessarily equal. ([compare] breaks ties on the
+    printed name only to give the ordering a total order; the name never
+    decides identity.) *)
 val equal : t -> t -> bool
 val compare : t -> t -> int
 val hash : t -> int

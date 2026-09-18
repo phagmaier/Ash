@@ -19,6 +19,7 @@ Interpretation left in the residual
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
+  Control operation sites:        0
   Reflection boundaries:          none
   Residual nodes by origin:       examples/traced_fibonacci.ash 251
 

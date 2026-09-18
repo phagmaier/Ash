@@ -297,6 +297,22 @@ let test_spans () =
   check "a read node is not marked generated" (not (Span.is_generated (Core.span node)));
   check_string "spans carry the file they were read from" "t.ash" (Span.file (Core.span node))
 
+(* A scope with two entries for one name would resolve reads silently to the
+   later one, so building one is refused like [Desugar.scope_of_globals]
+   refuses it. *)
+let test_scope () =
+  let a = Ident.fresh "a" in
+  (match Core_reader.scope_of_list [ ("a", a); ("a", Ident.fresh "a") ] with
+  | _ ->
+      incr failures;
+      Printf.printf "FAIL a scope with a duplicate name is refused\n"
+  | exception Invalid_argument _ -> ());
+  check "a scope without duplicates builds"
+    (Option.is_some
+       (Core_reader.scope_find
+          (Core_reader.scope_of_list [ ("a", a) ])
+          "a"))
+
 (* Malformed input identifies its location *)
 
 let test_diagnostics () =
@@ -371,6 +387,7 @@ let () =
   test_binding ();
   test_spans ();
   test_diagnostics ();
+  test_scope ();
   if !failures > 0 then (
     Printf.printf "%d reader assertion(s) failed\n" !failures;
     exit 1)

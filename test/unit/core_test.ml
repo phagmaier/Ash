@@ -290,11 +290,56 @@ let test_canonicalization () =
   check_raises_invalid_argument "fix rejects a double fix" (fun () ->
       Ident.Canon.fix mixed_state free_x)
 
+(* The Core form inventory, tied together: adding a twelfth form breaks
+   [kind_index] exhaustiveness at compile time, and this test forces the
+   hand-written [kind_names] table to be updated in the same change. *)
+let test_kind_names () =
+  let sp = Span.unknown in
+  let ident = Ident.fresh "k" in
+  let var = Core.var ~span:sp ident in
+  let lambda = Core.lambda ~params:[ ident ] ~body:var in
+  let shapes =
+    [
+      Core.Lit Constant.Unit;
+      Core.Var ident;
+      Core.NamedVar "k";
+      Core.Lam lambda;
+      Core.App { Core.func = var; args = [ var ] };
+      Core.Let { Core.let_binder = ident; let_value = var; let_body = var };
+      Core.LetRec
+        {
+          Core.rec_bindings = [ Core.rec_binding ~span:sp ~name:ident lambda ];
+          rec_body = var;
+        };
+      Core.If { Core.condition = var; consequent = var; alternative = var };
+      Core.Set { Core.set_target = ident; set_value = var };
+      Core.Quote var;
+      Core.Reifier
+        {
+          Core.exp_param = ident;
+          env_param = Ident.fresh "r";
+          cont_param = Ident.fresh "k";
+          reifier_body = var;
+        };
+    ]
+  in
+  let names = List.map Core.kind_name_of_shape shapes in
+  check_int "eleven Core forms" 11 Core.kind_count;
+  check_int "the name table has no duplicates"
+    (List.length names)
+    (List.length (List.sort_uniq String.compare names));
+  check "every form is named in the table"
+    (List.for_all (fun name -> List.mem name Core.kind_names) names);
+  check "dispatch indices are dense from zero"
+    (List.sort Int.compare (List.map Core.kind_index shapes)
+    = List.init Core.kind_count Fun.id)
+
 let () =
   test_spans ();
   test_constants ();
   test_idents ();
   test_canonicalization ();
+  test_kind_names ();
   if !failures > 0 then (
     Printf.printf "%d core unit assertion(s) failed\n" !failures;
     exit 1)

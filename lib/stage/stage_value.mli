@@ -35,7 +35,11 @@ val static_value : Value.value -> bool
 (** Named policy predicate alias for {!is_static} (AGENTS §D7). *)
 
 val is_purely_static : Value.value -> bool
-(** True iff the value and all its sub-elements (for lists) are static. *)
+(** True iff the value and all its sub-elements (for lists) are static. Note
+    the deliberate coarseness: closures, environments, cells, and primitives
+    count as static by identity rather than by deep inspection. What this
+    decides is keying and observation depth, never whether a value may be
+    serialized — closures and cells still never cross into residual syntax. *)
 
 val is_shape_static : Value.value -> bool
 (** True iff the value's own constructor is known at specialization time, which

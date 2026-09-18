@@ -23,7 +23,10 @@ val equal : Core.t -> Core.t -> bool
 (** Alpha-equivalence: the terms differ at most by the choice of binder
     identities. Bound identifiers correspond by binding position; free ones must
     be the same identifier, since a free [x#4] and a free [y#9] denote different
-    variables. *)
+    variables. A [NamedVar] additionally observes the innermost in-scope binder
+    printing its name, so two terms whose lookups resolve to non-corresponding
+    binders — or one of which resolves while the other does not — are not
+    equivalent even when their strings match. *)
 
 val canonicalize : Core.t -> Core.t
 (** Rename every bound identifier to a canonical one, numbered by first
@@ -35,4 +38,9 @@ val canonicalize : Core.t -> Core.t
     the reader produces, and everything built with fresh identities —
     [Core.equal_structure (canonicalize a) (canonicalize b)] agrees with
     {!equal}. Spans are preserved, which is why the comparison must ignore
-    them. *)
+    them.
+
+    A binder a same-name [NamedVar] observes in its scope keeps its identity:
+    renaming it while leaving the lookup string behind changes what the term
+    reads. Canonical forms of such terms therefore stay allocation-sensitive;
+    compare them with {!equal}, not structurally. *)

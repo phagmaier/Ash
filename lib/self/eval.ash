@@ -126,6 +126,11 @@ open fn eval(e, r, k) =
     App(func, args) ->
       eval(func, r, fn(callee) ->
         if tagged?(callee) && tag_of(callee) == 'reif then
+          # The `by` string deliberately matches the host evaluator's own
+          # refusal: differential tests compare failure causes, and `by` is
+          # part of the cause, so a clearer here-but-different string would
+          # read as a disagreement between the levels. (It is the interpreted
+          # level that cannot perform the application, not the ground one.)
           raise_at(e, ['unsupported, "reifier application", "the ground evaluator"])
         else eval_list(args, r, fn(values) -> apply(callee, values, k, e)))
   }
@@ -164,6 +169,8 @@ open fn apply(f, vs, k, site) =
           nth(f, 2)(head(vs))
         }
       }
+    # Same deliberate `by` string as above: cause agreement across levels
+    # depends on it.
     else raise_at(site,
       ['unsupported, "reifier application", "the ground evaluator"])
   }

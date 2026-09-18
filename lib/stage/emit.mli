@@ -76,11 +76,5 @@ val emitted_count : unit -> int
 val reset_counts : unit -> unit
 (** Zero {!emitted_count}. Called once per specialization run. *)
 
-val binding_count : buffer -> int
-(** Number of let-inserted bindings currently recorded in [buffer]. *)
-
-val recursive_group_count : buffer -> int
-(** Number of specialization-point groups currently recorded in [buffer]. *)
-
 val current_buffer : unit -> buffer option
 (** The current ambient buffer, if any. *)

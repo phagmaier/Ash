@@ -11,6 +11,7 @@ type t = {
   evaluator_calls : int;
   dispatch_sites : int;
   named_var_lookups : int;
+  control_sites : int;
   reflection_boundaries : (string * int) list;
   sites : site list;
 }
@@ -24,6 +25,7 @@ type tally = {
   mutable calls : int;
   mutable dispatch : int;
   mutable named_vars : int;
+  mutable control : int;
   mutable boundaries : (string * int) list;
   mutable sites : site list;
 }
@@ -73,6 +75,7 @@ let survey ~env root =
       calls = 0;
       dispatch = 0;
       named_vars = 0;
+      control = 0;
       boundaries = [];
       sites = [];
     }
@@ -99,7 +102,27 @@ let survey ~env root =
             tally.dispatch <- tally.dispatch + 1;
             site primitive.Value.prim_name (Core.span node)
               "constructor dispatch survives"
-        | _ -> ());
+        | "open_set" | "open_cell" ->
+            tally.control <- tally.control + 1;
+            site primitive.Value.prim_name (Core.span node)
+              "evaluator-group cell operation survives"
+        | _ ->
+            (* Control operations that reify the evaluator's continuation or
+               dispatch through it are interpreter machinery when they survive:
+               [callcc] captures the machine's control state, and [invoke]
+               applies a callee the specializer could not decide. [resume] is
+               deliberately excluded: transferring to a first-class
+               continuation is ordinary control flow, the continuation analogue
+               of applying a closure, and it appears in fully static [up]
+               residuals. *)
+            if
+              Effect_class.equal primitive.Value.prim_class Effect_class.Control
+              && not (String.equal primitive.Value.prim_name "resume")
+            then (
+              tally.control <- tally.control + 1;
+              site primitive.Value.prim_name (Core.span node)
+                "control operation survives")
+        );
         if Effect_class.equal primitive.Value.prim_class Effect_class.Reflection then (
           tally.boundaries <- bump tally.boundaries primitive.Value.prim_name;
           site primitive.Value.prim_name (Core.span node)
@@ -180,6 +203,7 @@ let survey ~env root =
     evaluator_calls = tally.calls;
     dispatch_sites = tally.dispatch;
     named_var_lookups = tally.named_vars;
+    control_sites = tally.control;
     reflection_boundaries = sorted tally.boundaries;
     sites = List.rev tally.sites;
   }

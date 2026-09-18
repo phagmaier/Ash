@@ -6,6 +6,41 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-09-18 — review repairs (soundness, robustness, refinements)
+
+- Completed: full review-repair pass; every item verified by the suite.
+  Soundness, each with a failing-first regression test: (1) normalizer kept a
+  same-name `NamedVar`'s binding but canonical renaming still broke the link —
+  `Alpha.equal` is now scope-aware for lookups and `canonicalize` pins
+  observed binders (`alpha_test`, `normalize_test`); (2) residue survey counts
+  surviving `invoke`/`callcc`/`open_set`/`open_cell` as `control_sites`
+  (excluding `resume`), wired through classification, human/JSON reports, the
+  measure script, and law reconciliation, plus an `invoke`-is-Partial law case
+  (`collapse_test`, `dynamic_reflection_test`); (3) primitive diagnostics carry
+  the applying level, closing ADR 0023's deferred item (new ADR 0042; tripwire
+  test updated to `Some 0`, new `Some 1` evaluator tests).
+  Mediums: `is_purely_static` gate for evaluator configuration;
+  `Stack_overflow`/`--depth`/error-discipline/`read_file` CLI hardening.
+  Refinements: lexer diagnostics and `is_name`, strict `scope_of_list`,
+  nonlinear template matching, kind-table test, id-only `Ident.equal`, `lift`
+  hoist, arity-parameterized meta errors, overlay/group-cell/oracle/size
+  docs, dead-code removal, budget-restore protection, eval.ash/by_fn/desugar
+  provenance comments.
+- Verified: `dune build @fmt` (0), `dune build @all` (0), `dune runtest
+  --force` (0), all README commands, `measure_phase10.py` (exit 0) plus a
+  direct old-vs-new comparison proving classes, reasons, agreement, outcomes,
+  cores, steps, and ratios identical. Goldens promoted for exactly one
+  intended line (`Control operation sites:`) plus the open-group sites it
+  newly names on the boundary sample. Re-pinned JSON gains `control_sites`
+  and +1 heap word, both documented in `0003` (bisected to `read_line`'s
+  graph; representation layout in an excluded figure, all semantic gates
+  green). One process note: an over-broad replace-all corrupted a file
+  mid-task; reverted via git and redid the change with per-batch diff review.
+- Known issues: none. Deferred with reasons in to-do (meta-view dedup,
+  parser depth counters, Incomparable/FULL, printer Invalid_argument, run
+  ident cache). Uncommitted by rule; commit only when asked.
+- Next: none — optional work only.
+
 ### 2026-09-18 — task 11.3 (Phase 11 done)
 
 - Completed: reproducible release. `rm -rf _build` clean build (exit 0);

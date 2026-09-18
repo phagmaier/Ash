@@ -44,8 +44,6 @@ let is_parameter = function
   | Unknown -> true
   | Known _ | Held _ -> false
 
-let parameter_count k = List.length (List.filter is_parameter k.arguments)
-
 (* Two projections describe the same specialization when the specializer knows
    the same thing about the argument.
 
@@ -224,7 +222,20 @@ let key ~lambda ~env ~arguments =
 
 (* How deep the unroller already is in this same function. Depth is counted per
    function rather than overall, so a program that nests many different
-   functions is not mistaken for one that is going nowhere. *)
+   functions is not mistaken for one that is going nowhere. The key is function
+   identity {e plus} the closed-over environment, physically compared: two
+   closures over the same lambda but different stores are different
+   specializations, and conflating them would specialize one call's body under
+   another call's values.
+
+   Counting per (lambda, env) rather than per lambda alone is sufficient for
+   termination alongside the residual-size budget. Unrolling mirrors runtime
+   control flow, so an infinite unrolling with no memo hit is an infinite
+   runtime path — a program that would not terminate if run — and the budgets
+   exist to stop the specializer believing it is making progress on those, not
+   to decide termination. A recursion that threads a fresh environment every
+   step either emits residual bindings (and the size budget fires) or folds
+   them away while walking a path the program itself walks forever. *)
 let inline_depth k =
   List.length
     (List.filter
@@ -368,6 +379,16 @@ let in_scope f =
       | [] -> ()
       | _ :: rest -> state.scopes <- rest)
 
+(* Point construction runs in the entry's buffers, scopes, and actives — but
+   deliberately {e not} in a snapshotted store. The store is untouched for a
+   structural reason, not an oversight: [Store.holdable]'s capture rule refuses
+   to hold any binder free in a lambda, so a point body can name an outer
+   binding only as residual, and writes to residual bindings become residual
+   [Set] nodes rather than store mutations. Body-local bindings are tracked and
+   released within the construction. A point body therefore cannot assign an
+   outer held cell, and there is nothing for a snapshot to protect; if the
+   capture rule ever weakens, this context switch is where the leak would show,
+   and the effect-order suite is what guards it. *)
 let with_entry_context entry f =
   let saved_scopes = state.scopes and saved_active = state.active in
   state.scopes <- entry.entry_context.scopes;

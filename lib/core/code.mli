@@ -16,7 +16,9 @@ val match_template :
     free [Var] whose identity is in [holes] as a single-node wildcard. On
     success, return the captured subject nodes in [holes] order. Return [None]
     when the requested holes are repeated or absent from the template; surface
-    pattern validation prevents both cases in normally lowered programs. *)
+    pattern validation prevents both cases in normally lowered programs. A hole
+    occurring twice in the template is a nonlinear pattern: both occurrences
+    must capture alpha-equivalent nodes. *)
 
 (** {1 Closed-code analysis} *)
 

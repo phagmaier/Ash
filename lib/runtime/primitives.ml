@@ -1,12 +1,13 @@
 open Ash_core
 
-let fail ~span cause = Error.raise_cause ~phase:Error.Evaluate ~span cause
+let fail ~span ~level cause =
+  Error.raise_cause ~phase:Error.Evaluate ~span ~level cause
 
-let type_error ~span ~expected value =
-  fail ~span (Error.Unexpected { found = Value.type_phrase value; expected })
+let type_error ~span ~level ~expected value =
+  fail ~span ~level (Error.Unexpected { found = Value.type_phrase value; expected })
 
-let wrong_arity ~span ~name ~arity args =
-  fail ~span
+let wrong_arity ~span ~level ~name ~arity args =
+  fail ~span ~level
     (Error.Arity_error
        {
          callee = Some name;
@@ -17,110 +18,110 @@ let wrong_arity ~span ~name ~arity args =
 (* Argument accessors. Each enumerates the shapes it rejects rather than
    defaulting, so a new value shape has to be classified here too. *)
 
-let number ~span value =
+let number ~span ~level value =
   match value with
   | Value.Num n -> n
   | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"a number" value
+      type_error ~span ~level ~expected:"a number" value
 
-let boolean ~span value =
+let boolean ~span ~level value =
   match value with
   | Value.Bool b -> b
   | Value.Num _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"a boolean" value
+      type_error ~span ~level ~expected:"a boolean" value
 
-let string ~span value =
+let string ~span ~level value =
   match value with
   | Value.Str text -> text
   | Value.Num _ | Value.Bool _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"a string" value
+      type_error ~span ~level ~expected:"a string" value
 
-let items ~span value =
+let items ~span ~level value =
   match value with
   | Value.List items -> items
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"a list" value
+      type_error ~span ~level ~expected:"a list" value
 
-let non_empty ~span value =
-  match items ~span value with
+let non_empty ~span ~level value =
+  match items ~span ~level value with
   | item :: rest -> (item, rest)
-  | [] -> type_error ~span ~expected:"a non-empty list" value
+  | [] -> type_error ~span ~level ~expected:"a non-empty list" value
 
-let cell ~span value =
+let cell ~span ~level value =
   match value with
   | Value.Cell c -> c
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
   | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"a cell" value
+      type_error ~span ~level ~expected:"a cell" value
 
-let filled ~span value =
-  let c = cell ~span value in
+let filled ~span ~level value =
+  let c = cell ~span ~level value in
   match Value.cell_contents c with
   | Some contents -> contents
   (* Unreachable through [cell_new], which always fills; reported rather than
      defaulted because a preallocated cell reaching a program is a bug, and
      "unfilled reads as unit" would hide it. *)
   | None ->
-      fail ~span
+      fail ~span ~level
         (Error.Unexpected { found = "an unfilled cell"; expected = "a filled cell" })
 
-let code ~span value =
+let code ~span ~level value =
   match value with
   | Value.Code node -> node
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
   | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
   | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
-      type_error ~span ~expected:"code" value
+      type_error ~span ~level ~expected:"code" value
 
-let environment ~span value =
+let environment ~span ~level value =
   match value with
   | Value.Environment env -> env
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Cell _
   | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"an environment" value
+      type_error ~span ~level ~expected:"an environment" value
 
 (* Returned as a value rather than as a {!Value.continuation}: transferring is
    the applier's job, so the check here is about what the caller passed, not
    about how it is invoked. *)
-let continuation ~span value =
+let continuation ~span ~level value =
   match value with
   | Value.Continuation _ -> value
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
   | Value.Closure _ | Value.Reifier _ | Value.Environment _ | Value.Cell _
   | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"a continuation" value
+      type_error ~span ~level ~expected:"a continuation" value
 
-let code_variable ~span value =
-  let node = code ~span value in
+let code_variable ~span ~level value =
+  let node = code ~span ~level value in
   match Core.shape node with
   | Core.Var ident -> ident
   | Core.Lit _ | Core.NamedVar _ | Core.Lam _ | Core.App _ | Core.Let _
   | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _ | Core.Reifier _ ->
-      fail ~span
+      fail ~span ~level
         (Error.Unexpected
            {
              found = Printf.sprintf "code containing %s" (Core.kind_name node);
              expected = "code containing a variable";
            })
 
-let integer ~span value = number ~span value
+let integer ~span ~level value = number ~span ~level value
 
-let source_span ~span value = Core.span (code ~span value)
+let source_span ~span ~level value = Core.span (code ~span ~level value)
 
-let code_variables ~span value =
-  List.map (code_variable ~span) (items ~span value)
+let code_variables ~span ~level value =
+  List.map (code_variable ~span ~level) (items ~span ~level value)
 
-let optional_callee ~span value =
+let optional_callee ~span ~level value =
   match value with
   | Value.List [] -> None
   | Value.List [ Value.Str name ] -> Some name
@@ -128,42 +129,44 @@ let optional_callee ~span value =
     | Value.Unit | Value.List _ | Value.Closure _ | Value.Reifier _
     | Value.Continuation _ | Value.Environment _ | Value.Cell _ | Value.Code _
     | Value.Primitive _) ] ->
-      type_error ~span ~expected:"an empty list or a one-string list" value
+      type_error ~span ~level ~expected:"an empty list or a one-string list" value
   | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
   | Value.Closure _ | Value.Reifier _ | Value.Continuation _ | Value.Environment _
   | Value.Cell _ | Value.Code _ | Value.Primitive _ ->
-      type_error ~span ~expected:"an empty list or a one-string list" value
+      type_error ~span ~level ~expected:"an empty list or a one-string list" value
 
-(* The level is deliberately absent here: an interpreted level's failure belongs
-   to the level running the interpreter, which only the applying evaluator
-   knows. Naming a level in the descriptor would fix it to the base program and
-   be wrong for every materialized level above it. *)
-let source_error_cause ~span descriptor =
-  match items ~span descriptor with
+(* No level is baked into the descriptor itself: an interpreted level's failure
+   belongs to the level running the interpreter, which only the applying
+   evaluator knows. Naming a level in the descriptor would fix it to the base
+   program and be wrong for every materialized level above it. The helper still
+   takes the caller's level, so a malformed descriptor fails where the call ran
+   rather than nowhere. *)
+let source_error_cause ~span ~level descriptor =
+  match items ~span ~level descriptor with
   | [ Value.Sym "unbound_ident"; identity ] ->
-      Error.Unbound_ident (code_variable ~span identity)
+      Error.Unbound_ident (code_variable ~span ~level identity)
   | [ Value.Sym "unbound_name"; Value.Str name ] -> Error.Unbound_name name
   | [ Value.Sym "ambiguous_name"; Value.Str name; candidates ] ->
-      Error.Ambiguous_name { name; candidates = code_variables ~span candidates }
+      Error.Ambiguous_name { name; candidates = code_variables ~span ~level candidates }
   | [ Value.Sym "arity"; callee; expected; actual ] ->
       Error.Arity_error
         {
-          callee = optional_callee ~span callee;
-          expected = string_of_int (integer ~span expected);
-          actual = integer ~span actual;
+          callee = optional_callee ~span ~level callee;
+          expected = string_of_int (integer ~span ~level expected);
+          actual = integer ~span ~level actual;
         }
   | [ Value.Sym "unexpected"; found; Value.Str expected ] ->
       Error.Unexpected { found = Value.type_phrase found; expected }
   | [ Value.Sym "continuation_reuse"; captured; first_used ] ->
       Error.Continuation_reuse
         {
-          captured = source_span ~span captured;
-          first_used = source_span ~span first_used;
+          captured = source_span ~span ~level captured;
+          first_used = source_span ~span ~level first_used;
         }
   | [ Value.Sym "unsupported"; Value.Str what; Value.Str by ] ->
       Error.Unsupported { what; by }
   | Value.Sym tag :: _ ->
-      fail ~span
+      fail ~span ~level
         (Error.Unexpected
            {
              found = Printf.sprintf "an unknown source-error descriptor `%s`" tag;
@@ -173,7 +176,7 @@ let source_error_cause ~span descriptor =
   | Value.List _ :: _ | Value.Closure _ :: _ | Value.Reifier _ :: _
   | Value.Continuation _ :: _ | Value.Environment _ :: _ | Value.Cell _ :: _
   | Value.Code _ :: _ | Value.Primitive _ :: _ ->
-      type_error ~span ~expected:"a source-error descriptor headed by a symbol"
+      type_error ~span ~level ~expected:"a source-error descriptor headed by a symbol"
         descriptor
 
 (* A destructured Core node uses ordinary Ash values for literals and strings,
@@ -237,49 +240,52 @@ let make ~name ~arity ~cls ?(observes = Observation.whole_values) impl =
     prim_impl = impl;
   }
 
-(* The three wrappers cover primitives that need neither the evaluator callbacks
-   nor the level they are running at: they drop both and invoke the continuation
-   once, in tail position. *)
+(* The three wrappers cover primitives that need none of the evaluator
+   callbacks; they do need the level, because every failure they report —
+   including the arity check — belongs to the level running the call. Each
+   implementation takes [~level] for the same reason; ones that cannot fail
+   ignore it. *)
 
 let nullary name cls impl =
   let arity = Value.Exactly 0 in
   make ~name ~arity ~cls
-    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+    (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
       match args with
-      | [] -> k (impl ~span:call_site)
-      | _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
+      | [] -> k (impl ~span:call_site ~level)
+      | _ :: _ -> wrong_arity ~span:call_site ~level ~name ~arity args)
 
 let unary ?observes name cls impl =
   let arity = Value.Exactly 1 in
   make ~name ~arity ~cls ?observes
-    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+    (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
       match args with
-      | [ a ] -> k (impl ~span:call_site a)
-      | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
+      | [ a ] -> k (impl ~span:call_site ~level a)
+      | [] | _ :: _ :: _ -> wrong_arity ~span:call_site ~level ~name ~arity args)
 
 let binary ?observes name cls impl =
   let arity = Value.Exactly 2 in
   make ~name ~arity ~cls ?observes
-    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+    (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
       match args with
-      | [ a; b ] -> k (impl ~span:call_site a b)
-      | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~name ~arity args)
+      | [ a; b ] -> k (impl ~span:call_site ~level a b)
+      | [] | [ _ ] | _ :: _ :: _ :: _ -> wrong_arity ~span:call_site ~level ~name ~arity args)
 
 (* Arguments are checked left to right, in the order Ash evaluates them, so a
    call with two bad arguments reports the first one. *)
 let numeric name combine =
-  binary name Effect_class.Pure (fun ~span a b ->
-      let x = number ~span a in
-      let y = number ~span b in
-      combine ~span x y)
+  binary name Effect_class.Pure (fun ~span ~level a b ->
+      let x = number ~span ~level a in
+      let y = number ~span ~level b in
+      combine ~span ~level x y)
 
-let arithmetic name f = numeric name (fun ~span:_ x y -> Value.Num (f x y))
+let arithmetic name f = numeric name (fun ~span:_ ~level:_ x y -> Value.Num (f x y))
 
 let dividing name f =
-  numeric name (fun ~span x y ->
-      if y = 0 then fail ~span Error.Division_by_zero else Value.Num (f x y))
+  numeric name (fun ~span ~level x y ->
+      if y = 0 then fail ~span ~level Error.Division_by_zero else Value.Num (f x y))
 
-let ordering name f = numeric name (fun ~span:_ x y -> Value.Bool (f (Int.compare x y) 0))
+let ordering name f =
+  numeric name (fun ~span:_ ~level:_ x y -> Value.Bool (f (Int.compare x y) 0))
 
 (* {1 The classes} *)
 
@@ -301,26 +307,26 @@ let pure =
     ordering "<=" ( <= );
     ordering ">" ( > );
     ordering ">=" ( >= );
-    binary "==" Effect_class.Pure (fun ~span:_ a b -> Value.Bool (Value.equal a b));
-    binary "!=" Effect_class.Pure (fun ~span:_ a b -> Value.Bool (not (Value.equal a b)));
-    unary "not" Effect_class.Pure (fun ~span a -> Value.Bool (not (boolean ~span a)));
+    binary "==" Effect_class.Pure (fun ~span:_ ~level:_ a b -> Value.Bool (Value.equal a b));
+    binary "!=" Effect_class.Pure (fun ~span:_ ~level:_ a b -> Value.Bool (not (Value.equal a b)));
+    unary "not" Effect_class.Pure (fun ~span ~level a -> Value.Bool (not (boolean ~span ~level a)));
     (* The immutable-data group. Each answers from the spine of its list
        argument, never from the elements, so the specializer may run it on a
        list whose spine is known even when the elements are still dynamic: that
        is what lets a loop over a statically shaped list unroll while the values
        it carries stay residual (spec §7.3, §7.4 step 1). *)
     binary ~observes:(Observation.of_positional [ Unobserved; Shape_only ])
-      "cons" Effect_class.Pure (fun ~span a b -> Value.List (a :: items ~span b));
+      "cons" Effect_class.Pure (fun ~span ~level a b -> Value.List (a :: items ~span ~level b));
     unary ~observes:(Observation.of_positional [ Shape_only ])
-      "head" Effect_class.Pure (fun ~span a -> fst (non_empty ~span a));
+      "head" Effect_class.Pure (fun ~span ~level a -> fst (non_empty ~span ~level a));
     unary ~observes:(Observation.of_positional [ Shape_only ])
-      "tail" Effect_class.Pure (fun ~span a ->
-        Value.List (snd (non_empty ~span a)));
+      "tail" Effect_class.Pure (fun ~span ~level a ->
+        Value.List (snd (non_empty ~span ~level a)));
     unary ~observes:(Observation.of_positional [ Shape_only ])
-      "empty?" Effect_class.Pure (fun ~span a -> Value.Bool (items ~span a = []));
+      "empty?" Effect_class.Pure (fun ~span ~level a -> Value.Bool (items ~span ~level a = []));
     unary ~observes:(Observation.of_positional [ Shape_only ])
-      "length" Effect_class.Pure (fun ~span a ->
-        Value.Num (List.length (items ~span a)));
+      "length" Effect_class.Pure (fun ~span ~level a ->
+        Value.Num (List.length (items ~span ~level a)));
     make ~name:"list" ~arity:(Value.At_least 0) ~cls:Effect_class.Pure
       ~observes:(Observation.uniform Observation.Unobserved)
       (fun ~call_site:_ ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k -> k (Value.List args));
@@ -331,7 +337,7 @@ let pure =
        answers is a different thing from an accessor that refuses, and only the
        predicate can be used to choose a branch. *)
     unary ~observes:(Observation.of_positional [ Shape_only ])
-      "list?" Effect_class.Pure (fun ~span:_ value ->
+      "list?" Effect_class.Pure (fun ~span:_ ~level:_ value ->
         Value.Bool
           (match value with
           | Value.List _ -> true
@@ -343,7 +349,7 @@ let pure =
        immutable, and D7 explicitly puts Code constructors in the foldable
        class. Reflection stays reserved for [lift], [run], [reflect], [up], and
        reifier application, whose meaning depends on evaluator/tower state. *)
-    unary "code?" Effect_class.Pure (fun ~span:_ value ->
+    unary "code?" Effect_class.Pure (fun ~span:_ ~level:_ value ->
         Value.Bool
           (match value with
           | Value.Code _ -> true
@@ -352,28 +358,28 @@ let pure =
           | Value.Continuation _ | Value.Environment _ | Value.Cell _
           | Value.Primitive _ ->
               false));
-    unary "code_view" Effect_class.Pure (fun ~span value ->
-        code_view (code ~span value));
-    unary "code_name" Effect_class.Pure (fun ~span value ->
-        Value.Str (Ident.name (code_variable ~span value)));
+    unary "code_view" Effect_class.Pure (fun ~span ~level value ->
+        code_view (code ~span ~level value));
+    unary "code_name" Effect_class.Pure (fun ~span ~level value ->
+        Value.Str (Ident.name (code_variable ~span ~level value)));
     make ~name:"code_splice" ~arity:(Value.Exactly 3) ~cls:Effect_class.Pure
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ template; marker; replacement ] ->
-            let template = code ~span:call_site template in
-            let marker = code_variable ~span:call_site marker in
-            let replacement = code ~span:call_site replacement in
+            let template = code ~span:call_site ~level template in
+            let marker = code_variable ~span:call_site ~level marker in
+            let replacement = code ~span:call_site ~level replacement in
             k (Value.Code (Code.splice ~marker ~replacement template))
         | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"code_splice"
+            wrong_arity ~span:call_site ~level ~name:"code_splice"
               ~arity:(Value.Exactly 3) args);
     make ~name:"code_match" ~arity:(Value.At_least 2) ~cls:Effect_class.Pure
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | template :: subject :: markers ->
-            let template = code ~span:call_site template in
-            let subject = code ~span:call_site subject in
-            let holes = List.map (code_variable ~span:call_site) markers in
+            let template = code ~span:call_site ~level template in
+            let subject = code ~span:call_site ~level subject in
+            let holes = List.map (code_variable ~span:call_site ~level) markers in
             let result =
               match Code.match_template ~holes ~template subject with
               | None -> Value.List []
@@ -382,18 +388,18 @@ let pure =
             in
             k result
         | [] | [ _ ] ->
-            wrong_arity ~span:call_site ~name:"code_match"
+            wrong_arity ~span:call_site ~level ~name:"code_match"
               ~arity:(Value.At_least 2) args);
-    unary "NamedVar" Effect_class.Pure (fun ~span value ->
-        Value.Code (Core.named_var ~span (string ~span value)));
+    unary "NamedVar" Effect_class.Pure (fun ~span ~level value ->
+        Value.Code (Core.named_var ~span (string ~span ~level value)));
     (* What a desugared [match] falls through to. Core has no way to raise, and
        a match that runs out of clauses must not quietly answer unit, so the
        failure is a primitive like any other. Pure is the same judgement
        division by zero already gets: the result depends on nothing but the
        argument, so a specializer that folds it reports at specialization time a
        failure the program would certainly have reached. *)
-    unary "match_error" Effect_class.Pure (fun ~span value ->
-        fail ~span (Error.No_matching_clause (Value.to_string value)));
+    unary "match_error" Effect_class.Pure (fun ~span ~level value ->
+        fail ~span ~level (Error.No_matching_clause (Value.to_string value)));
     (* The self-interpreter carries a subject node as Code. When it detects an
        evaluator error itself, [raise_at] anchors the structured cause at that
        node rather than at the helper call in [eval.ash]. The descriptor is a
@@ -406,10 +412,10 @@ let pure =
                its error belongs to the level running the interpreter, exactly
                as an error that evaluator raises itself does. *)
             Error.raise_cause ~phase:Error.Evaluate
-              ~span:(source_span ~span:call_site site) ~level
-              (source_error_cause ~span:call_site descriptor)
+              ~span:(source_span ~span:call_site ~level site) ~level
+              (source_error_cause ~span:call_site ~level descriptor)
         | [] | [ _ ] | _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"raise_at" ~arity:(Value.Exactly 2) args);
+            wrong_arity ~span:call_site ~level ~name:"raise_at" ~arity:(Value.Exactly 2) args);
   ]
 
 (* The store. Residualized by default: running [cell_set] during specialization
@@ -421,10 +427,10 @@ let mutating dereferences =
   [
     (* A fresh place each call. Two cells with equal contents are still two
        cells, which is what [Value.equal] already says. *)
-    unary "cell_new" cls (fun ~span:_ initial -> Value.Cell (Value.cell initial));
-    unary "deref" cls (fun ~span c -> filled ~span c);
-    binary "cell_set" cls (fun ~span c value ->
-        Value.fill_cell (cell ~span c) value;
+    unary "cell_new" cls (fun ~span:_ ~level:_ initial -> Value.Cell (Value.cell initial));
+    unary "deref" cls (fun ~span ~level c -> filled ~span ~level c);
+    binary "cell_set" cls (fun ~span ~level c value ->
+        Value.fill_cell (cell ~span ~level c) value;
         Value.Unit);
     (* The open-recursion cells of spec §D3, spelled apart from the ordinary
        ones. Same store, different meaning: these three are what an [open fn]
@@ -434,14 +440,14 @@ let mutating dereferences =
        interpreter's. Counting here rather than in the desugarer is what makes
        the count dynamic — it is dereferences performed, not dereferences
        written. *)
-    unary "open_cell" cls (fun ~span:_ initial -> Value.Cell (Value.cell initial));
-    unary "open_deref" cls (fun ~span c ->
-        let contents = filled ~span c in
+    unary "open_cell" cls (fun ~span:_ ~level:_ initial -> Value.Cell (Value.cell initial));
+    unary "open_deref" cls (fun ~span ~level c ->
+        let contents = filled ~span ~level c in
         (* After the read succeeds: a refused read is not a dereference. *)
         incr dereferences;
         contents);
-    binary "open_set" cls (fun ~span c value ->
-        Value.fill_cell (cell ~span c) value;
+    binary "open_set" cls (fun ~span ~level c value ->
+        Value.fill_cell (cell ~span ~level c) value;
         Value.Unit);
   ]
 
@@ -463,16 +469,16 @@ let display = function
 let observable io =
   let cls = Effect_class.Observable_effect in
   [
-    unary "print" cls (fun ~span:_ value ->
+    unary "print" cls (fun ~span:_ ~level:_ value ->
         Io.write io (display value);
         Value.Unit);
-    unary "println" cls (fun ~span:_ value ->
+    unary "println" cls (fun ~span:_ ~level:_ value ->
         Io.write io (display value ^ "\n");
         Value.Unit);
-    nullary "read_line" cls (fun ~span ->
+    nullary "read_line" cls (fun ~span ~level ->
         match Io.read_line io with
         | Some line -> Value.Str line
-        | None -> fail ~span Error.End_of_input);
+        | None -> fail ~span ~level Error.End_of_input);
   ]
 
 (* The compile-time channel of §D7. [static_log] exists so that "I want to see
@@ -491,7 +497,7 @@ let observable io =
 let compile_time log =
   let cls = Effect_class.Specialization_only in
   [
-    unary ~observes:(Observation.uniform Observation.Unobserved) "static_log" cls (fun ~span:_ value ->
+    unary ~observes:(Observation.uniform Observation.Unobserved) "static_log" cls (fun ~span:_ ~level:_ value ->
         Io.write log (display value ^ "\n");
         Value.Unit);
   ]
@@ -529,7 +535,7 @@ let control =
             in
             apply ~call_site receiver [ Value.Continuation captured ] k
         | [] | _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"callcc" ~arity:(Value.Exactly 1) args);
+            wrong_arity ~span:call_site ~level ~name:"callcc" ~arity:(Value.Exactly 1) args);
     (* Invoking a captured continuation by name (spec §5.2). A meta level holds
        the continuation of the level below and resumes it with a value; the
        transfer, including the one-shot check, is the ordinary application the
@@ -537,12 +543,12 @@ let control =
        exactly one argument. The continuation it transfers to ignores the
        continuation of this call: [resume] does not return. *)
     make ~name:"resume" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ cont; value ] ->
-            apply ~call_site (continuation ~span:call_site cont) [ value ] k
+            apply ~call_site (continuation ~span:call_site ~level cont) [ value ] k
         | [] | [ _ ] | _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"resume" ~arity:(Value.Exactly 2) args);
+            wrong_arity ~span:call_site ~level ~name:"resume" ~arity:(Value.Exactly 2) args);
     (* Applying a callee to a list of arguments whose length is only known at
        run time. Core [App] has a fixed number of argument positions, so a
        program that has built an argument list — which is what any evaluator's
@@ -558,23 +564,23 @@ let control =
        does not, residualizes it. That is the same treatment [callcc] gets, and
        for the same reason. *)
     make ~name:"invoke" ~arity:(Value.Exactly 2) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ callee; arguments ] ->
-            apply ~call_site callee (items ~span:call_site arguments) k
+            apply ~call_site callee (items ~span:call_site ~level arguments) k
         | [] | [ _ ] | _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"invoke" ~arity:(Value.Exactly 2) args);
+            wrong_arity ~span:call_site ~level ~name:"invoke" ~arity:(Value.Exactly 2) args);
     (* As [invoke], but the spread application is attributed to a Core node
        supplied as Code. This is the source-preserving application path used by
        the real-Code self-interpreter. *)
     make ~name:"invoke_at" ~arity:(Value.Exactly 3) ~cls:Effect_class.Control
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ site; callee; arguments ] ->
-            let call_site = source_span ~span:call_site site in
-            apply ~call_site callee (items ~span:call_site arguments) k
+            let call_site = source_span ~span:call_site ~level site in
+            apply ~call_site callee (items ~span:call_site ~level arguments) k
         | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"invoke_at"
+            wrong_arity ~span:call_site ~level ~name:"invoke_at"
               ~arity:(Value.Exactly 3) args);
   ]
 
@@ -591,41 +597,41 @@ let control =
    primitive with its own class and its own site in a residual program. *)
 let meta_reader name query =
   make ~name ~arity:(Value.Exactly 0) ~cls:Effect_class.Reflection
-    (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta ~overlay:_ args k ->
+    (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect:_ ~meta ~overlay:_ args k ->
       match args with
       | [] -> k (meta ~call_site query)
-      | _ :: _ -> wrong_arity ~span:call_site ~name ~arity:(Value.Exactly 0) args)
+      | _ :: _ -> wrong_arity ~span:call_site ~level ~name ~arity:(Value.Exactly 0) args)
 
 let reflection =
   [
     make ~name:"lift" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply:_ ~lift ~run:_ ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
         | [ value ] -> k (Value.Code (lift ~call_site value))
         | [] | _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"lift" ~arity:(Value.Exactly 1) args);
+            wrong_arity ~span:call_site ~level ~name:"lift" ~arity:(Value.Exactly 1) args);
     make ~name:"run" ~arity:(Value.Exactly 1) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run ~reflect:_ ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run ~reflect:_ ~meta:_ ~overlay:_ args k ->
         match args with
-        | [ value ] -> run ~call_site (code ~span:call_site value) k
+        | [ value ] -> run ~call_site (code ~span:call_site ~level value) k
         | [] | _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"run" ~arity:(Value.Exactly 1) args);
+            wrong_arity ~span:call_site ~level ~name:"run" ~arity:(Value.Exactly 1) args);
     (* The inverse of reifier application (spec §5.4): drop one level, evaluate
        [code] in [env] there, and transfer to a continuation captured there. The
        identity reifier is the round trip, and it must be observationally the
        identity function — the argument is evaluated once, on the level that
        wrote it, with that level's effects in that order. *)
     make ~name:"reflect" ~arity:(Value.Exactly 3) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply:_ ~lift:_ ~run:_ ~reflect ~meta:_ ~overlay:_ args k ->
+      (fun ~call_site ~level ~apply:_ ~lift:_ ~run:_ ~reflect ~meta:_ ~overlay:_ args k ->
         match args with
         | [ subject; env; cont ] ->
             reflect ~call_site
-              ~code:(code ~span:call_site subject)
-              ~env:(environment ~span:call_site env)
-              ~cont:(continuation ~span:call_site cont)
+              ~code:(code ~span:call_site ~level subject)
+              ~env:(environment ~span:call_site ~level env)
+              ~cont:(continuation ~span:call_site ~level cont)
               k
         | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"reflect" ~arity:(Value.Exactly 3) args);
+            wrong_arity ~span:call_site ~level ~name:"reflect" ~arity:(Value.Exactly 3) args);
     (* Failing deliberately at the level that runs it. Reflection rather than
        Pure because the level is part of the result: folding it during
        specialization would report the failure at whatever level the specializer
@@ -635,9 +641,9 @@ let reflection =
         match args with
         | [ message ] ->
             Error.raise_cause ~phase:Error.Evaluate ~span:call_site ~level
-              (Error.Meta_error (string ~span:call_site message))
+              (Error.Meta_error (string ~span:call_site ~level message))
         | [] | _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"meta_error" ~arity:(Value.Exactly 1)
+            wrong_arity ~span:call_site ~level ~name:"meta_error" ~arity:(Value.Exactly 1)
               args);
     (* The rest of [up]'s meta bindings (spec §5.2). Each is a question about the
        level below the one asking, so each is a level-crossing observation and
@@ -659,7 +665,7 @@ let reflection =
         match args with
         | [] -> k (Value.Num level)
         | _ :: _ ->
-            wrong_arity ~span:call_site ~name:"tower_level" ~arity:(Value.Exactly 0)
+            wrong_arity ~span:call_site ~level ~name:"tower_level" ~arity:(Value.Exactly 0)
               args);
     (* And the deliberate opt-in of §D9: how deep the tower actually is. A
        program that calls this is depth-sensitive by construction, which is the
@@ -682,7 +688,7 @@ let reflection =
        leak it. A continuation captured inside and invoked outside re-enters the
        captured list (see [callcc] and [Machine.capture_continuation]). *)
     make ~name:"meta_with_run" ~arity:(Value.Exactly 3) ~cls:Effect_class.Reflection
-      (fun ~call_site ~level:_ ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay args k ->
+      (fun ~call_site ~level ~apply ~lift:_ ~run:_ ~reflect:_ ~meta:_ ~overlay args k ->
         match args with
         | [ eval_override; apply_override; thunk ] ->
             let slot = function
@@ -712,7 +718,7 @@ let reflection =
                    overlay.Value.overlay_restore saved;
                    raise exn))
         | [] | [ _ ] | [ _; _ ] | _ :: _ :: _ :: _ :: _ ->
-            wrong_arity ~span:call_site ~name:"meta_with_run"
+            wrong_arity ~span:call_site ~level ~name:"meta_with_run"
               ~arity:(Value.Exactly 3) args);
   ]
 

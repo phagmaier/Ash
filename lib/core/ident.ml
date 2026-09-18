@@ -14,9 +14,11 @@ let derive_as name (_ : t) = fresh name
 let name ident = ident.name
 let id ident = ident.id
 
-(* Identity is the ID alone; the name is compared only to keep the order total
-   and stable for identifiers that were canonicalized separately. *)
-let equal a b = Int.equal a.id b.id && String.equal a.name b.name
+(* Identity is the ID alone: the counter never reuses one, so two identifiers
+   with the same ID are the same binder whatever they print as. The name is
+   compared nowhere; [compare] consults it only to keep the order total and
+   stable for identifiers that were canonicalized separately. *)
+let equal a b = Int.equal a.id b.id
 
 let compare a b =
   match Int.compare a.id b.id with

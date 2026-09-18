@@ -49,6 +49,7 @@ def main():
                 + residue["evaluator_calls"]
                 + residue["dispatch_sites"]
                 + residue["named_var_lookups"]
+                + residue["control_sites"]
                 + sum(residue["reflection_boundaries"].values())
             )
             assert len(residue["sites"]) == counted_sites, (name, depth)

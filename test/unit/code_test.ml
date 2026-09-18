@@ -65,6 +65,23 @@ let test_template_match () =
   check "a different constructor does not match"
     (Code.match_template ~holes:[] ~template:exact_pattern
        (Core.lit ~span (Constant.Num 1))
+    = None);
+  (* A hole occurring twice is a nonlinear pattern: both occurrences must
+     capture alpha-equivalent nodes. *)
+  let twice = Ident.fresh "h" in
+  let pair first second =
+    Core.app ~span
+      ~func:(Core.lam ~span ~params:[] ~body:(Core.lit ~span Constant.Unit))
+      ~args:[ first; second ]
+  in
+  let lit n = Core.lit ~span (Constant.Num n) in
+  check "a repeated hole matches equal captures"
+    (Option.is_some
+       (Code.match_template ~holes:[ twice ] ~template:(pair (var twice) (var twice))
+          (pair (lit 1) (lit 1))));
+  check "a repeated hole rejects unequal captures"
+    (Code.match_template ~holes:[ twice ] ~template:(pair (var twice) (var twice))
+       (pair (lit 1) (lit 2))
     = None)
 
 let () =

@@ -29,7 +29,13 @@
     recurses on the host stack, so it is unsuitable for deeply recursive programs
     and for anything that must not terminate. Host stack depth is an excluded
     observation, so a comparison that overflows here is a badly chosen test
-    rather than a difference between evaluators. *)
+    rather than a difference between evaluators.
+
+    Its errors carry no level ([None]) while the production evaluator reports
+    level 0 at the base: the oracle answers no question about which tower level
+    ran, so a level on its diagnostics would be a fabrication. Differential
+    comparisons go through cause and source span rather than {!Error.equal},
+    which is level-sensitive by design. *)
 
 open Ash_core
 

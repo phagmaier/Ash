@@ -99,10 +99,16 @@ let match_template ~holes ~template subject =
   in
   let captures = ref Ident.Map.empty in
   let capture hole node =
-    if Ident.Map.mem hole !captures then false
-    else (
-      captures := Ident.Map.add hole node !captures;
-      true)
+    (* A hole occurring twice in the template is a nonlinear pattern: both
+       occurrences must capture alpha-equivalent subject nodes. Surface
+       validation never builds one, but [code_match] takes its holes from the
+       program, so the semantics here is defined rather than accidentally
+       never-matching. *)
+    match Ident.Map.find_opt hole !captures with
+    | None ->
+        captures := Ident.Map.add hole node !captures;
+        true
+    | Some first -> Alpha.equal first node
   in
   let rec nodes correspondence patterns subjects =
     List.compare_lengths patterns subjects = 0

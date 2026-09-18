@@ -46,5 +46,5 @@ val is_name_char : char -> bool
 
 val is_name : string -> bool
 (** Whether [text] would lex as a single {!Token.Ident}: a well-formed name that
-    is not reserved. The desugarer asks before inventing a name, so the lexical
-    rules stay in one place. *)
+    is not reserved. A lone [_] is not one — it lexes as [Underscore], the
+    wildcard — and neither is anything the lexer would split or reject. *)

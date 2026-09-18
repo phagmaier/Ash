@@ -4,7 +4,18 @@ module Names = Map.Make (String)
 type scope = Ident.t Names.t
 
 let empty_scope = Names.empty
-let scope_of_list bindings = Names.of_list bindings
+let scope_of_list bindings =
+  (* Duplicate printed names are refused rather than last-wins: two entries for
+     one name would make reads resolve silently to whichever came later, the
+     same mistake [Desugar.scope_of_globals] already refuses. Every caller
+     passes duplicate-free lists. *)
+  List.fold_left
+    (fun scope (name, ident) ->
+      if Names.mem name scope then
+        invalid_arg
+          (Printf.sprintf "Core_reader.scope_of_list: duplicate name `%s`" name)
+      else Names.add name ident scope)
+    Names.empty bindings
 let scope_find scope name = Names.find_opt name scope
 
 let fail ~span cause = Error.raise_cause ~phase:Error.Read ~span cause

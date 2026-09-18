@@ -111,7 +111,9 @@ let test_names () =
   check "is_name rejects a keyword" (not (Lexer.is_name "let"));
   check "is_name rejects a number" (not (Lexer.is_name "1x"));
   check "is_name rejects an operator suffix" (not (Lexer.is_name "x!"));
-  check "is_name rejects the empty string" (not (Lexer.is_name ""))
+  check "is_name rejects the empty string" (not (Lexer.is_name ""));
+  check "is_name rejects a bare underscore, which is the wildcard"
+    (not (Lexer.is_name "_"))
 
 (* Operators and punctuation, resolved by maximal munch *)
 
@@ -231,6 +233,17 @@ let test_malformed_literals () =
            expected = "an integer literal (Ash has no floating-point numbers)";
          })
     ~location:"t.ash:1:1-4" "1.5";
+  check_error "a dot that cannot start field access ends the mistake, not the number"
+    ~cause:
+      (Error.Unexpected
+         {
+           found = "`12.`";
+           expected = "an integer literal (Ash has no floating-point numbers)";
+         })
+    ~location:"t.ash:1:1-4" "12.";
+  check_error "a number running into a question mark"
+    ~cause:(Error.Unexpected { found = "`12?`"; expected = "an integer literal" })
+    ~location:"t.ash:1:1-4" "12?";
   check_error "an integer too large for the host"
     ~cause:
       (Error.Unexpected

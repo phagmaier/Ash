@@ -16,18 +16,20 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 11 — complete. Ash is released: docs, evaluation, and
-  reproducible verification from a clean checkout.
+- **Phase:** 11 — complete, plus a post-release review-repair pass (all items
+  in "Post-release review repairs" checked).
 - **Next:** none. Optional work (multi-shot continuations, Futamura 2/3,
   native backend, delimited-control let-insertion) is explicitly out of scope
   unless asked.
-- **Last verified:** 2026-09-18 — `rm -rf _build`, `opam exec -- dune build
-  @fmt` (exit 0), `opam exec -- dune build @all` (exit 0),
-  `opam exec -- dune runtest --force` (exit 0, no golden drift), every
-  `README.md` command (`--demos`, all three demos, `fact` and
-  `traced_fibonacci` collapses, `classification_partial` human/JSON,
-  `python3 scripts/measure_phase10.py` byte-identical to the pinned JSON).
-  Tested versions: OCaml 5.4.1, Dune 3.24.2, opam 2.5.2, Python 3.14.7.
+- **Last verified:** 2026-09-18 — after all repairs: `dune build @fmt`
+  (exit 0), `dune build @all` (exit 0), `dune runtest --force` (exit 0;
+  goldens promoted only for the intended new report line), every `README.md`
+  command (`--demos`, all three demos, `fact`/`traced_fibonacci`/
+  `classification_partial` collapses, `measure_phase10.py`), and direct
+  comparison proving the re-pinned measurements are semantically identical
+  (new `control_sites` field plus +1 host-dependent heap word, both
+  documented in `0003`). Tested versions unchanged: OCaml 5.4.1, Dune 3.24.2,
+  opam 2.5.2, Python 3.14.7.
   New `docs/semantics.md` and
   `docs/implementation.md` cover hygiene, CPS, open recursion, tower
   materialization, staging, effects, normalization, classification, tested
@@ -582,6 +584,36 @@ instead of becoming a residual failure in that branch.
     both collapse demos, `measure_phase10.py` byte-identical, README rewritten
     as standalone reproduction with tested versions (OCaml 5.4.1, Dune 3.24.2,
     opam 2.5.2, Python 3.14.7).
+
+## Post-release review repairs
+
+A correctness/efficiency review pass over the released tree (2026-09-18),
+fixed in priority order with a regression test before each repair:
+
+- [x] Normalizer soundness: a `NamedVar` spelling a binder's printed name
+  blocks trivial-let elimination, and `Alpha.equal`/`canonicalize` treat the
+  observation soundly (pinned binders keep identity).
+- [x] Residue survey: surviving Control operations (`invoke`, `callcc`,
+  `open_set`, `open_cell`) count as `control_sites` (except `resume`,
+  ordinary control flow); classification, human/JSON reports, and the
+  measurement script account for them.
+- [x] Primitive error levels: `fail` and all argument helpers carry the
+  applying level (closes ADR 0023's deferred item; new ADR 0042).
+- [x] Staging strictness: `is_purely_static` gate for evaluator configuration;
+  documented the reifier-application guard, budget-counting scope, and
+  entry-context store coupling.
+- [x] CLI robustness: `Stack_overflow` diagnostics, `--depth` validation,
+  unified demo error discipline, leak-free `read_file`, `--json` flag warning.
+- [x] Refinements: lexer diagnostics (`12.`, `12?`, `is_name "_"`), strict
+  `scope_of_list`, nonlinear template matching, kind-table test, `Ident.equal`
+  simplified to ID comparison, `lift` lookup hoist, overlay/group-cell docs,
+  dead-code removal, budget-restore protection.
+
+Deferred with written reasons: meta-view dedup (three tested copies; unify
+only with a pinning suite), full parser depth counters (CLI catch covers the
+crash), `Incomparable`-yet-`FULL` relabel (defensible as-is), printer
+`Invalid_argument` (already the documented host-bug contract), `run`
+ident-set caching (cold path).
 
 ## Optional work — after Phase 11 only
 

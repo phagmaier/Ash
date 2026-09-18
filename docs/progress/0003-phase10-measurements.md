@@ -27,3 +27,22 @@ and retains one `open_deref`. The report's `materialized_reachable_words` is hos
 its environment is pinned in the data file. Expanded semantic nodes use the
 requested interposed depth, while materialized levels reflect runtime `up` or
 scoped override use even at depth zero (ADR 0040).
+
+## Re-pinning note (review repairs, 2026-09-18)
+
+Regenerated under the same pinned environment after the review repairs. Every
+claim-bearing figure is unchanged (classes, reasons, agreement, outcomes,
+residual cores and sizes, steps, ratios, empty specialization output —
+verified by direct comparison against the previous pin). Two mechanical diffs:
+
+- `control_sites`: the residue survey now counts surviving control-class and
+  open-group operations, which it previously missed. Zero on all samples
+  except the persistent one, whose retained `open_set` now appears with its
+  site. No class or reason changes.
+- `materialized_reachable_words`: +1 everywhere (e.g. 2098 → 2099 at depth 0).
+  Bisected to `read_line`'s reachable graph (29 → 30 words): threading the
+  applying level through its implementation added one word there, and the
+  per-primitive survey shows nowhere else in the tower graph changed. Steps,
+  outcomes, and all other figures are byte-identical, so this is
+  representation layout in a figure the report already excludes from its
+  claims — not a leak and not a behavior change.

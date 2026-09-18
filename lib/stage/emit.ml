@@ -22,18 +22,6 @@ type buffer = { mutable items : item list }
 
 let create_buffer () = { items = [] }
 
-let binding_count buf =
-  List.length
-    (List.filter
-       (function Value_binding _ -> true | Recursive_group _ -> false)
-       buf.items)
-
-let recursive_group_count buf =
-  List.length
-    (List.filter
-       (function Recursive_group _ -> true | Value_binding _ -> false)
-       buf.items)
-
 type stack = buffer list
 
 let buffer_stack : stack ref = ref []

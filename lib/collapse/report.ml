@@ -118,6 +118,7 @@ let to_string ?(show_residual = false) (metrics : Metrics.t) =
       add (count "Constructor dispatch sites:" residue.Residue.dispatch_sites);
       add (count "NamedVar lookups residualized:" residue.Residue.named_var_lookups);
       add (count "Evaluator calls:" residue.Residue.evaluator_calls);
+      add (count "Control operation sites:" residue.Residue.control_sites);
       association "Reflection boundaries:" residue.Residue.reflection_boundaries |> add;
       association "Residual nodes by origin:" residue.Residue.nodes_by_origin |> add;
       List.iter
@@ -316,6 +317,7 @@ let to_json (metrics : Metrics.t) =
             ("evaluator_calls", Jint residue.evaluator_calls);
             ("dispatch_sites", Jint residue.dispatch_sites);
             ("named_var_lookups", Jint residue.named_var_lookups);
+            ("control_sites", Jint residue.control_sites);
             ("reflection_boundaries", pairs_json residue.reflection_boundaries);
             ("sites", Jarray
                (List.map

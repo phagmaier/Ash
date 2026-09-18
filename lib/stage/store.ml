@@ -40,9 +40,19 @@ let assigned binder = Ident.Set.mem binder state.assigned
    - a [Reifier] node anywhere in the scope: applying one hands the whole calling
      environment to the level above, which may evaluate anything in it.
 
-   Deliberately syntactic and deliberately over-approximate. A binder any clause
-   catches is not refused — it is residualized, which is what the store does
-   whenever proof is unavailable. *)
+    Deliberately syntactic and deliberately over-approximate. A binder any clause
+    catches is not refused — it is residualized, which is what the store does
+    whenever proof is unavailable.
+
+    Note what this does {e not} catch: applying a reifier {e value} — a global,
+    a parameter, or anything heap-carried — looks like an ordinary [App], so no
+    syntactic shape here can see the environment escaping upward. That case is
+    caught dynamically instead: handing an environment to another level while
+    anything is held is refused ([holds_static] in the level-crossing paths),
+    so a reifier application can never observe a half-specialized store. The
+    syntactic check keeps the common case residualized up front; the dynamic
+    guard is the actual soundness protection, and any new level-crossing path
+    must consult it. *)
 let rec at_risk ~binder ~name node =
   match Core.shape node with
   | Core.Lit _ | Core.Var _ -> false
@@ -66,7 +76,10 @@ let rec at_risk ~binder ~name node =
       List.exists (at_risk ~binder ~name) (Core.children node)
 
 (* Memoized on the binder alone: identities are allocated once, so a binder has
-   exactly one scope and the answer cannot depend on where it is asked. *)
+   exactly one scope and the answer cannot depend on where it is asked. That
+   uniqueness is load-bearing — a host-built term reusing one identity in two
+   scopes would get a stale answer — and it holds because every binder comes
+   from [Ident.fresh] (or the reader, which freshens every binder it reads). *)
 let holdable ~binder ~scope =
   match Ident.Map.find_opt binder state.holdable with
   | Some decided -> decided
@@ -126,6 +139,11 @@ let holds_static () =
   List.exists (fun binding -> Option.is_some (held_value binding.slot)) state.bindings
 
 let written_holds written =
+  (* Binder-keyed, while the store itself is cell-keyed: two names for one cell
+     would report the cell twice here. Unreachable today — every [bind]
+     allocates a fresh cell, so aliases do not exist — and the join's refusal
+     on disagreement would save soundness if they ever did. If aliasing
+     arrives, key this by cell. *)
   List.filter_map
     (fun binding ->
       if Ident.Set.mem binding.binder written then

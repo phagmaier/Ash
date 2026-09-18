@@ -10,6 +10,9 @@ let is_name_char = function 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' -> true |
 let is_name text =
   let length = String.length text in
   if length = 0 || Token.is_keyword text then false
+  else if String.equal text "_" then false
+    (* [_] lexes as [Underscore], never as [Ident]: a lone underscore is the
+       wildcard pattern, not a name, so it must not validate as one. *)
   else
     let body = if text.[length - 1] = '?' then String.sub text 0 (length - 1) else text in
     String.length body > 0
@@ -17,7 +20,9 @@ let is_name text =
     && String.for_all is_name_char body
 
 (* Whitespace and comments, reporting whether a line ended along the way: that is
-   the one thing about layout the lexer must not throw away. *)
+   the one thing about layout the lexer must not throw away. A line ends at
+   ['\n']; a lone ['\r'] is whitespace but not a break, so classic Mac line
+   endings would not separate statements. Unix line endings are assumed. *)
 let skip_ignorable c =
   let crossed = ref false in
   let rec loop () =
@@ -94,12 +99,25 @@ let read_number c ~start =
       (Error.Unexpected { found = Printf.sprintf "`%s%s`" digits rest; expected })
   in
   match Cursor.peek c with
-  | Some '.' when Option.fold ~none:false ~some:is_digit (Cursor.peek_ahead c 1) ->
+  | Some '.'
+    when Option.fold ~none:true
+           ~some:(fun ch -> is_digit ch || not (is_name_start ch))
+           (Cursor.peek_ahead c 1) ->
       (* Ash has one numeric type. A fractional literal is a mistake worth
-         naming, not two tokens with a dot between them. *)
+         naming, not two tokens with a dot between them — and so is a dot that
+         cannot start field access, with end of input, whitespace, or an
+         operator after it. A dot before a name stays two tokens: field access
+         is a grammar question even though the grammar has no answer for it
+         yet, and the suite pins `1.x` as [Int; Dot; Ident]. *)
       malformed "an integer literal (Ash has no floating-point numbers)"
-  | Some ch when is_name_start ch -> malformed "an integer literal"
+  | Some ch when is_name_start ch || ch = '?' -> malformed "an integer literal"
   | Some _ | None -> (
+      (* Machine integers, nothing wider: [int_of_string_opt] failing means the
+         digits overflowed the host word. Negation does not help — the digits
+         are lexed before any minus is parsed, so [Int.min_int] is not writable
+         as a literal and [0 - 9223372036854775807 - 1] is the way to spell it.
+         That asymmetry is documented here rather than fixed here: joining the
+         sign to the literal would move negation out of the parser's hands. *)
       match int_of_string_opt digits with
       | Some value -> (Token.Int value, Cursor.span_from c start)
       | None ->

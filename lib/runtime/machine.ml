@@ -145,7 +145,13 @@ let rec eval machine node env k =
           (* No tower installed: there is no machine above to run the wrapper
              on, so run it here with overlays disabled. Otherwise the wrapper's
              own body would re-enter this same frame and diverge. The captured
-             continuation still restores the extent for what follows. *)
+             continuation still restores the extent for what follows. Clearing
+             without saving is sound here only for that reason, and only
+             implicitly: resumption restores the captured list, and abandoning
+             ends the whole run, so the leaked empty list happens to equal the
+             clean state machine reuse wants. Extent exit therefore restores by
+             construction everywhere else and by accident here — which is why
+             this arm must stay host-API-only rather than grow callers. *)
           let cont = capture_continuation machine ~capture:span k in
           machine.overlays <- [];
           apply machine ~call_site:span override
@@ -172,6 +178,10 @@ and apply machine ~call_site callee arguments k =
             [ callee; Value.List arguments; Value.Continuation cont ]
             (fun answer -> answer)
       | None ->
+          (* Same host-API-only fallback as the eval cell: run here with
+             overlays cleared, since there is no machine above. See the note
+             there for why clearing without saving is sound in exactly this
+             arm. *)
           let cont = capture_continuation machine ~capture:call_site k in
           machine.overlays <- [];
           apply machine ~call_site override
@@ -242,10 +252,14 @@ let meta_type_error ~call_site ~level ~expected value =
   meta_fail ~call_site ~level
     (Error.Unexpected { found = Value.type_phrase value; expected })
 
-let meta_arity_error ~call_site ~level ~name arguments =
+let meta_arity_error ~call_site ~level ~name ~arity arguments =
   meta_fail ~call_site ~level
     (Error.Arity_error
-       { callee = Some name; expected = "3"; actual = List.length arguments })
+       {
+         callee = Some name;
+         expected = Value.arity_to_string arity;
+         actual = List.length arguments;
+       })
 
 (* The evaluator that was installed when the cell was created, wrapped as a
    value. It closes over that function rather than over the cell, because
@@ -270,7 +284,7 @@ let default_eval_value machine base =
               | Value.Code _, other ->
                   meta_type_error ~call_site ~level ~expected:"an environment" other
               | other, _ -> meta_type_error ~call_site ~level ~expected:"code" other)
-          | _ -> meta_arity_error ~call_site ~level ~name:"eval" args);
+          | _ -> meta_arity_error ~call_site ~level ~name:"eval" ~arity:Value.(Exactly 3) args);
     }
 
 let default_apply_value machine base =
@@ -298,7 +312,7 @@ let default_apply_value machine base =
               | other ->
                   meta_type_error ~call_site ~level ~expected:"a list of arguments"
                     other)
-          | _ -> meta_arity_error ~call_site ~level ~name:"apply" args);
+          | _ -> meta_arity_error ~call_site ~level ~name:"apply" ~arity:Value.(Exactly 3) args);
     }
 
 let meta_eval_cell machine =
@@ -315,6 +329,15 @@ let meta_eval_cell machine =
           (* Untouched: run exactly what this level ran before the cell existed. *)
           | Some replacement when replacement == default -> base machine node env k
           | Some replacement ->
+              (* The machine above runs the replacement — running it here would
+                 make it its own interpreter. With no tower installed there is
+                 no machine above, so this falls back to the same machine,
+                 which re-enters the wrapper on every step of its own body and
+                 diverges. That arm is host-API-only: every in-language path to
+                 a group cell ([up]'s readers, the staged protocol, depth
+                 interposition) refuses without a tower first. It is kept total
+                 rather than refusing so that cell materialization itself never
+                 fails; do not route new callers through it. *)
               let upper =
                 match above machine with Some upper -> upper | None -> machine
               in
@@ -349,6 +372,9 @@ let meta_apply_cell machine =
           | Some replacement when replacement == default ->
               base machine ~call_site callee arguments k
           | Some replacement ->
+              (* Same host-API-only fallback as the eval cell above: with no
+                 tower installed this re-enters the wrapper on its own machine
+                 and diverges. In-language callers cannot reach it. *)
               let upper =
                 match above machine with Some upper -> upper | None -> machine
               in

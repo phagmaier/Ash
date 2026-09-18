@@ -96,7 +96,9 @@ let substitutable ~assigned value =
    outside data. A [Set] target is a reference — assignment reads the binding to
    find its cell — and so is anything under a [Quote] or [Reifier] body: those
    are values and another level's code, and eliminating the binding would leave
-   their mentions dangling rather than rewrite them. Hygiene decides the rest:
+   their mentions dangling rather than rewrite them. A [NamedVar] spelling the
+   binder's printed name is a reference too: it resolves by name at run time
+   and cannot be rewritten to follow the substitution. Hygiene decides the rest:
    identities are allocated once, so no binder below can rebind [for_] and a
    same-printed name is simply a different variable. *)
 type occurrence = Blocked | Used | Unused
@@ -111,7 +113,17 @@ let rec occurrence_of ~for_ node =
   if reflective_boundary node then Blocked
   else match Core.shape node with
   | Core.Var ident when Ident.equal ident for_ -> Used
-  | Core.Lit _ | Core.Var _ | Core.NamedVar _ -> Unused
+  | Core.Lit _ | Core.Var _ -> Unused
+  | Core.NamedVar name ->
+      (* A reflective lookup by printed name can observe the binding even
+         though no ordinary variable mentions it: [let x = 1 in NamedVar "x"]
+         reads the cell [x] is bound to. Block exactly then. A [NamedVar]
+         spelling another name cannot resolve to [for_], so elimination
+         stays complete for it. Over-approximate across scopes on purpose: a
+         same-printed inner binder is a different identity the lookup might
+         or might not see first, and keeping the outer binding is sound
+         either way. *)
+      if String.equal name (Ident.name for_) then Blocked else Unused
   | Core.Set { Core.set_target; set_value } ->
       if Ident.equal set_target for_ then Blocked else occurrence_of ~for_ set_value
   | Core.Lam lambda -> occurrence_of ~for_ lambda.Core.lam_body

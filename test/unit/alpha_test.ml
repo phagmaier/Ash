@@ -172,6 +172,24 @@ let test_equal () =
   check "renaming a set target is equivalent"
     (Alpha.equal (read "(lam (x) (set x (lit 1)))") (read "(lam (y) (set y (lit 1)))"));
 
+  (* A reflective lookup observes the binder printing its name, so renaming
+     the binder without renaming the lookup changes the term. Both directions
+     fail: a different binder, and a different lookup string. *)
+  check "a lookup of a renamed binder is not equivalent"
+    (not
+       (Alpha.equal
+          (read "(let x (lit 1) (named-var \"x\"))")
+          (read "(let y (lit 1) (named-var \"x\"))")));
+  check "a renamed lookup is not equivalent"
+    (not
+       (Alpha.equal
+          (read "(let x (lit 1) (named-var \"x\"))")
+          (read "(let y (lit 1) (named-var \"y\"))")));
+  check "the same lookup term equals itself"
+    (Alpha.equal
+       (read "(let x (lit 1) (named-var \"x\"))")
+       (read "(let x (lit 1) (named-var \"x\"))"));
+
   (* Spans are metadata and take no part in meaning. *)
   check "layout does not matter"
     (Alpha.equal (read "(lam (x) (var x))")
@@ -229,7 +247,17 @@ let test_canonicalize () =
 
   check "spans survive canonicalization"
     (Span.equal (Core.span (read "(lit 1)"))
-       (Core.span (Alpha.canonicalize (read "(lit 1)"))))
+       (Core.span (Alpha.canonicalize (read "(lit 1)"))));
+
+  (* A binder a same-name lookup observes keeps its identity: renaming it
+     would break the lookup, so canonicalization pins it instead. *)
+  let observed = read "(let x (lit 1) (named-var \"x\"))" in
+  check "canonicalizing preserves an observed binder"
+    (Alpha.equal (Alpha.canonicalize observed) observed);
+  check "canonicalizing an observed binder is idempotent"
+    (Core.equal_structure
+       (Alpha.canonicalize (Alpha.canonicalize observed))
+       (Alpha.canonicalize observed))
 
 let () =
   test_free_idents ();
