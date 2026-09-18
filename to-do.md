@@ -16,122 +16,26 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 9 — statically known reflective collapse complete.
-- **Next:** 10.1 — split meta state into static and dynamic knowledge
+- **Phase:** 10 — dynamic reflection and conservative four-way classification complete.
+- **Next:** 11.1 — write semantics and implementation documentation.
 - **Last verified:** 2026-09-18 — `opam exec -- dune build @all`,
-  `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
-  `opam exec -- dune exec ash -- --demo tracing`,
-  `opam exec -- dune exec ash -- --demo level-2-counting`, and
-  `opam exec -- dune exec ash -- --demo traced-fibonacci`,
-  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`, and
-  `opam exec -- dune exec ash -- --collapse examples/traced_fibonacci.ash
-  --depth 1 --show-residual` all pass. The Phase 9 demo is
-  `examples/traced_fibonacci.ash`: its runtime cell read keeps Fibonacci as a
-  residual `LetRec`, while the known tracing evaluator becomes `println` calls
-  inside that recursive computation. The canonical 251-node residual Core,
-  report, and exact expected output bytes are pinned in
-  `test/golden/traced_fibonacci.expected` and reproduced by that one collapse
-  command; `--demo traced-fibonacci` prints the unescaped 59-line trace.
-  `test/golden/traced_fibonacci_golden.ml` asserts the tower and residual
-  answer and output events agree byte-for-byte, no program output occurs during
-  specialization, the residual's recursive body contains print calls, its
-  printed Core round-trips, and all interpreter-residue counters are zero.
-  The report states tower/residual agreement explicitly because a ground
-  source run cannot execute `up`. One specialization point remains for runtime
-  Fibonacci recursion, not interpretation. Task 9.1 makes statically known evaluator changes part of the
-  specialization configuration. A lazy parallel chain of Lift-wired levels
-  executes known `up` bodies without sending effects to a ground evaluator;
-  only the closed meta protocol folds, and only cells returned by `meta_eval`/
-  `meta_apply` may execute `open_deref`/`open_set` during specialization.
-  Persistent and scoped `eval`/`apply` wrappers are consequently inlined at
-  every former dispatch site. Their `print`/`println` calls remain in the
-  residual in order, while the reifier, meta readers, meta cells, overlay
-  runner, `resume`, and default evaluator calls disappear. Syntax handed to a
-  wrapper is recorded as statically known Code for the run, distinct from an
-  unknown residual expression; reifying it emits a `Quote`, and static Code
-  fields returned by code operations retain that status recursively. This is
-  why a trace prints the original Core node rather than its computed value.
-  Five law samples cover persistent counting, scoped tracing, both evaluator slots, and
-  persistent/scoped stacking; tower and residual outcomes and byte traces
-  agree, specialization output is empty, and every residual has zero evaluator
-  dereferences/calls, dispatch sites, `NamedVar` lookups, reflection boundaries,
-  and foreign-origin interpreter nodes. ADR 0039. Phase 8 measured what D8 chose: `meta_with(eval = …, apply = …) { … }`
-  pushes a persistent overlay frame — never save/mutate/restore — lookup
-  precedes the persistent cells, `NamedVar` never sees a frame (the body lowers
-  under the surrounding scope; only right-hand sides bind `eval`/`apply`, to
-  the outer effective evaluator), and every Ash-visible continuation captures
-  the pointer in effect at capture time and follows it on invoke without
-  mutating ambient state. `test/unit/meta_with_test.ml` proves it in 8 tests:
-  interception past the outermost node with the answer preserved and nothing
-  counted outside; nested frames stacking most-recent-outermost; eval/apply
-  slots independent and combinable; persistent cells untouched (a persistent
-  replacement installed with `up` still counts after, and only it counts
-  outside); unknown/repeated slots refused at lowering; capture-inside/
-  invoke-outside re-entering the captured pointer (abandon-then-escape, one
-  shot respected throughout — re-entrant double-use still needs multi-shot and
-  is deferred per spec) with ambient calls answering unintercepted; and a
-  nested error whose outer print survives the inner division-by-zero. ADR 0038.
-  Nothing pure moved: the criterion suite still proves its 73 depth-1 samples
-  against the same 906,708-dispatch / 2,125,589-cell-read tower figures and the
-  same 250 residual nodes; the registry grows 50 → 53 Reflection primitives
-  (`meta_current_eval`, `meta_current_apply`, `meta_with_run`), which is the
-  only golden change (53 global cells). Task 7.3 measured what 7.1 and 7.2 built. The effect-order corpus is 15
-  programs that state their observation as an answer plus the expressions that
-  read the store back, 3 whose failure the specializer had to leave in the
-  residual, and 1 recorded boundary; at every depth 0–5 the tower run and the
-  **normalized** residual run agree on value, observable store, output and
-  failure, and the specialization phase's own output is required to be empty —
-  324 checks over 19 programs. Two things had to be settled to write it. A store
-  is not comparable across runs (cells carry identity, §D1), so the comparison
-  is what the program reads back out of one; and a closed program gets a
-  condition the specializer cannot decide by writing `deref(cell_new(v))`,
-  because allocation still residualizes. Two failures now agree on cause and
-  **source** location with provenance excluded: a residualized failure carries
-  the emitting phase over the very span the source reported, so the old
-  `Span.equal` comparison called every such residual different and the CLI
-  report printed `DIFFERS` for correct output. Provenance joined §D9's excluded
-  observations. The one boundary is a decided failure inside an undecided branch
-  (`if dynamic then 1/0 else 7`): the program runs, the specialization aborts,
-  and the refusal is asserted rather than dropped. ADR 0037. Task 7.2 split the
-  store: a binding is either the specializer's — writes
-  update its cell, reads fold, nothing survives — or the residual program's,
-  with writes becoming `Set` nodes and reads a variable, and the store is keyed
-  by cell identity so aliases stay one place and two activations stay two. At a
-  conditional the specializer cannot decide, every held binding either branch
-  assigns is given up before the fork and the two stores are joined afterwards,
-  which is what makes §7.4's `if d then x := 1 else x := 2; use(x)` come out
-  right while a binding no branch writes still folds. `Core.assigned_idents` is
-  now one definition shared with the normalizer, so ADR 0033's write-set guards
-  decide something for the first time. Nothing pure moved: the whole pure corpus
-  specializes to bit-identical residuals. Task 6.3 gave residuals one canonical
-  shape: administrative lets
-  flatten, trivial bindings substitute away, alpha-canonical renaming runs
-  last, and no effect moves — idempotent by construction, pinned by unit tests
-  over flattening, hygiene, effect-order counterexamples, and whole programs.
-  Task 6.4 made specialization depth-aware and measured the result: ordinary
-  corpus programs produce alpha-equal residuals at depths 0–5, while
-  `tower_depth()` samples produce one residual per depth, each matching what
-  that depth's tower did — 417 invariant checks and 18 depth-sensitive checks,
-  with the normalizer proven load-bearing (raw specializations differ by fresh
-  identities; their normal forms coincide). Nothing prior moved: the collapse
-  report's counters are unchanged for every sample that does not read its
-  depth, the criterion suite still proves its 73 depth-1 samples against the
-  same 906,708-dispatch / 2,125,589-cell-read tower figures and the same 250
-  residual nodes, and standalone specialization (`Stage.fold`, unattached
-  machines) residualizes `tower_depth()` exactly as before.
-  **Milestone 2 remains done**, and the criterion still covers: 73 pure
-  samples at depth 1 — the corpus's values and failures, plus eight whose
-  residual is a function, compared by application, two of them keeping a
-  residual `LetRec` of the program's own recursion — agreeing across the
-  source, tower, and residual runs, with zero surviving eval-cell dereferences,
-  evaluator calls, Core dispatch sites, `NamedVar` lookups, and reflection
-  boundaries in every residual. The criterion is falsifiable and shown to be.
-  Also intact: the collapse report (5.4), the staged pure fragment (5.3),
-  hygienic let-insertion (5.2), the static/dynamic value model and
-  `maybe-lift` mode (5.1), lazy tower (depths 0–5), the hygienic desugarer,
-  `open fn` groups, the self-interpreter (`lib/self/eval.ash`) at layers 1 and
-  2, the 53-primitive registry, the full regression suite (unit, differential,
-  laws, golden), and both packaged milestone demos.
+  `opam exec -- dune runtest --force`, all golden CLI commands, and
+  `python3 scripts/measure_phase10.py`. The five checked-in classification
+  programs produce all four classes at depths 0–3; every one of the 20
+  tower/residual pairs agrees on value or failure and exact output. The partial
+  runtime-trace sample folds `40 + 2` while producing 50 Core nodes from 47
+  source nodes; its boundary keeps exact syntax and adds runtime plumbing. It
+  retains three source-located reflection boundaries and emits no output during
+  specialization. The scoped opaque sample produces 45 nodes from 39. The
+  persistent dynamic sample keeps 48 of 48 nodes and one `open_deref`;
+  retaining its whole Core is necessary until a narrower evaluator-state join
+  can preserve every node a runtime replacement may observe. JSON and human
+  reports list sites, reasons, counters, and conservative classification.
+  Raw sizes, steps, ratios, exact reports, and host versions are pinned in
+  `docs/progress/phase10-measurements.json`, reproduced by one script command.
+  ADR 0040 records the semantics, including depth-zero reflective
+  materialization as distinct from requested interposition depth. All earlier
+  pure, effect, tower, static reflection, and demo laws remain green.
 - **Blocker:** none
 
 Milestone 1 is done. The tower is real: a program can reach up and replace the
@@ -615,23 +519,23 @@ instead of becoming a residual failure in that branch.
 
 ## Phase 10 — dynamic reflection and classification
 
-- [ ] **10.1 Split meta state into static and dynamic knowledge.**
+- [x] **10.1 Split meta state into static and dynamic knowledge.**
   - Specialize monovariantly on known evaluator identity; residualize the smallest
     sound evaluator fragment at dynamic choices and retain provenance.
   - Accept: a runtime trace flag yields an accurately explained partial residual.
 
-- [ ] **10.2 Implement conservative four-way classification.**
+- [x] **10.2 Implement conservative four-way classification.**
   - Pre-check depth observation, dynamic `NamedVar`, and reflection under dynamic
     conditions. Classify depth-invariant full, depth-sensitive full, partial, or
     opaque, clearly labeling conservative results.
   - Accept: curated adversarial samples populate and validate all four classes.
 
-- [ ] **10.3 Complete human and JSON collapse reports.**
+- [x] **10.3 Complete human and JSON collapse reports.**
   - List residue cases/sites, surviving dereferences, dispatch, generalizations,
     boundaries, and reasons.
   - Accept: totals reconcile with a direct residual AST walk.
 
-- [ ] **10.4 Run the reproducible measurement suite.**
+- [x] **10.4 Run the reproducible measurement suite.**
   - Store semantic/materialized/residual sizes, steps, and per-level ratios without
     assuming a curve; pin environment versions and preserve raw data.
   - Accept: every published number is reproduced by one documented command.

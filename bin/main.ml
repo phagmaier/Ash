@@ -30,6 +30,7 @@ let run_demo name =
 let depth = ref 1
 let collapse_file = ref None
 let show_residual = ref false
+let json = ref false
 
 let read_file path =
   match open_in_bin path with
@@ -47,9 +48,13 @@ let run_collapse path =
       exit 2
   | Some source -> (
       match
-        Ash_collapse.Collapse.report ~depth:!depth ~show_residual:!show_residual
-          ~file:path ~name:path
-          (Ash_collapse.Metrics.Surface source)
+        (if !json then
+           Ash_collapse.Collapse.json_report ~depth:!depth ~file:path ~name:path
+             (Ash_collapse.Metrics.Surface source)
+         else
+           Ash_collapse.Collapse.report ~depth:!depth ~show_residual:!show_residual
+             ~file:path ~name:path
+             (Ash_collapse.Metrics.Surface source))
       with
       | report ->
           print_string report;
@@ -71,6 +76,9 @@ let options =
     ( "--show-residual",
       Arg.Set show_residual,
       " Include canonical residual Core and exact output bytes in the collapse report" );
+    ( "--json",
+      Arg.Set json,
+      " Emit the collapse report as one JSON object" );
     ( "--depth",
       Arg.Set_int depth,
       "N Tower depth the collapse report measures against (default 1)" );

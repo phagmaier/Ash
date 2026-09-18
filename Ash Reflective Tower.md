@@ -831,8 +831,15 @@ Reflective modifications known at specialization time.
   artifact.
 
 ### Phase 10 — Dynamic reflection and classification `[4+, open-ended]`
-Split the meta-environment into static and dynamic parts; specialize monovariantly on interpreter identity; where identity is dynamic, emit a residual evaluator and record the boundary.
-- **Done when:** you can state precisely which fragment of Ash collapses, with a corpus partitioned per §9.3 and a measured residue figure for the partial class.
+**Done (ADR 0040):** known evaluator identities continue to inline; a runtime
+scoped choice retains its source-located reflective construct. A dynamic
+branch containing a reifier keeps the whole program residual, because a
+persistent evaluator can observe the syntax of its continuation. The fallback
+is monovariant and conservative. The report classifies measured residuals into
+four classes, lists sites and reasons, and emits JSON. A reproducible depth 0–3
+suite covers all classes and a dynamic persistent change; its raw reports and
+host versions live in `docs/progress/phase10-measurements.json`. Membership for
+arbitrary programs remains undecidable, so class labels are conservative.
 
 ### Phase 11 — Writeup `[2]`
 Optional native backend as a victory lap, scoped honestly (§11).
@@ -849,7 +856,7 @@ Optional native backend as a victory lap, scoped honestly (§11).
 Revision 1 called `n·|I| + |p|` "the size of the tower." Your lazy implementation does not physically contain *n* duplicated interpreter ASTs, so that number describes a conceptual expansion. Report both, under distinct names:
 
 - **Expanded semantic tower size** — `n·|I| + |p|`. What an eager tower *would* contain.
-- **Materialized runtime representation size** — measured from the actual heap. What exists.
+- **Materialized runtime representation size** — measured from the actual heap. What exists. Reflection can materialize upper levels even when the requested *interposed* depth is zero; those levels appear here, while the expanded semantic size still uses the requested interposed depth (ADR 0040).
 
 Otherwise someone can fairly object that you're compressing a representation that never existed.
 
@@ -879,7 +886,7 @@ For non-invariant classes the criterion is **semantic preservation at each depth
 $$\text{execute}(C(n,p), x) \approx \text{execute\_tower}(n, p, x)$$
 
 > [!note] Deciding the class
-> Membership is not decidable in general. Use a conservative syntactic pre-check (does the program use `tower_depth()`, `NamedVar` against a dynamic env, or reflection under a dynamic condition?) plus differential testing. Report the pre-check as conservative — a program can be classified PARTIAL and in fact collapse fully.
+> Membership is not decidable in general. The implemented classifier (ADR 0040) uses a conservative syntactic pre-check for `tower_depth()`, any potentially dynamic `NamedVar`, and reflection under a dynamic condition, together with a direct residual AST survey and differential outcome/output comparison. A program classified PARTIAL may in fact collapse fully. A static pure call outside a scoped reflective boundary witnesses partial work even if retaining the runtime protocol makes the residual larger than the source. OPAQUE is a conservative label for a persistent runtime evaluator choice or a scoped choice with no such witness and no net size reduction, not a universal impossibility result.
 
 ### 9.4 The `ash collapse` report
 
@@ -1009,6 +1016,6 @@ Still open:
 - [x] Does `NamedVar` resolution search overlay frames, or only the lexical chain? (Affects whether `meta_with` is visible to reflective name lookup.) *(Resolved: only explicit lexical environments, never meta overlays — locked decision and ADR 0024.)*
 - [x] Do reifiers receive the whole call expression or just the argument list? (Recommend whole call — you want the operator for error messages.) *(Resolved: whole call, environment, and continuation — ADR 0023.)*
 - [x] Is the tower's global environment per-level or shared? (Recommend per-level, cloned on materialization; shared makes level independence untestable.) *(Resolved: cloned per materialized level — ADR 0022.)*
-- [ ] What is the specialization semantics of a reifier whose *body* is static but whose *invocation* is under a dynamic condition? This is the sharpest case in the Phase 10 classification and probably where the real result lives.
+- [x] What is the specialization semantics of a reifier whose *body* is static but whose *invocation* is under a dynamic condition? *(Resolved conservatively: retain the complete source Core, since a persistent evaluator chosen at runtime can observe its continuation's syntax. ADR 0040; a narrower evaluator-state join remains a future optimization.)*
 - [x] Should `tower_depth()` exist at all, or is the depth-sensitive class more interesting than the clean theorem? (D9 — decide before Phase 6 writes its test suite.) *(Resolved: kept; `level` stays relative, `tower_depth()` is the explicit depth opt-in — ADR 0034, Phase 6 measured both classes.)*
 - [ ] When multi-shot continuations arrive, do overlay frames need reference counting, or does structural sharing suffice?

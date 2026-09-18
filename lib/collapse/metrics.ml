@@ -104,6 +104,34 @@ let start ~registry ~machines =
   Primitives.reset_open_dereferences registry;
   List.iter Machine.reset_counters machines
 
+(* A residual that retains a runtime meta override still needs a level above
+   its ground evaluator to run that override.  The upper evaluator is lazy and
+   owns cloned globals and fresh group cells, just like a tower level; only the
+   residual Core is run here, with no identity interpreter interposed. *)
+let attach_residual_levels machine ~env ~depth =
+  let materialized = ref depth in
+  let rec attach current index below =
+    let upper = ref None in
+    Machine.set_levels current
+      {
+        Machine.level_index = index;
+        level_above =
+          (fun () ->
+            match !upper with
+            | Some above -> above
+            | None ->
+                let above = Evaluator.machine () in
+                Machine.set_global_env above (Env.clone env);
+                materialized := max !materialized (index + 1);
+                attach above (index + 1) (Some current);
+                upper := Some above;
+                above);
+        level_below = below;
+        level_tower_depth = (fun () -> !materialized);
+      }
+  in
+  attach machine 0 None
+
 (* The specialization phase: stage [term] in lift mode against [env] under the
    stated depth, and normalize what comes back. Returns the staging machine
    too, so a measurement can read its counters; {!specialize} is the same
@@ -147,7 +175,13 @@ let specialize_with_stats ?(depth = 0) ?tower ~env term =
     };
   let result =
     match Ash_stage.Staged_eval.run machine ~env term with
-    | Value.Code residual -> Ok (Normalize.normalize residual)
+    | Value.Code residual ->
+        Ok
+          (if
+             List.mem "stage/opaque-dynamic-reflection"
+               (Span.generators (Core.span residual))
+           then residual
+           else Normalize.normalize residual)
     | Value.Num _ | Value.Bool _ | Value.Str _ | Value.Sym _ | Value.Unit
     | Value.List _ | Value.Closure _ | Value.Reifier _ | Value.Continuation _
     | Value.Environment _ | Value.Cell _ | Value.Primitive _ ->
@@ -271,6 +305,7 @@ let measure ?(depth = 1) ?budget ~file ~name program =
     Result.map
       (fun term ->
         let machine = Evaluator.machine () in
+        attach_residual_levels machine ~env ~depth;
         start ~registry ~machines:[ machine ];
         let outcome = attempt (fun () -> Evaluator.run machine ~env term) in
         {

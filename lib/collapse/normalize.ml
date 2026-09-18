@@ -50,11 +50,21 @@
     variable referring to an enclosing binder has to follow that binder's
     renaming — that is what alpha-equivalence means here.
 
+    A Phase 10 runtime evaluator can inspect exact constructor steps inside a
+    [stage/dynamic-reflection] region. The pass treats that region as opaque and
+    keeps bindings whose occurrences cross it (ADR 0040).
+
     Idempotent by construction: the flattening pass leaves a term in which no
     let has a trivial or let-shaped value, and renaming such a term neither
     reintroduces one nor changes structure. *)
 
 open Ash_core
+
+(* A runtime-selected evaluator can inspect the exact Core inside its scoped
+   extent. Administrative rewrites are therefore invalid across this marker,
+   even when they would preserve ordinary evaluation. *)
+let reflective_boundary node =
+  List.mem "stage/dynamic-reflection" (Span.generators (Core.span node))
 
 (* Every identity something assigns, anywhere in the term: {!Core.assigned_idents}.
 
@@ -98,7 +108,8 @@ let join a b =
   | Unused, Unused -> Unused
 
 let rec occurrence_of ~for_ node =
-  match Core.shape node with
+  if reflective_boundary node then Blocked
+  else match Core.shape node with
   | Core.Var ident when Ident.equal ident for_ -> Used
   | Core.Lit _ | Core.Var _ | Core.NamedVar _ -> Unused
   | Core.Set { Core.set_target; set_value } ->
@@ -133,7 +144,8 @@ let rec occurrence_of ~for_ node =
 let rec rewrite ~assigned node =
   let span = Core.span node in
   let rewrite node = rewrite ~assigned node in
-  match Core.shape node with
+  if reflective_boundary node then node
+  else match Core.shape node with
   | Core.Lit _ | Core.Var _ | Core.NamedVar _ -> node
   | Core.Lam lambda ->
       Core.of_lambda ~span { lambda with Core.lam_body = rewrite lambda.Core.lam_body }
@@ -166,7 +178,8 @@ let rec rewrite ~assigned node =
    Rebuilt nodes carry the spans of the nodes they came from, so provenance
    survives normalization. *)
 and chain ~assigned binder value span body =
-  match Core.shape value with
+  if reflective_boundary value then Core.let_ ~span ~binder ~value ~body
+  else match Core.shape value with
   | Core.Let { Core.let_binder = inner_binder; let_value = inner_value; let_body }
     ->
       (* Flatten one level: [let b = (let b2 = v2 in w) in body] becomes
@@ -193,7 +206,8 @@ and chain ~assigned binder value span body =
    its value is descended into. *)
 and substitute ~replacement ~for_ node =
   let span = Core.span node in
-  match Core.shape node with
+  if reflective_boundary node then node
+  else match Core.shape node with
   | Core.Var ident when Ident.equal ident for_ -> replacement
   | Core.Lit _ | Core.Var _ | Core.NamedVar _ | Core.Quote _ | Core.Reifier _ ->
       node

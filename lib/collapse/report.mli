@@ -6,9 +6,13 @@
     host stack depth, allocation order, or heap layout — the four channels §D9
     excludes from Ash's claims, plus the one (heap words) that varies with the
     OCaml runtime rather than with the program. {!Metrics.t} still carries the
-    heap measurement for the measurement suite that reports it with its
-    environment pinned (task 10.4). *)
+    heap measurement for the version-pinned measurement suite. *)
 
 val to_string : ?show_residual:bool -> Metrics.t -> string
 (** [show_residual] includes canonical residual Core and exact escaped output
     bytes. The default keeps the compact report used by existing examples. *)
+
+val to_json : Metrics.t -> string
+(** One JSON object containing raw sizes, steps, classification, residue cases
+    and sites, reasons, and outcomes. No host-specific formatting is applied to
+    numbers. *)

@@ -14,6 +14,7 @@ Residual Core
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -44,8 +45,15 @@ Outcome
   Tower output bytes:             "'App\n'Var\n'Var\n'If\n'App\n'Var\n'Var\n'Lit\n'App\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'App\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'Var\n"
   Residual output bytes:          "'App\n'Var\n'Var\n'If\n'App\n'Var\n'Var\n'Lit\n'App\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'App\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'Var\n'App\n'Var\n'App\n'Var\n'Var\n'Lit\n'If\n'App\n'Var\n'Var\n'Lit\n'Var\n"
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         no interpretation sites found
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.

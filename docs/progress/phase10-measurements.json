@@ -1,0 +1,3176 @@
+{
+  "cases": [
+    {
+      "measurements": [
+        {
+          "depth": 0,
+          "ratio_to_previous_depth": null,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-INVARIANT, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "no interpretation sites found"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 0,
+            "file": "examples/classification_invariant.ash",
+            "name": "examples/classification_invariant.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "lit",
+                  "count": 1,
+                  "origin": "examples/classification_invariant.ash"
+                }
+              ],
+              "core": "(lit 42)",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 1,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 1,
+              "nodes_by_origin": {
+                "examples/classification_invariant.ash": 1
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 1
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 4,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 0,
+              "materialized_group_cells": 0,
+              "materialized_reachable_words": 2098,
+              "materialized_upper_levels": 0,
+              "program_nodes": 4
+            },
+            "source": {
+              "outcome": "42",
+              "output": [],
+              "steps": 8
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 1,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 2,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 1
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 8,
+              "total_dispatches": 4
+            },
+            "tower": {
+              "dispatches": 4,
+              "levels": [
+                {
+                  "cell_dereferences": 8,
+                  "index": 0,
+                  "steps": 8
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 8
+              }
+            }
+          }
+        },
+        {
+          "depth": 1,
+          "ratio_to_previous_depth": 7.0,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-INVARIANT, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "no interpretation sites found"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 1,
+            "file": "examples/classification_invariant.ash",
+            "name": "examples/classification_invariant.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "lit",
+                  "count": 1,
+                  "origin": "examples/classification_invariant.ash"
+                }
+              ],
+              "core": "(lit 42)",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 1,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 1,
+              "nodes_by_origin": {
+                "examples/classification_invariant.ash": 1
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 1
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 10,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 3108,
+              "materialized_upper_levels": 1,
+              "program_nodes": 4
+            },
+            "source": {
+              "outcome": "42",
+              "output": [],
+              "steps": 8
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 1,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 2,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 1
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 8,
+              "total_dispatches": 4
+            },
+            "tower": {
+              "dispatches": 24,
+              "levels": [
+                {
+                  "cell_dereferences": 8,
+                  "index": 0,
+                  "steps": 8
+                },
+                {
+                  "cell_dereferences": 48,
+                  "index": 1,
+                  "steps": 48
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 56
+              }
+            }
+          }
+        },
+        {
+          "depth": 2,
+          "ratio_to_previous_depth": 5.214285714285714,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-INVARIANT, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "no interpretation sites found"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 2,
+            "file": "examples/classification_invariant.ash",
+            "name": "examples/classification_invariant.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "lit",
+                  "count": 1,
+                  "origin": "examples/classification_invariant.ash"
+                }
+              ],
+              "core": "(lit 42)",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 1,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 1,
+              "nodes_by_origin": {
+                "examples/classification_invariant.ash": 1
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 1
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 16,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 106,
+              "materialized_group_cells": 6,
+              "materialized_reachable_words": 4079,
+              "materialized_upper_levels": 2,
+              "program_nodes": 4
+            },
+            "source": {
+              "outcome": "42",
+              "output": [],
+              "steps": 8
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 1,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 2,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 1
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 8,
+              "total_dispatches": 4
+            },
+            "tower": {
+              "dispatches": 124,
+              "levels": [
+                {
+                  "cell_dereferences": 8,
+                  "index": 0,
+                  "steps": 8
+                },
+                {
+                  "cell_dereferences": 48,
+                  "index": 1,
+                  "steps": 48
+                },
+                {
+                  "cell_dereferences": 236,
+                  "index": 2,
+                  "steps": 236
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 292
+              }
+            }
+          }
+        },
+        {
+          "depth": 3,
+          "ratio_to_previous_depth": 5.041095890410959,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-INVARIANT, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "no interpretation sites found"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 3,
+            "file": "examples/classification_invariant.ash",
+            "name": "examples/classification_invariant.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "lit",
+                  "count": 1,
+                  "origin": "examples/classification_invariant.ash"
+                }
+              ],
+              "core": "(lit 42)",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 1,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 1,
+              "nodes_by_origin": {
+                "examples/classification_invariant.ash": 1
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 1
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 22,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 159,
+              "materialized_group_cells": 9,
+              "materialized_reachable_words": 5050,
+              "materialized_upper_levels": 3,
+              "program_nodes": 4
+            },
+            "source": {
+              "outcome": "42",
+              "output": [],
+              "steps": 8
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 1,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 2,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 1
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 8,
+              "total_dispatches": 4
+            },
+            "tower": {
+              "dispatches": 624,
+              "levels": [
+                {
+                  "cell_dereferences": 8,
+                  "index": 0,
+                  "steps": 8
+                },
+                {
+                  "cell_dereferences": 48,
+                  "index": 1,
+                  "steps": 48
+                },
+                {
+                  "cell_dereferences": 236,
+                  "index": 2,
+                  "steps": 236
+                },
+                {
+                  "cell_dereferences": 1180,
+                  "index": 3,
+                  "steps": 1180
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "42",
+                "output": [],
+                "steps": 1472
+              }
+            }
+          }
+        }
+      ],
+      "name": "classification_invariant"
+    },
+    {
+      "measurements": [
+        {
+          "depth": 0,
+          "ratio_to_previous_depth": null,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-SENSITIVE, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": true,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "program reads tower_depth()"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 0,
+            "file": "examples/classification_sensitive.ash",
+            "name": "examples/classification_sensitive.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                }
+              ],
+              "core": "(let v (app (var +) (lit 0) (lit 1)) (var v))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 6,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 6,
+              "nodes_by_origin": {
+                "examples/classification_sensitive.ash": 6
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "1",
+                "output": [],
+                "steps": 10
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 5,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 0,
+              "materialized_group_cells": 0,
+              "materialized_reachable_words": 2098,
+              "materialized_upper_levels": 0,
+              "program_nodes": 5
+            },
+            "source": {
+              "outcome": "1",
+              "output": [],
+              "steps": 11
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 11,
+              "total_dispatches": 5
+            },
+            "tower": {
+              "dispatches": 5,
+              "levels": [
+                {
+                  "cell_dereferences": 11,
+                  "index": 0,
+                  "steps": 11
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "1",
+                "output": [],
+                "steps": 11
+              }
+            }
+          }
+        },
+        {
+          "depth": 1,
+          "ratio_to_previous_depth": 6.454545454545454,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-SENSITIVE, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": true,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "program reads tower_depth()"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 1,
+            "file": "examples/classification_sensitive.ash",
+            "name": "examples/classification_sensitive.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                }
+              ],
+              "core": "(let v (app (var +) (lit 1) (lit 1)) (var v))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 6,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 6,
+              "nodes_by_origin": {
+                "examples/classification_sensitive.ash": 6
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "2",
+                "output": [],
+                "steps": 10
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 11,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 3108,
+              "materialized_upper_levels": 1,
+              "program_nodes": 5
+            },
+            "source": {
+              "outcome": "1",
+              "output": [],
+              "steps": 11
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 11,
+              "total_dispatches": 5
+            },
+            "tower": {
+              "dispatches": 30,
+              "levels": [
+                {
+                  "cell_dereferences": 11,
+                  "index": 0,
+                  "steps": 11
+                },
+                {
+                  "cell_dereferences": 60,
+                  "index": 1,
+                  "steps": 60
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "2",
+                "output": [],
+                "steps": 71
+              }
+            }
+          }
+        },
+        {
+          "depth": 2,
+          "ratio_to_previous_depth": 5.154929577464789,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-SENSITIVE, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": true,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "program reads tower_depth()"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 2,
+            "file": "examples/classification_sensitive.ash",
+            "name": "examples/classification_sensitive.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                }
+              ],
+              "core": "(let v (app (var +) (lit 2) (lit 1)) (var v))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 6,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 6,
+              "nodes_by_origin": {
+                "examples/classification_sensitive.ash": 6
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "3",
+                "output": [],
+                "steps": 10
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 17,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 106,
+              "materialized_group_cells": 6,
+              "materialized_reachable_words": 4079,
+              "materialized_upper_levels": 2,
+              "program_nodes": 5
+            },
+            "source": {
+              "outcome": "1",
+              "output": [],
+              "steps": 11
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 11,
+              "total_dispatches": 5
+            },
+            "tower": {
+              "dispatches": 155,
+              "levels": [
+                {
+                  "cell_dereferences": 11,
+                  "index": 0,
+                  "steps": 11
+                },
+                {
+                  "cell_dereferences": 60,
+                  "index": 1,
+                  "steps": 60
+                },
+                {
+                  "cell_dereferences": 295,
+                  "index": 2,
+                  "steps": 295
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "3",
+                "output": [],
+                "steps": 366
+              }
+            }
+          }
+        },
+        {
+          "depth": 3,
+          "ratio_to_previous_depth": 5.030054644808743,
+          "raw": {
+            "classification": {
+              "class": "DEPTH-SENSITIVE, FULL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": true,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": false
+              },
+              "reasons": [
+                "program reads tower_depth()"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 3,
+            "file": "examples/classification_sensitive.ash",
+            "name": "examples/classification_sensitive.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 1,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 2,
+                  "origin": "examples/classification_sensitive.ash"
+                }
+              ],
+              "core": "(let v (app (var +) (lit 3) (lit 1)) (var v))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 6,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 6,
+              "nodes_by_origin": {
+                "examples/classification_sensitive.ash": 6
+              },
+              "produced": true,
+              "reflection_boundaries": {},
+              "run": {
+                "outcome": "4",
+                "output": [],
+                "steps": 10
+              },
+              "sites": []
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 23,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 159,
+              "materialized_group_cells": 9,
+              "materialized_reachable_words": 5050,
+              "materialized_upper_levels": 3,
+              "program_nodes": 5
+            },
+            "source": {
+              "outcome": "1",
+              "output": [],
+              "steps": 11
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 11,
+              "total_dispatches": 5
+            },
+            "tower": {
+              "dispatches": 780,
+              "levels": [
+                {
+                  "cell_dereferences": 11,
+                  "index": 0,
+                  "steps": 11
+                },
+                {
+                  "cell_dereferences": 60,
+                  "index": 1,
+                  "steps": 60
+                },
+                {
+                  "cell_dereferences": 295,
+                  "index": 2,
+                  "steps": 295
+                },
+                {
+                  "cell_dereferences": 1475,
+                  "index": 3,
+                  "steps": 1475
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "4",
+                "output": [],
+                "steps": 1841
+              }
+            }
+          }
+        }
+      ],
+      "name": "classification_sensitive"
+    },
+    {
+      "measurements": [
+        {
+          "depth": 0,
+          "ratio_to_previous_depth": null,
+          "raw": {
+            "classification": {
+              "class": "PARTIAL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "statically known pure work outside the reflective boundary folds"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 0,
+            "file": "examples/classification_partial.ash",
+            "name": "examples/classification_partial.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 9,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 11,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 6,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 21,
+                  "origin": "examples/classification_partial.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (let v4 (app (var list) (lit 42) (var v3)) (var v4))))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 36,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 50,
+              "nodes_by_origin": {
+                "examples/classification_partial.ash": 50
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 64
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 47,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 3043,
+              "materialized_upper_levels": 1,
+              "program_nodes": 47
+            },
+            "source": {
+              "outcome": "[42, 3]",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 84
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 4,
+                "if": 0,
+                "lam": 0,
+                "let": 3,
+                "letrec": 0,
+                "lit": 3,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 5
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 29,
+              "total_dispatches": 15
+            },
+            "tower": {
+              "dispatches": 37,
+              "levels": [
+                {
+                  "cell_dereferences": 65,
+                  "index": 0,
+                  "steps": 65
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 65
+              }
+            }
+          }
+        },
+        {
+          "depth": 1,
+          "ratio_to_previous_depth": 8.876923076923077,
+          "raw": {
+            "classification": {
+              "class": "PARTIAL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "statically known pure work outside the reflective boundary folds"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 1,
+            "file": "examples/classification_partial.ash",
+            "name": "examples/classification_partial.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 9,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 11,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 6,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 21,
+                  "origin": "examples/classification_partial.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (let v4 (app (var list) (lit 42) (var v3)) (var v4))))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 36,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 50,
+              "nodes_by_origin": {
+                "examples/classification_partial.ash": 50
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 64
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 53,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 3165,
+              "materialized_upper_levels": 1,
+              "program_nodes": 47
+            },
+            "source": {
+              "outcome": "[42, 3]",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 84
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 4,
+                "if": 0,
+                "lam": 0,
+                "let": 3,
+                "letrec": 0,
+                "lit": 3,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 5
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 29,
+              "total_dispatches": 15
+            },
+            "tower": {
+              "dispatches": 258,
+              "levels": [
+                {
+                  "cell_dereferences": 65,
+                  "index": 0,
+                  "steps": 65
+                },
+                {
+                  "cell_dereferences": 512,
+                  "index": 1,
+                  "steps": 512
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 577
+              }
+            }
+          }
+        },
+        {
+          "depth": 2,
+          "ratio_to_previous_depth": 5.518197573656845,
+          "raw": {
+            "classification": {
+              "class": "PARTIAL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "statically known pure work outside the reflective boundary folds"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 2,
+            "file": "examples/classification_partial.ash",
+            "name": "examples/classification_partial.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 9,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 11,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 6,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 21,
+                  "origin": "examples/classification_partial.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (let v4 (app (var list) (lit 42) (var v3)) (var v4))))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 36,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 50,
+              "nodes_by_origin": {
+                "examples/classification_partial.ash": 50
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 64
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 59,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 106,
+              "materialized_group_cells": 6,
+              "materialized_reachable_words": 4136,
+              "materialized_upper_levels": 2,
+              "program_nodes": 47
+            },
+            "source": {
+              "outcome": "[42, 3]",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 84
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 4,
+                "if": 0,
+                "lam": 0,
+                "let": 3,
+                "letrec": 0,
+                "lit": 3,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 5
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 29,
+              "total_dispatches": 15
+            },
+            "tower": {
+              "dispatches": 1363,
+              "levels": [
+                {
+                  "cell_dereferences": 65,
+                  "index": 0,
+                  "steps": 65
+                },
+                {
+                  "cell_dereferences": 512,
+                  "index": 1,
+                  "steps": 512
+                },
+                {
+                  "cell_dereferences": 2607,
+                  "index": 2,
+                  "steps": 2607
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 3184
+              }
+            }
+          }
+        },
+        {
+          "depth": 3,
+          "ratio_to_previous_depth": 5.095163316582915,
+          "raw": {
+            "classification": {
+              "class": "PARTIAL",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "statically known pure work outside the reflective boundary folds"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 3,
+            "file": "examples/classification_partial.ash",
+            "name": "examples/classification_partial.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 9,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 11,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 6,
+                  "origin": "examples/classification_partial.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 21,
+                  "origin": "examples/classification_partial.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (let v4 (app (var list) (lit 42) (var v3)) (var v4))))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 36,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 50,
+              "nodes_by_origin": {
+                "examples/classification_partial.ash": 50
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 64
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_partial.ash:3:10-111"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 65,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 159,
+              "materialized_group_cells": 9,
+              "materialized_reachable_words": 5107,
+              "materialized_upper_levels": 3,
+              "program_nodes": 47
+            },
+            "source": {
+              "outcome": "[42, 3]",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 84
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 4,
+                "if": 0,
+                "lam": 0,
+                "let": 3,
+                "letrec": 0,
+                "lit": 3,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 5
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 29,
+              "total_dispatches": 15
+            },
+            "tower": {
+              "dispatches": 6888,
+              "levels": [
+                {
+                  "cell_dereferences": 65,
+                  "index": 0,
+                  "steps": 65
+                },
+                {
+                  "cell_dereferences": 512,
+                  "index": 1,
+                  "steps": 512
+                },
+                {
+                  "cell_dereferences": 2607,
+                  "index": 2,
+                  "steps": 2607
+                },
+                {
+                  "cell_dereferences": 13039,
+                  "index": 3,
+                  "steps": 13039
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "[42, 3]",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 16223
+              }
+            }
+          }
+        }
+      ],
+      "name": "classification_partial"
+    },
+    {
+      "measurements": [
+        {
+          "depth": 0,
+          "ratio_to_previous_depth": null,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 0,
+            "file": "examples/classification_opaque.ash",
+            "name": "examples/classification_opaque.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 8,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 10,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_opaque.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (var v3)))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 31,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 45,
+              "nodes_by_origin": {
+                "examples/classification_opaque.ash": 45
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 55
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 39,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 3043,
+              "materialized_upper_levels": 1,
+              "program_nodes": 39
+            },
+            "source": {
+              "outcome": "3",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 68
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 2,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 13,
+              "total_dispatches": 7
+            },
+            "tower": {
+              "dispatches": 29,
+              "levels": [
+                {
+                  "cell_dereferences": 49,
+                  "index": 0,
+                  "steps": 49
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 49
+              }
+            }
+          }
+        },
+        {
+          "depth": 1,
+          "ratio_to_previous_depth": 9.489795918367347,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 1,
+            "file": "examples/classification_opaque.ash",
+            "name": "examples/classification_opaque.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 8,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 10,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_opaque.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (var v3)))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 31,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 45,
+              "nodes_by_origin": {
+                "examples/classification_opaque.ash": 45
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 55
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 45,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 3165,
+              "materialized_upper_levels": 1,
+              "program_nodes": 39
+            },
+            "source": {
+              "outcome": "3",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 68
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 2,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 13,
+              "total_dispatches": 7
+            },
+            "tower": {
+              "dispatches": 210,
+              "levels": [
+                {
+                  "cell_dereferences": 49,
+                  "index": 0,
+                  "steps": 49
+                },
+                {
+                  "cell_dereferences": 416,
+                  "index": 1,
+                  "steps": 416
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 465
+              }
+            }
+          }
+        },
+        {
+          "depth": 2,
+          "ratio_to_previous_depth": 5.591397849462366,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 2,
+            "file": "examples/classification_opaque.ash",
+            "name": "examples/classification_opaque.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 8,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 10,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_opaque.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (var v3)))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 31,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 45,
+              "nodes_by_origin": {
+                "examples/classification_opaque.ash": 45
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 55
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 51,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 106,
+              "materialized_group_cells": 6,
+              "materialized_reachable_words": 4136,
+              "materialized_upper_levels": 2,
+              "program_nodes": 39
+            },
+            "source": {
+              "outcome": "3",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 68
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 2,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 13,
+              "total_dispatches": 7
+            },
+            "tower": {
+              "dispatches": 1115,
+              "levels": [
+                {
+                  "cell_dereferences": 49,
+                  "index": 0,
+                  "steps": 49
+                },
+                {
+                  "cell_dereferences": 416,
+                  "index": 1,
+                  "steps": 416
+                },
+                {
+                  "cell_dereferences": 2135,
+                  "index": 2,
+                  "steps": 2135
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 2600
+              }
+            }
+          }
+        },
+        {
+          "depth": 3,
+          "ratio_to_previous_depth": 5.1073076923076925,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 3,
+            "file": "examples/classification_opaque.ash",
+            "name": "examples/classification_opaque.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 8,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 2,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 10,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_opaque.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_opaque.ash"
+                }
+              ],
+              "core": "(let v (app (var cell_new) (lit #t)) (let v1 (app (var deref) (var v)) (let v2 (var v1) (let v3 (let v3 (app (var meta_current_eval)) (let v4 (app (var meta_current_apply)) (let v5 (var v3) (let v6 (var v4) (let v7 (if (var v2) (lam (v7 v8 v9) (let v10 (app (var println) (lit 'trace)) (app (var v5) (var v7) (var v8) (var v9)))) (var v5)) (app (var meta_with_run) (var v7) (lit unit) (lam () (app (var +) (lit 1) (lit 2))))))))) (var v3)))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 0,
+              "evaluator_calls": 0,
+              "generated_nodes": 31,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 45,
+              "nodes_by_origin": {
+                "examples/classification_opaque.ash": 45
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_current_apply": 1,
+                "meta_current_eval": 1,
+                "meta_with_run": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 55
+              },
+              "sites": [
+                {
+                  "kind": "meta_current_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_current_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                },
+                {
+                  "kind": "meta_with_run",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_opaque.ash:2:1-102"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 57,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 159,
+              "materialized_group_cells": 9,
+              "materialized_reachable_words": 5107,
+              "materialized_upper_levels": 3,
+              "program_nodes": 39
+            },
+            "source": {
+              "outcome": "3",
+              "output": [
+                "wrote \"'trace\\n\""
+              ],
+              "steps": 68
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 2,
+                "if": 0,
+                "lam": 0,
+                "let": 2,
+                "letrec": 0,
+                "lit": 1,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 2
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 13,
+              "total_dispatches": 7
+            },
+            "tower": {
+              "dispatches": 5640,
+              "levels": [
+                {
+                  "cell_dereferences": 49,
+                  "index": 0,
+                  "steps": 49
+                },
+                {
+                  "cell_dereferences": 416,
+                  "index": 1,
+                  "steps": 416
+                },
+                {
+                  "cell_dereferences": 2135,
+                  "index": 2,
+                  "steps": 2135
+                },
+                {
+                  "cell_dereferences": 10679,
+                  "index": 3,
+                  "steps": 10679
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 13279
+              }
+            }
+          }
+        }
+      ],
+      "name": "classification_opaque"
+    },
+    {
+      "measurements": [
+        {
+          "depth": 0,
+          "ratio_to_previous_depth": null,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "persistent runtime evaluator choice preserves source syntax",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 0,
+            "file": "examples/classification_persistent.ash",
+            "name": "examples/classification_persistent.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 13,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 8,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "reifier",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_persistent.ash"
+                }
+              ],
+              "core": "(let trace (app (var deref) (app (var cell_new) (lit #t))) (let _ (if (var trace) (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (let base (app (var open_deref) (var eval)) (app (var open_set) (var eval) (lam (e r k) (let _ (app (var println) (lit 'trace)) (app (var base) (var e) (var r) (var k))))))))))))) (lit unit)) (app (var +) (lit 1) (lit 2))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 1,
+              "evaluator_calls": 0,
+              "generated_nodes": 28,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 48,
+              "nodes_by_origin": {
+                "examples/classification_persistent.ash": 48
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_apply": 1,
+                "meta_eval": 1,
+                "meta_global": 1,
+                "tower_level": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 25
+              },
+              "sites": [
+                {
+                  "kind": "meta_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_global",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "tower_level",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "open_deref",
+                  "reason": "evaluator or open-group cell read survives",
+                  "source": "examples/classification_persistent.ash:2:31-35"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 48,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 4049,
+              "materialized_upper_levels": 1,
+              "program_nodes": 48
+            },
+            "source": {
+              "outcome": "failure: examples/classification_persistent.ash:2:15-96 (generated by desugar/up): evaluate error: `reifier application` is not supported by the ground evaluator",
+              "output": [],
+              "steps": 17
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 0,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 0,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 0
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 0,
+              "total_dispatches": 0
+            },
+            "tower": {
+              "dispatches": 15,
+              "levels": [
+                {
+                  "cell_dereferences": 25,
+                  "index": 0,
+                  "steps": 25
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 1,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 25
+              }
+            }
+          }
+        },
+        {
+          "depth": 1,
+          "ratio_to_previous_depth": 12.64,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "persistent runtime evaluator choice preserves source syntax",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 1,
+            "file": "examples/classification_persistent.ash",
+            "name": "examples/classification_persistent.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 13,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 8,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "reifier",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_persistent.ash"
+                }
+              ],
+              "core": "(let trace (app (var deref) (app (var cell_new) (lit #t))) (let _ (if (var trace) (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (let base (app (var open_deref) (var eval)) (app (var open_set) (var eval) (lam (e r k) (let _ (app (var println) (lit 'trace)) (app (var base) (var e) (var r) (var k))))))))))))) (lit unit)) (app (var +) (lit 1) (lit 2))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 1,
+              "evaluator_calls": 0,
+              "generated_nodes": 28,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 48,
+              "nodes_by_origin": {
+                "examples/classification_persistent.ash": 48
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_apply": 1,
+                "meta_eval": 1,
+                "meta_global": 1,
+                "tower_level": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 25
+              },
+              "sites": [
+                {
+                  "kind": "meta_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_global",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "tower_level",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "open_deref",
+                  "reason": "evaluator or open-group cell read survives",
+                  "source": "examples/classification_persistent.ash:2:31-35"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 54,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 53,
+              "materialized_group_cells": 3,
+              "materialized_reachable_words": 4323,
+              "materialized_upper_levels": 1,
+              "program_nodes": 48
+            },
+            "source": {
+              "outcome": "failure: examples/classification_persistent.ash:2:15-96 (generated by desugar/up): evaluate error: `reifier application` is not supported by the ground evaluator",
+              "output": [],
+              "steps": 17
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 0,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 0,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 0
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 0,
+              "total_dispatches": 0
+            },
+            "tower": {
+              "dispatches": 149,
+              "levels": [
+                {
+                  "cell_dereferences": 25,
+                  "index": 0,
+                  "steps": 25
+                },
+                {
+                  "cell_dereferences": 291,
+                  "index": 1,
+                  "steps": 291
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 1,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 316
+              }
+            }
+          }
+        },
+        {
+          "depth": 2,
+          "ratio_to_previous_depth": 6.0,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "persistent runtime evaluator choice preserves source syntax",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 2,
+            "file": "examples/classification_persistent.ash",
+            "name": "examples/classification_persistent.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 13,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 8,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "reifier",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_persistent.ash"
+                }
+              ],
+              "core": "(let trace (app (var deref) (app (var cell_new) (lit #t))) (let _ (if (var trace) (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (let base (app (var open_deref) (var eval)) (app (var open_set) (var eval) (lam (e r k) (let _ (app (var println) (lit 'trace)) (app (var base) (var e) (var r) (var k))))))))))))) (lit unit)) (app (var +) (lit 1) (lit 2))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 1,
+              "evaluator_calls": 0,
+              "generated_nodes": 28,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 48,
+              "nodes_by_origin": {
+                "examples/classification_persistent.ash": 48
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_apply": 1,
+                "meta_eval": 1,
+                "meta_global": 1,
+                "tower_level": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 25
+              },
+              "sites": [
+                {
+                  "kind": "meta_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_global",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "tower_level",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "open_deref",
+                  "reason": "evaluator or open-group cell read survives",
+                  "source": "examples/classification_persistent.ash:2:31-35"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 60,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 106,
+              "materialized_group_cells": 6,
+              "materialized_reachable_words": 5398,
+              "materialized_upper_levels": 2,
+              "program_nodes": 48
+            },
+            "source": {
+              "outcome": "failure: examples/classification_persistent.ash:2:15-96 (generated by desugar/up): evaluate error: `reifier application` is not supported by the ground evaluator",
+              "output": [],
+              "steps": 17
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 0,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 0,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 0
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 0,
+              "total_dispatches": 0
+            },
+            "tower": {
+              "dispatches": 819,
+              "levels": [
+                {
+                  "cell_dereferences": 25,
+                  "index": 0,
+                  "steps": 25
+                },
+                {
+                  "cell_dereferences": 291,
+                  "index": 1,
+                  "steps": 291
+                },
+                {
+                  "cell_dereferences": 1580,
+                  "index": 2,
+                  "steps": 1580
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 1,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 1896
+              }
+            }
+          }
+        },
+        {
+          "depth": 3,
+          "ratio_to_previous_depth": 5.169831223628692,
+          "raw": {
+            "classification": {
+              "class": "OPAQUE",
+              "conservative": true,
+              "precheck": {
+                "depth_observation": false,
+                "dynamic_named_var": false,
+                "reflection_under_dynamic_condition": true
+              },
+              "reasons": [
+                "evaluator identity may depend on a runtime condition",
+                "residual AST contains interpretation sites",
+                "persistent runtime evaluator choice preserves source syntax",
+                "no net AST reduction across the dynamic evaluator boundary"
+              ],
+              "tower_residual_agree": true
+            },
+            "depth": 3,
+            "file": "examples/classification_persistent.ash",
+            "name": "examples/classification_persistent.ash",
+            "residual": {
+              "cases_by_origin": [
+                {
+                  "case": "app",
+                  "count": 13,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "if",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lam",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "let",
+                  "count": 8,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "lit",
+                  "count": 5,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "reifier",
+                  "count": 1,
+                  "origin": "examples/classification_persistent.ash"
+                },
+                {
+                  "case": "var",
+                  "count": 19,
+                  "origin": "examples/classification_persistent.ash"
+                }
+              ],
+              "core": "(let trace (app (var deref) (app (var cell_new) (lit #t))) (let _ (if (var trace) (app (reifier (exp env cont) (let eval (app (var meta_eval)) (let apply (app (var meta_apply)) (let global (app (var meta_global)) (let level (app (var tower_level)) (app (var resume) (var cont) (let base (app (var open_deref) (var eval)) (app (var open_set) (var eval) (lam (e r k) (let _ (app (var println) (lit 'trace)) (app (var base) (var e) (var r) (var k))))))))))))) (lit unit)) (app (var +) (lit 1) (lit 2))))",
+              "dispatch_sites": 0,
+              "eval_cell_dereferences": 1,
+              "evaluator_calls": 0,
+              "generated_nodes": 28,
+              "interpreter_cases": [],
+              "interpreter_nodes": 0,
+              "named_var_lookups": 0,
+              "nodes": 48,
+              "nodes_by_origin": {
+                "examples/classification_persistent.ash": 48
+              },
+              "produced": true,
+              "reflection_boundaries": {
+                "meta_apply": 1,
+                "meta_eval": 1,
+                "meta_global": 1,
+                "tower_level": 1
+              },
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 25
+              },
+              "sites": [
+                {
+                  "kind": "meta_eval",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_apply",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "meta_global",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "tower_level",
+                  "reason": "reflection remains at runtime",
+                  "source": "examples/classification_persistent.ash:2:15-96"
+                },
+                {
+                  "kind": "open_deref",
+                  "reason": "evaluator or open-group cell read survives",
+                  "source": "examples/classification_persistent.ash:2:31-35"
+                }
+              ]
+            },
+            "schema": 1,
+            "sizes": {
+              "expanded_semantic_nodes": 66,
+              "interpreter_nodes_per_level": 6,
+              "materialized_global_cells": 159,
+              "materialized_group_cells": 9,
+              "materialized_reachable_words": 6473,
+              "materialized_upper_levels": 3,
+              "program_nodes": 48
+            },
+            "source": {
+              "outcome": "failure: examples/classification_persistent.ash:2:15-96 (generated by desugar/up): evaluate error: `reifier application` is not supported by the ground evaluator",
+              "output": [],
+              "steps": 17
+            },
+            "specialization": {
+              "dispatches": {
+                "app": 0,
+                "if": 0,
+                "lam": 0,
+                "let": 0,
+                "letrec": 0,
+                "lit": 0,
+                "named-var": 0,
+                "quote": 0,
+                "reifier": 0,
+                "set": 0,
+                "var": 0
+              },
+              "generalization_reasons": [],
+              "generalizations": 0,
+              "log": [],
+              "memoized_calls": 0,
+              "named_var_lookups": 0,
+              "open_dereferences": 0,
+              "output": [],
+              "specialization_points": 0,
+              "steps": 0,
+              "total_dispatches": 0
+            },
+            "tower": {
+              "dispatches": 4169,
+              "levels": [
+                {
+                  "cell_dereferences": 25,
+                  "index": 0,
+                  "steps": 25
+                },
+                {
+                  "cell_dereferences": 291,
+                  "index": 1,
+                  "steps": 291
+                },
+                {
+                  "cell_dereferences": 1580,
+                  "index": 2,
+                  "steps": 1580
+                },
+                {
+                  "cell_dereferences": 7906,
+                  "index": 3,
+                  "steps": 7906
+                }
+              ],
+              "named_var_lookups": 0,
+              "open_dereferences": 1,
+              "run": {
+                "outcome": "3",
+                "output": [
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\"",
+                  "wrote \"'trace\\n\""
+                ],
+                "steps": 9802
+              }
+            }
+          }
+        }
+      ],
+      "name": "classification_persistent"
+    }
+  ],
+  "command": "python3 scripts/measure_phase10.py",
+  "environment": {
+    "dune": "3.24.2",
+    "ocaml": "5.4.1",
+    "opam": "2.5.2",
+    "platform": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+    "python": "3.14.7"
+  },
+  "schema": 1
+}

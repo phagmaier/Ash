@@ -14,6 +14,8 @@
 
 open Ash_core
 
+type site = { kind : string; span : Span.t; reason : string }
+
 type t = {
   nodes : int;  (** Every Core node in the residual, quoted subterms included. *)
   nodes_by_origin : (string * int) list;
@@ -21,6 +23,9 @@ type t = {
           at, sorted by file name. A node the specializer invented keeps the
           origin of the code it came from (spec §D1's provenance rule), so this
           says which source each surviving node is interpretation {e of}. *)
+  cases_by_origin : (string * string * int) list;
+      (** Every node grouped by source file and Core constructor. The counts
+          sum to [nodes], including quoted syntax carried as data. *)
   generated_nodes : int;  (** Nodes carrying a generated marker. *)
   eval_cell_dereferences : int;
       (** Applications of [open_deref]. An [open_deref] in a term is exactly one
@@ -37,6 +42,9 @@ type t = {
   reflection_boundaries : (string * int) list;
       (** Applications of reflection-class primitives, by primitive name, sorted.
           Empty for the pure fragment. *)
+  sites : site list;
+      (** Source-located surviving interpretation operations, one entry per
+          residual AST site. Quoted data are excluded. *)
 }
 
 val survey : env:Value.env -> Core.t -> t
@@ -47,3 +55,6 @@ val interpreter_residue : t -> own:string -> int
 (** Nodes whose origin is a file other than [own], the program's own source:
     what is left of some {e other} program's text, which is the thing the
     collapse criterion is about. *)
+
+val foreign_cases : t -> own:string -> (string * string * int) list
+(** Constructor cases whose source is outside the program's own file. *)

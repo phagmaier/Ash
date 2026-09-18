@@ -1,25 +1,31 @@
 open Ash_core
 
+type site = { kind : string; span : Span.t; reason : string }
+
 type t = {
   nodes : int;
   nodes_by_origin : (string * int) list;
+  cases_by_origin : (string * string * int) list;
   generated_nodes : int;
   eval_cell_dereferences : int;
   evaluator_calls : int;
   dispatch_sites : int;
   named_var_lookups : int;
   reflection_boundaries : (string * int) list;
+  sites : site list;
 }
 
 type tally = {
   mutable count : int;
   mutable by_origin : (string * int) list;
+  mutable cases : ((string * string) * int) list;
   mutable generated : int;
   mutable derefs : int;
   mutable calls : int;
   mutable dispatch : int;
   mutable named_vars : int;
   mutable boundaries : (string * int) list;
+  mutable sites : site list;
 }
 
 let bump table key =
@@ -61,35 +67,50 @@ let survey ~env root =
     {
       count = 0;
       by_origin = [];
+      cases = [];
       generated = 0;
       derefs = 0;
       calls = 0;
       dispatch = 0;
       named_vars = 0;
       boundaries = [];
+      sites = [];
     }
   in
   let visit_node node =
     tally.count <- tally.count + 1;
     let span = Core.span node in
     if Span.is_generated span then tally.generated <- tally.generated + 1;
-    tally.by_origin <- bump tally.by_origin (Span.file (Span.source_span span))
+    let file = Span.file (Span.source_span span) in
+    tally.by_origin <- bump tally.by_origin file;
+    tally.cases <- bump tally.cases (file, Core.kind_name node)
   in
-  let visit_application ~func =
+  let site kind span reason =
+    tally.sites <- { kind; span = Span.source_span span; reason } :: tally.sites
+  in
+  let visit_application ~node ~func =
     (match primitive_of ~env func with
     | Some primitive ->
         (match primitive.Value.prim_name with
-        | "open_deref" -> tally.derefs <- tally.derefs + 1
-        | "code_view" | "code_match" -> tally.dispatch <- tally.dispatch + 1
+        | "open_deref" ->
+            tally.derefs <- tally.derefs + 1;
+            site "open_deref" (Core.span node) "evaluator or open-group cell read survives"
+        | "code_view" | "code_match" ->
+            tally.dispatch <- tally.dispatch + 1;
+            site primitive.Value.prim_name (Core.span node)
+              "constructor dispatch survives"
         | _ -> ());
-        if Effect_class.equal primitive.Value.prim_class Effect_class.Reflection then
-          tally.boundaries <- bump tally.boundaries primitive.Value.prim_name
+        if Effect_class.equal primitive.Value.prim_class Effect_class.Reflection then (
+          tally.boundaries <- bump tally.boundaries primitive.Value.prim_name;
+          site primitive.Value.prim_name (Core.span node)
+            "reflection remains at runtime")
     | None -> ());
     (* An interpreter's recursive step, written down: read the group cell, then
        apply what was in it. *)
     match Core.shape func with
     | Core.App { Core.func = inner; _ } when is_open_deref ~env inner ->
-        tally.calls <- tally.calls + 1
+        tally.calls <- tally.calls + 1;
+        site "evaluator_call" (Core.span node) "open-recursive evaluator call survives"
     | Core.App _ | Core.Lit _ | Core.Var _ | Core.NamedVar _ | Core.Lam _
     | Core.Let _ | Core.LetRec _ | Core.If _ | Core.Set _ | Core.Quote _
     | Core.Reifier _ ->
@@ -99,7 +120,9 @@ let survey ~env root =
     visit_node node;
     match Core.shape node with
     | Core.Lit _ | Core.Var _ -> ()
-    | Core.NamedVar _ -> tally.named_vars <- tally.named_vars + 1
+    | Core.NamedVar _ ->
+        tally.named_vars <- tally.named_vars + 1;
+        site "NamedVar" (Core.span node) "runtime printed-name lookup survives"
     | Core.Lam { Core.lam_body; _ } -> walk lam_body
     | Core.Quote quoted ->
         (* Quoted syntax is data the residual carries, not code it runs, but it
@@ -107,7 +130,7 @@ let survey ~env root =
         walk_quoted quoted
     | Core.Reifier { Core.reifier_body; _ } -> walk reifier_body
     | Core.App { Core.func; args } ->
-        visit_application ~func;
+        visit_application ~node ~func;
         walk func;
         List.iter walk args
     | Core.Let { Core.let_value; let_body; _ } ->
@@ -147,15 +170,26 @@ let survey ~env root =
   {
     nodes = tally.count;
     nodes_by_origin = sorted tally.by_origin;
+    cases_by_origin =
+      List.sort
+        (fun (fa, ka, _) (fb, kb, _) ->
+          match String.compare fa fb with 0 -> String.compare ka kb | n -> n)
+        (List.map (fun ((file, kind), count) -> (file, kind, count)) tally.cases);
     generated_nodes = tally.generated;
     eval_cell_dereferences = tally.derefs;
     evaluator_calls = tally.calls;
     dispatch_sites = tally.dispatch;
     named_var_lookups = tally.named_vars;
     reflection_boundaries = sorted tally.boundaries;
+    sites = List.rev tally.sites;
   }
 
 let interpreter_residue t ~own =
   List.fold_left
     (fun total (file, count) -> if String.equal file own then total else total + count)
     0 t.nodes_by_origin
+
+let foreign_cases t ~own =
+  List.filter
+    (fun (file, _, _) -> not (String.equal file own))
+    t.cases_by_origin

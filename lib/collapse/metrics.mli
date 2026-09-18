@@ -2,8 +2,8 @@
 
     Three runs of one program, plus a walk of what specialization left behind:
 
-    - the {b source} run, on the ground evaluator, which is what the program
-      means;
+    - the {b source} run, on an unattached ground evaluator; reflective [up]
+      may fail there, so tower/residual agreement is the reflective criterion;
     - the {b tower} run at a stated depth, where every step of level 0 is a term
       some level above has to evaluate — the cost the collapser exists to remove;
     - the {b specialization}, which is the specializer's own work, and the
@@ -17,7 +17,8 @@
     Statically known evaluator changes are part of specialization from task 9.1:
     persistent [up] replacements and scoped [meta_with] overlays are inlined at
     the dispatch sites they affect, including their residual effects. Dynamic
-    evaluator identity remains Phase 10's boundary. *)
+    runtime evaluator choices remain as measured reflective boundaries (ADR
+    0040). *)
 
 open Ash_core
 open Ash_runtime
@@ -149,9 +150,10 @@ val specialize :
     residuals across depths pass one shared environment, because cloned globals
     (ADR 0022) give each environment its own identities.
 
-    Reflection outside the closed known protocol comes back as [Error] or a
-    residual boundary according to its primitive rule; dynamic evaluator-state
-    splitting remains Phase 10. *)
+    A runtime scoped evaluator choice remains a source-located residual
+    boundary. A persistent replacement selected by a runtime condition keeps
+    the complete Core program residual, since a replacement can observe the
+    syntax of the continuation (ADR 0040). *)
 
 val measure :
   ?depth:int ->

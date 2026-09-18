@@ -28,3 +28,11 @@ val report :
   string
 (** {!measure} rendered by {!Report.to_string}. [show_residual] prints the
     canonical Core and exact output bytes for reproducible collapse demos. *)
+
+val json_report :
+  ?depth:int ->
+  ?budget:Ash_stage.Specialize.budget ->
+  file:string ->
+  name:string ->
+  Metrics.program ->
+  string

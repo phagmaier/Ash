@@ -32,5 +32,8 @@ val normalize : Core.t -> Core.t
       structure; only their bound references follow canonical renaming. A
       binding mentioned only through such data — or as a [Set] target — is kept
       rather than substituted away.
+    - Reflective-boundary-preserving: a runtime-selected evaluator may inspect
+      exact Core constructor steps, so [stage/dynamic-reflection] regions and
+      bindings they capture are not administratively rewritten (ADR 0040).
     - Provenance-preserving: rebuilt nodes carry the spans of the nodes they
       came from, so residue attribution by origin still works. *)

@@ -6,6 +6,56 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-09-18 — task 10.4 (Phase 10 done)
+
+- Completed: `python3 scripts/measure_phase10.py` records 20 raw JSON reports
+  over five programs and depths 0–3, host versions, step ratios, and exact
+  classification. It asserts every tower/residual observation agrees and all
+  residue site totals reconcile. `docs/progress/0003-phase10-measurements.md`
+  indexes the raw `phase10-measurements.json` data. No curve is assumed.
+- Verified: `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  the golden CLI commands, and the measurement script. ADR 0040.
+- Known issues: heap words are host dependent; versions are in the raw data.
+- Next: 11.1 — semantics and implementation documentation.
+
+### 2026-09-18 — task 10.3
+
+- Completed: human reports list source-located residue sites, all counters,
+  reasons, and the conservative class; `--json` emits the same measurements as
+  structured numbers and arrays. The direct AST walk and JSON site totals are
+  checked. The report goldens were regenerated through Dune promotion.
+- Verified: `opam exec -- dune runtest --force`; CLI JSON parsed by Python.
+- Known issues: identity-carrying answers require application tests for semantic
+  comparison, and the report says so.
+- Next: 10.4 — reproducible measurement suite.
+
+### 2026-09-18 — task 10.2
+
+- Completed: a conservative pre-check for depth observation, possible dynamic
+  `NamedVar`, and reflection under dynamic conditions, plus direct residual
+  survey and tower/output comparison, produces all four classes. Curated laws
+  include both values of a runtime trace flag, depth sensitivity, a dynamic
+  persistent replacement, and a conservative `NamedVar` result. ADR 0040.
+- Verified: `opam exec -- dune exec test/laws/dynamic_reflection_test.exe` and
+  the full Dune suite.
+- Known issues: membership is undecidable in general; PARTIAL can overstate
+  residue and OPAQUE is a measured conservative label.
+- Next: 10.3 — human and JSON reports.
+
+### 2026-09-18 — task 10.1
+
+- Completed: a runtime scoped evaluator choice retains its lowered reflective
+  construct while independent arithmetic still folds. A dynamic persistent
+  choice conservatively retains the whole program, preserving syntax observed
+  by a replacement. Residual runs attach lazy upper evaluators with cloned
+  globals and fresh group cells. Depth-zero reflection and known/dynamic
+  persistent stacking have regressions. ADR 0040 amends size semantics.
+- Verified: `opam exec -- dune exec test/laws/dynamic_reflection_test.exe`;
+  tower and residual output agree byte-for-byte for true and false flags.
+- Known issues: the persistent fallback is intentionally opaque until an
+  evaluator-state join can prove a smaller continuation.
+- Next: 10.2 — four-way classification.
+
 ### 2026-09-18 — task 9.2 (Phase 9 done)
 
 - Completed: packaged the traced-Fibonacci collapse demo. The source is

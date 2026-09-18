@@ -98,7 +98,11 @@ let test_survey () =
   check_int "and it is the other way round from the other side" ~expected:2
     (Residue.interpreter_residue survey_mixed ~own:"helper.ash");
   check_int "every node is accounted for exactly once" ~expected:survey_mixed.Residue.nodes
-    (List.fold_left (fun total (_, n) -> total + n) 0 survey_mixed.Residue.nodes_by_origin)
+    (List.fold_left (fun total (_, n) -> total + n) 0 survey_mixed.Residue.nodes_by_origin);
+  check_int "foreign constructor cases reconcile with residue" ~expected:5
+    (List.fold_left
+       (fun total (_, _, count) -> total + count)
+       0 (Residue.foreign_cases survey_mixed ~own:"main.ash"))
 
 (* {1 The measurement} *)
 

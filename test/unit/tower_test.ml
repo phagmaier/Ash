@@ -133,11 +133,13 @@ let test_invalid_materialization () =
     (match Tower.materialize_above tower ~level:1 with
     | _ -> false
     | exception Invalid_argument _ -> true);
-  check "size depth cannot contradict existing materialization"
+  check "interposed depth and reflective materialization are distinct"
     (let (_ : Level.t) = Tower.materialize_above tower ~level:0 in
-     match Tower.size_metrics tower ~depth:0 ~program:(lit 0) ~interpreter:(lit 0) with
-     | _ -> false
-     | exception Invalid_argument _ -> true)
+     let sizes =
+       Tower.size_metrics tower ~depth:0 ~program:(lit 0) ~interpreter:(lit 0)
+     in
+     sizes.Tower.expanded_semantic.depth = 0
+     && sizes.Tower.materialized_runtime.upper_levels = 1)
 
 let () =
   test_lazy_materialization ();

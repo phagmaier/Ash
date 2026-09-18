@@ -86,8 +86,9 @@ let create ?registry () =
 let size_metrics (tower : t) ~depth ~program ~interpreter =
   let upper_levels = materialized tower in
   if depth < 0 then invalid_arg "Tower.size_metrics: depth must be non-negative";
-  if depth < upper_levels then
-    invalid_arg "Tower.size_metrics: depth is below the materialized tower";
+  (* [depth] counts interposed identity interpreters, while reflection can
+     materialize an upper level even when the requested interposition is zero.
+     The two sizes deliberately report those different facts. *)
   let global_binding_cells =
     List.fold_left
       (fun total level -> total + Level.global_binding_count level)

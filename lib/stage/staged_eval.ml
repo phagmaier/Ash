@@ -3,6 +3,11 @@ open Ash_runtime
 
 let by = "the staged evaluator"
 
+(* Once a runtime branch may have installed a persistent evaluator, subsequent
+   calls cannot assume the specialization-time cell still names the evaluator
+   that will run.  Monovariant: no branch-specific evaluator clones are made. *)
+let dynamic_evaluator = ref false
+
 let phase_of = function
   | Mode.Identity -> Error.Evaluate
   | Mode.Lift -> Error.Stage
@@ -597,11 +602,86 @@ let apply_primitive mode machine ~call_site primitive arguments k =
                 apply_now ~record_code:(produces_known_code primitive) ()
               else residualize ())
 
+(* A dynamic choice of evaluator must retain the whole scoped meta operation:
+   staging its thunk under the evaluator currently installed would erase the
+   runtime choice.  The desugarer gives the outer [outer_eval] let a distinct
+   provenance marker, so this boundary is one operation, not the surrounding
+   program.  An [If] in the operation is a conservative indication of a choice;
+   retaining a statically decidable one costs optimization but is sound. *)
+let dynamic_meta_with node =
+  match Core.shape node with
+  | Core.Let { Core.let_binder; _ } ->
+      String.equal (Ident.name let_binder) "outer_eval"
+      && List.mem "desugar/meta_with" (Span.generators (Core.span node))
+      &&
+      let rec has_choice node =
+        match Core.shape node with
+        | Core.If _ -> true
+        | _ -> List.exists has_choice (Core.children node)
+      in
+      has_choice node
+  | _ -> false
+
+let preserve_reflective_fragment machine node env =
+  let span = Core.span node in
+  if Store.holds_static () then
+    unsupported Mode.Lift ~span ~level:(Machine.level machine)
+      "dynamic reflection while the abstract store holds a binding";
+  let local_free =
+    Ident.Set.diff (Alpha.free_idents node)
+      (Env.idents (Machine.global_env machine))
+    |> Ident.Set.elements
+  in
+  let closed =
+    List.fold_right
+      (fun ident body ->
+        let value = Env.read_exn ~phase:Error.Stage ~span
+            ~level:(Machine.level machine) env ident in
+        let code = reify_value machine ~call_site:span value in
+        match Core.shape code with
+        | Core.Var same when Ident.equal same ident -> body
+        | _ ->
+            Core.let_
+              ~span:(Span.generated ~by:"stage/dynamic-meta-capture" ~from:span)
+              ~binder:ident ~value:code ~body)
+      local_free node
+  in
+  Core.with_span (Span.generated ~by:"stage/dynamic-reflection" ~from:span)
+    closed
+
+let preserve_dynamic_meta machine node env =
+  let span = Core.span node in
+  let marked =
+    preserve_reflective_fragment machine node env
+  in
+  Value.Code (Emit.emit ~from:span ~name:"dynamic_meta" marked)
+
+let rec contains_reflection node =
+  (match Core.shape node with Core.Reifier _ -> true | _ -> false)
+  || List.mem "desugar/meta_with" (Span.generators (Core.span node))
+  || List.exists contains_reflection (Core.children node)
+
+let rec contains_reifier node =
+  (match Core.shape node with Core.Reifier _ -> true | _ -> false)
+  || List.exists contains_reifier (Core.children node)
+
+let rec contains_dynamic_reifier node =
+  (match Core.shape node with
+  | Core.If { Core.condition; consequent; alternative } ->
+      (match Core.shape condition with Core.Lit (Constant.Bool _) -> false | _ -> true)
+      && (contains_reifier consequent || contains_reifier alternative)
+  | _ -> false)
+  || List.exists contains_dynamic_reifier (Core.children node)
+
 let eval_default mode machine node env k =
   Machine.count_dispatch machine (Core.shape node);
   let span = Core.span node in
   let level = Machine.level machine in
-  match Core.shape node with
+  if Mode.is_lift mode && !dynamic_evaluator then
+    k (Value.Code (preserve_reflective_fragment machine node env))
+  else if Mode.is_lift mode && dynamic_meta_with node then
+    k (preserve_dynamic_meta machine node env)
+  else match Core.shape node with
   | Core.Lit constant -> k (Value.of_constant constant)
   | Core.Var ident ->
       k (Env.read_exn ~phase:(phase_of mode) ~span ~level env ident)
@@ -628,10 +708,18 @@ let eval_default mode machine node env k =
                  where both — and everything after the join — can see it. *)
               promote_writes machine ~span ~branches:[ consequent; alternative ];
               let before = Store.snapshot () in
-              let t_code = reify_eval machine consequent env in
+              let t_code =
+                if contains_reflection consequent then
+                  preserve_reflective_fragment machine consequent env
+                else reify_eval machine consequent env
+              in
               let after_consequent = Store.snapshot () in
               Store.restore before;
-              let f_code = reify_eval machine alternative env in
+              let f_code =
+                if contains_reflection alternative then
+                  preserve_reflective_fragment machine alternative env
+                else reify_eval machine alternative env
+              in
               let after_alternative = Store.snapshot () in
               (match
                  Store.join ~before ~left:after_consequent ~right:after_alternative
@@ -653,7 +741,13 @@ let eval_default mode machine node env k =
                 Core.if_ ~span:generated ~condition:cond_code
                   ~consequent:t_code ~alternative:f_code
               in
-              let emitted = Emit.emit ~from:span node in
+              let persistent_choice =
+                contains_reifier consequent || contains_reifier alternative
+              in
+              let emitted =
+                if persistent_choice then node else Emit.emit ~from:span node
+              in
+              if persistent_choice then dynamic_evaluator := true;
               k (Value.Code emitted)
           | ( Value.Num _ | Value.Str _ | Value.Sym _ | Value.Unit | Value.List _
             | Value.Closure _ | Value.Reifier _ | Value.Continuation _
@@ -688,7 +782,7 @@ let eval_default mode machine node env k =
               Core.let_ ~span:generated ~binder:let_binder ~value:val_code
                 ~body:body_code
             in
-            k (Value.Code (Emit.emit ~from:span node))
+            k (Value.Code (if !dynamic_evaluator then node else Emit.emit ~from:span node))
           in
           (* The specializer owns the binding: it holds the value in its own
              cell, so writes update it and reads fold, and nothing of it reaches
@@ -941,6 +1035,7 @@ let install_static_levels root =
 let run ?mode machine ~env node =
   Specialize.reset ();
   Stage_value.reset_static_codes ();
+  dynamic_evaluator := false;
   (* One write set per run, shared with the normalizer that will canonicalize
      whatever this produces (ADR 0036). *)
   Store.reset ~assigned:(Core.assigned_idents node);
@@ -959,7 +1054,18 @@ let run ?mode machine ~env node =
   | Mode.Identity ->
       Machine.eval machine node env (fun value -> value)
   | Mode.Lift ->
-      let res_code = reify_eval machine node env in
+      (* A persistent evaluator installed by a runtime choice can observe the
+         syntax of every following node, including administrative lets. Until
+         evaluator-state joins can prove a narrower continuation, retain the
+         whole program. Scoped choices still use the local boundary above. *)
+      let res_code =
+        if contains_dynamic_reifier node then
+          Core.with_span
+            (Span.generated ~by:"stage/opaque-dynamic-reflection"
+               ~from:(Core.span node))
+            node
+        else reify_eval machine node env
+      in
       Value.Code res_code
 
 let eval ?(mode = Mode.Identity) ~env node =

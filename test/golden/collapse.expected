@@ -11,6 +11,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -38,11 +39,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         no interpretation sites found
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: recursion on static data, no tower ==
 
@@ -57,6 +65,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -84,11 +93,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         no interpretation sites found
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: recursion on static data, depth 3 ==
 
@@ -103,6 +119,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -130,11 +147,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         no interpretation sites found
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: a function of an unknown argument ==
 
@@ -149,6 +173,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -176,11 +201,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       not established
+  Reason:                         identity-carrying result needs an application test for comparison
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: a traversal of a statically shaped list ==
 
@@ -195,6 +227,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -222,11 +255,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       not established
+  Reason:                         identity-carrying result needs an application test for comparison
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: recursion on an unknown argument ==
 
@@ -241,6 +281,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -268,11 +309,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       not established
+  Reason:                         identity-carrying result needs an application test for comparison
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: an accumulator too large for its budget ==
 
@@ -287,6 +335,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -315,11 +364,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       not established
+  Reason:                         identity-carrying result needs an application test for comparison
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: an open-recursion group ==
 
@@ -334,12 +390,15 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     2
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
   Evaluator calls:                0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 45
+    open_deref:                   sample.ash:2:25-29 — evaluator or open-group cell read survives
+    open_deref:                   sample.ash:3:10-14 — evaluator or open-group cell read survives
 
 Work
   Source run:                     17
@@ -361,11 +420,19 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 PARTIAL
+  Tower/residual agreement:       not established
+  Reason:                         identity-carrying result needs an application test for comparison
+  Reason:                         residual AST contains interpretation sites
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: dispatching on a Core node ==
 
@@ -380,12 +447,14 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     1
   NamedVar lookups residualized:  0
   Evaluator calls:                0
   Reflection boundaries:          none
   Residual nodes by origin:       sample.ash 13
+    code_view:                    sample.ash:1:17-76 — constructor dispatch survives
 
 Work
   Source run:                     11
@@ -407,11 +476,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 PARTIAL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         residual AST contains interpretation sites
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: observable output ==
 
@@ -426,6 +502,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -453,11 +530,18 @@ Outcome
   Specialization log:             none
   Residual output:                wrote "hi\n"
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         no interpretation sites found
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: a store binding the specializer holds ==
 
@@ -472,6 +556,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -499,11 +584,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       yes, value and output
+  Reason:                         no interpretation sites found
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: mutation across a dynamic branch ==
 
@@ -518,6 +610,7 @@ Sizes
 
 Interpretation left in the residual
   Interpreter residue:            0 nodes
+  Interpreter residue cases:      none
   Surviving eval-cell derefs:     0
   Constructor dispatch sites:     0
   NamedVar lookups residualized:  0
@@ -545,11 +638,18 @@ Outcome
   Specialization log:             none
   Residual output:                none
 
+Classification (conservative)
+  Collapse class:                 DEPTH-INVARIANT, FULL
+  Tower/residual agreement:       not established
+  Reason:                         identity-carrying result needs an application test for comparison
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
 == collapse: an assignment the store cannot place ==
 
@@ -584,9 +684,16 @@ Outcome
   Specialization output:          none
   Specialization log:             none
 
+Classification (conservative)
+  Collapse class:                 OPAQUE
+  Tower/residual agreement:       not established
+  Reason:                         specialization produced no executable residual
+  Depth observation:              none found
+  Dynamic NamedVar:               none found
+  Conditional reflection:         none found
+
 Basis
-  The residual specializes the program and every statically known evaluator
-  change it installs. Persistent and scoped wrappers are inlined at their
-  former dispatch sites, with effects preserved; dynamic evaluator identity
-  remains a reported reflection boundary for Phase 10.
+  Classification is conservative: full classes describe this measured
+  residual and syntactic pre-check, not all possible inputs.
+  Runtime evaluator choices retain their source-located reflective region.
 
