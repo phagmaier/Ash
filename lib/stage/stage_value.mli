@@ -3,7 +3,10 @@
     Static data are real {!Ash_core.Value.value} shapes (numbers, booleans, strings,
     symbols, unit, immutable lists, closures, primitives, cells, etc.).
 
-    Dynamic data are {!Ash_core.Value.Code} containing {!Ash_core.Core.t} syntax.
+    Dynamic data are unrecorded {!Ash_core.Value.Code} containing
+    {!Ash_core.Core.t} residual syntax. Task 9.1 also records Code handed to a
+    statically known evaluator wrapper; that syntax is a static Code value and
+    reifies as quotation.
 
     Stage-polymorphic operations inspect values using these predicates to decide
     whether to fold pure computation at stage time or residualize dynamic code. *)
@@ -11,8 +14,19 @@
 open Ash_core
 open Ash_runtime
 
+val reset_static_codes : unit -> unit
+val is_static_code : Core.t -> bool
+val static_code : Core.t -> Value.value
+val record_static_codes : Value.value -> Value.value
+(** Distinguish syntax passed to a statically known evaluator wrapper from
+    residual syntax whose runtime value is unknown.  Knowledge is scoped to one
+    specialization run and keyed by physical node identity.
+
+    [record_static_codes] recursively records Code inside a static result such
+    as [code_view]'s list of constructor fields. *)
+
 val is_dynamic : Value.value -> bool
-(** True iff the value is dynamic {!Value.Code}. *)
+(** True iff the value is unrecorded, dynamic {!Value.Code}. *)
 
 val is_static : Value.value -> bool
 (** True iff the value is not dynamic {!Value.Code}. *)
@@ -37,9 +51,9 @@ val dynamic_code : Value.value -> Core.t option
 (** Extract the {!Core.t} syntax from a dynamic {!Value.Code}, or [None]. *)
 
 val lift_to_code : call_site:Span.t -> Machine.t -> Value.value -> Core.t
-(** Convert a value to {!Core.t}. If the value is already {!Value.Code}, its
-    enclosed syntax is returned directly without re-wrapping. Otherwise, it is
-    converted via {!Evaluator.lift_value}. *)
+(** Convert a value to {!Core.t}. Dynamic {!Value.Code} returns its residual
+    syntax directly; statically known Code becomes [Quote syntax]. Other values
+    are converted via {!Evaluator.lift_value}. *)
 
 val maybe_lift :
   mode:Mode.t -> call_site:Span.t -> Machine.t -> Value.value -> Value.value

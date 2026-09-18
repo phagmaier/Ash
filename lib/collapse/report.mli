@@ -9,4 +9,6 @@
     heap measurement for the measurement suite that reports it with its
     environment pinned (task 10.4). *)
 
-val to_string : Metrics.t -> string
+val to_string : ?show_residual:bool -> Metrics.t -> string
+(** [show_residual] includes canonical residual Core and exact escaped output
+    bytes. The default keeps the compact report used by existing examples. *)

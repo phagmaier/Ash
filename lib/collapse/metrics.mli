@@ -14,11 +14,10 @@
     identifier, or error depends on a counter (AGENTS, invariant on
     instrumentation).
 
-    What this module does {e not} claim: the residual is produced by specializing
-    the program, not by specializing the tower configuration. Erasing a level's
-    interposed evaluator is static reflective collapse, which is Phase 9. The
-    tower figures are here as the measured cost that collapse is set against,
-    and the report says so in as many words. *)
+    Statically known evaluator changes are part of specialization from task 9.1:
+    persistent [up] replacements and scoped [meta_with] overlays are inlined at
+    the dispatch sites they affect, including their residual effects. Dynamic
+    evaluator identity remains Phase 10's boundary. *)
 
 open Ash_core
 open Ash_runtime
@@ -143,17 +142,16 @@ val specialize :
     caller owns.
 
     The stated depth — 0 unless [depth] says otherwise — is what
-    [tower_depth()] answers during this specialization: §D9's one opt-in is a static fact of the configuration
-    being specialized for, so the reading folds to it (ADR 0034). No tower is
-    materialized here and none is needed: the pure fragment cannot shift
-    levels, so a faithful depth reading is the whole of what a configuration
-    contributes. Callers comparing residuals across depths pass one shared
-    environment, because cloned globals (ADR 0022) give each environment its
-    own identities.
+    [tower_depth()] answers initially: §D9's one opt-in is a static fact of the
+    configuration being specialized for, so the reading folds to it (ADR 0034).
+    Task 9.1 gives a statically followed [up] a lazy Lift-wired level above and
+    grows that staged depth; no runtime tower is required. Callers comparing
+    residuals across depths pass one shared environment, because cloned globals
+    (ADR 0022) give each environment its own identities.
 
-    A term outside that fragment — one that applies a reifier — has no level to
-    shift into and comes back as [Error] naming the missing tower, like any
-    other refusal. *)
+    Reflection outside the closed known protocol comes back as [Error] or a
+    residual boundary according to its primitive rule; dynamic evaluator-state
+    splitting remains Phase 10. *)
 
 val measure :
   ?depth:int ->

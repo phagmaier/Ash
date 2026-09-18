@@ -14,7 +14,14 @@
     specializer can decide. A call whose key is already being inlined is a cycle
     with no end, so it becomes a memoized specialization point instead: a
     residual function bound by a [LetRec], parameterised on exactly the argument
-    positions nothing is known about. See {!Specialize}. *)
+    positions nothing is known about. See {!Specialize}.
+
+    When a Lift-mode machine is attached to a tower configuration, statically
+    known [up] and [meta_with] changes are also configuration: a lazy parallel
+    chain of Lift-wired machines executes the closed meta protocol and inlines
+    known wrappers at their dispatch sites. Observable wrapper effects remain
+    residual. Syntax passed as the wrapper's [Code] argument is tracked as known
+    syntax for the run and reifies as quotation (ADR 0039). *)
 
 open Ash_core
 open Ash_runtime

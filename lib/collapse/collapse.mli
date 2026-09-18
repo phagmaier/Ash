@@ -21,8 +21,10 @@ val measure :
 val report :
   ?depth:int ->
   ?budget:Ash_stage.Specialize.budget ->
+  ?show_residual:bool ->
   file:string ->
   name:string ->
   Metrics.program ->
   string
-(** {!measure} rendered by {!Report.to_string}. *)
+(** {!measure} rendered by {!Report.to_string}. [show_residual] prints the
+    canonical Core and exact output bytes for reproducible collapse demos. *)

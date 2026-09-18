@@ -78,7 +78,8 @@ let shift_up mode machine ~exp ~env ~reifier k =
       in
       let meta =
         [
-          (definition.Core.exp_param, Value.Code exp);
+          (definition.Core.exp_param,
+            if Mode.is_lift mode then Stage_value.static_code exp else Value.Code exp);
           (definition.Core.env_param, Value.Environment env);
           (definition.Core.cont_param, Value.Continuation continuation);
         ]
@@ -110,8 +111,14 @@ let meta_view mode machine ~call_site query =
              { what; by = "the base program, which has no level below it" })
   in
   match query with
-  | Value.Below_eval_cell -> Value.Cell (Machine.meta_eval_cell (below "eval"))
-  | Value.Below_apply_cell -> Value.Cell (Machine.meta_apply_cell (below "apply"))
+  | Value.Below_eval_cell ->
+      let cell = Machine.meta_eval_cell (below "eval") in
+      if Mode.is_lift mode then Specialize.register_meta_cell cell;
+      Value.Cell cell
+  | Value.Below_apply_cell ->
+      let cell = Machine.meta_apply_cell (below "apply") in
+      if Mode.is_lift mode then Specialize.register_meta_cell cell;
+      Value.Cell cell
   | Value.Below_global_env -> Value.Environment (Machine.global_env (below "global"))
   | Value.Tower_depth -> Value.Num (Machine.tower_depth machine)
   | Value.Current_eval -> (
@@ -212,6 +219,8 @@ let residual_target node =
    both apply. *)
 let rec reify_value machine ~call_site value =
   match value with
+  | Value.Code node when Stage_value.is_static_code node ->
+      Stage_value.lift_to_code ~call_site machine value
   | Value.Code node -> node
   | Value.Closure { Value.clo_lambda; clo_env; clo_name } ->
       (* Reifying a closure specializes its body, and a closure that reaches a
@@ -483,6 +492,37 @@ let static_reading machine primitive =
       Some (Value.Num (Machine.tower_depth machine))
   | _ -> None
 
+(* The closed protocol used by statically known evaluator changes.
+
+   These calls are not being declared generally foldable: their primitive
+   classes remain Reflection, Control, and Allocation/mutation.  They execute
+   only when they are the plumbing of a known [up] or [meta_with] configuration.
+   In particular, an [open_deref]/[open_set] is static only for a cell that a
+   [meta_*] reader exposed and registered; ordinary program cells retain the
+   store-splitting policy.  The evaluator values named [eval]/[apply] are the
+   private primitives manufactured by [Machine.meta_*_cell], not registry
+   primitives a source program can obtain by spelling those names. *)
+let static_meta_protocol primitive arguments =
+  match (primitive.Value.prim_name, arguments) with
+  | ( ( "meta_eval" | "meta_apply" | "meta_global" | "tower_level"
+      | "meta_current_eval" | "meta_current_apply" ),
+      [] ) ->
+      true
+  | "open_deref", [ Value.Cell cell ] -> Specialize.is_meta_cell cell
+  | "open_set", [ Value.Cell cell; replacement ] ->
+      Specialize.is_meta_cell cell && Stage_value.is_static replacement
+  | "resume", [ Value.Continuation _; _ ] -> true
+  | "meta_with_run", [ eval_override; apply_override; Value.Closure _ ] ->
+      Stage_value.is_static eval_override && Stage_value.is_static apply_override
+  | "eval", [ Value.Code _; Value.Environment _; Value.Continuation _ ] -> true
+  | "apply", [ _; Value.List _; Value.Continuation _ ] -> true
+  | _ -> false
+
+let produces_known_code primitive =
+  match primitive.Value.prim_name with
+  | "code_view" | "code_splice" | "code_match" | "NamedVar" -> true
+  | _ -> false
+
 let apply_primitive mode machine ~call_site primitive arguments k =
   let given = List.length arguments in
   let level = Machine.level machine in
@@ -495,7 +535,7 @@ let apply_primitive mode machine ~call_site primitive arguments k =
            actual = given;
          })
   in
-  let apply_now () =
+  let apply_now ?(record_code = false) () =
     primitive.Value.prim_impl ~call_site ~level
       ~apply:(fun ~call_site callee args k ->
         Machine.apply machine ~call_site callee args k)
@@ -505,7 +545,8 @@ let apply_primitive mode machine ~call_site primitive arguments k =
         reflect_down mode machine ~call_site ~code ~env ~cont k)
       ~meta:(fun ~call_site query -> meta_view mode machine ~call_site query)
       ~overlay:(Machine.overlay_control machine)
-      arguments k
+      arguments (fun result ->
+        k (if record_code then Stage_value.record_static_codes result else result))
   in
   let residualize () =
     let args_code =
@@ -548,10 +589,12 @@ let apply_primitive mode machine ~call_site primitive arguments k =
           | Some reading ->
               k (Value.Code (Stage_value.lift_to_code ~call_site machine reading))
           | None ->
+              if static_meta_protocol primitive arguments then apply_now ()
               (* Everything else, including the compile-time channel: its class
                  permits folding and it inspects nothing, so it runs here and
                  contributes its unit answer rather than a residual call. *)
-              if Stage_value.may_fold primitive arguments then apply_now ()
+              else if Stage_value.may_fold primitive arguments then
+                apply_now ~record_code:(produces_known_code primitive) ()
               else residualize ())
 
 let eval_default mode machine node env k =
@@ -853,8 +896,51 @@ let machine ?(mode = Mode.Identity) () =
     ~eval_list:(eval_list_default mode)
     ()
 
+(* A specialization attached to a tower configuration needs levels whose
+   evaluator is the staged evaluator too.  Sending a known [up] body or wrapper
+   to the ground tower would perform its prints and writes while compiling and
+   would leave nothing at the former dispatch site.  This lazy parallel chain
+   gives every materialized meta level Lift wiring, fresh global cells, and the
+   same relative level/depth facts as the configuration being specialized.
+
+   Only an already attached machine gets the chain.  A standalone fold keeps
+   its historical boundary for reifier application; [meta_with], which does not
+   shift levels, still specializes on such a machine. *)
+let install_static_levels root =
+  match Machine.levels root with
+  | None -> ()
+  | Some attached ->
+      let observed_depth = attached.Machine.level_tower_depth in
+      let materialized = ref (observed_depth ()) in
+      let depth () = max !materialized (observed_depth ()) in
+      let rec install current ~index ~below =
+        let above = ref None in
+        Machine.set_levels current
+          {
+            Machine.level_index = index;
+            level_above =
+              (fun () ->
+                match !above with
+                | Some upper -> upper
+                | None ->
+                    let upper = machine ~mode:Mode.Lift () in
+                    Machine.set_meta_code upper Stage_value.static_code;
+                    Machine.set_global_env upper
+                      (Env.clone (Machine.global_env current));
+                    materialized := max !materialized (index + 1);
+                    install upper ~index:(index + 1) ~below:(Some current);
+                    above := Some upper;
+                    upper);
+            level_below = below;
+            level_tower_depth = depth;
+          }
+      in
+      install root ~index:attached.Machine.level_index
+        ~below:attached.Machine.level_below
+
 let run ?mode machine ~env node =
   Specialize.reset ();
+  Stage_value.reset_static_codes ();
   (* One write set per run, shared with the normalizer that will canonicalize
      whatever this produces (ADR 0036). *)
   Store.reset ~assigned:(Core.assigned_idents node);
@@ -866,6 +952,9 @@ let run ?mode machine ~env node =
          "Staged_eval.run: requested %s mode on a machine wired for %s mode"
          (Mode.name mode) (Mode.name wired_mode));
   Machine.set_global_env machine env;
+  if Mode.is_lift mode then (
+    Machine.set_meta_code machine Stage_value.static_code;
+    install_static_levels machine);
   match mode with
   | Mode.Identity ->
       Machine.eval machine node env (fun value -> value)

@@ -126,6 +126,12 @@ val reset : unit -> unit
 (** Clear all run state, including the emitter's binding count. Called once per
     specialization run. The budget is left as configured. *)
 
+val register_meta_cell : Value.cell -> unit
+val is_meta_cell : Value.cell -> bool
+(** The evaluator-group cells exposed while statically executing an [up] body.
+    Only these cells make [open_deref]/[open_set] specialization-time
+    operations; an ordinary program cell continues to residualize. *)
+
 (** {1 Budgets and generalization} *)
 
 type budget = {

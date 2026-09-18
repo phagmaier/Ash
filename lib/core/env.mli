@@ -91,6 +91,12 @@ val preallocate : Ident.t list -> Value.env -> Value.env
     one of these bindings before it is filled is an error, never a default value.
     @raise Invalid_argument on a repeated binder identity. *)
 
+val clone : Value.env -> Value.env
+(** Copy the environment's frame structure and allocate a fresh cell for every
+    binding, preserving identifiers and current contents.  Values themselves
+    are shared.  This is the per-level global-state operation: cloned tower
+    levels agree on global identities while writes remain local to one level. *)
+
 (** {1 Assignment} *)
 
 val assign :

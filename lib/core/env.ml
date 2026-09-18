@@ -79,6 +79,20 @@ let extend bindings env =
 let preallocate idents env =
   extend_cells (List.map (fun ident -> (ident, Value.preallocated_cell ())) idents) env
 
+let clone env =
+  List.map
+    (fun frame ->
+      {
+        Value.bindings =
+          Ident.Map.map
+            (fun cell ->
+              match Value.cell_contents cell with
+              | Some value -> Value.cell value
+              | None -> Value.preallocated_cell ())
+            frame.Value.bindings;
+      })
+    env
+
 (* Assignment *)
 
 let assign env ident value =

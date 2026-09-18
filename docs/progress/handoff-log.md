@@ -6,6 +6,98 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-09-18 — task 9.2 (Phase 9 done)
+
+- Completed: packaged the traced-Fibonacci collapse demo. The source is
+  `examples/traced_fibonacci.ash`, with a runtime `deref(cell_new(3))` input so
+  specialization retains recursive Fibonacci instead of folding its answer.
+  Its known persistent `up` tracing wrapper becomes `println` applications in
+  that recursive residual. The existing milestone-1 `tracing.ash` remains its
+  fixed-input demo.
+- Artifact: `ash --collapse examples/traced_fibonacci.ash --depth 1
+  --show-residual` prints canonical residual Core, the full report, and exact
+  tower/residual output bytes. `test/golden/traced_fibonacci.expected` is
+  byte-identical to the CLI output. `ash --demo traced-fibonacci` prints the
+  unescaped trace, pinned in `test/golden/demos.expected`.
+- Acceptance: `test/golden/traced_fibonacci_golden.ml` checks answer and event
+  agreement, byte-identical output, 59 writes, no specialization output, a
+  residual `LetRec` whose body has trace calls, canonical Core round-trip, and
+  zero foreign-origin nodes, eval-cell dereferences, evaluator calls, dispatch
+  sites, `NamedVar` lookups, and reflection boundaries. The residual has 251
+  nodes and one specialization point for runtime recursion; tower and residual
+  return `2` after 2,598 and 582 counted evaluator-group calls respectively.
+- Reporting decision: `--show-residual` adds canonical Core, escaped output
+  bytes, and explicit tower/residual agreement to the compact report. The
+  ground source baseline fails at `up` because it has no upper level; it is
+  never used as the equivalence claim for this reflective program. No semantic
+  change or ADR was needed. `docs/progress/0002-traced-fibonacci.md` indexes
+  source, report, expected output, checks, and commands.
+- Verified: `opam exec -- dune build @all`, `opam exec -- dune runtest --force`,
+  CLI `--help`, both milestone demos, the new traced-Fibonacci demo, the fact
+  collapse, and the traced-Fibonacci collapse all pass. The new collapse CLI
+  output was diffed against its golden with no differences.
+- Known issues: dynamic evaluator identity remains Phase 10's boundary. The
+  runtime input leaves one ordinary program recursion point, which the report
+  counts separately from interpreter residue.
+- Next: 10.1 — split meta state into static and dynamic knowledge.
+
+### 2026-09-18 — task 9.1
+
+- Completed: statically known persistent and scoped evaluator changes now
+  collapse. Known `eval`/`apply` wrappers are inlined at the dispatch sites they
+  intercept; their effects remain in the residual, while their meta protocol
+  leaves zero interpreter residue.
+  - **Staged levels (`lib/stage/staged_eval.ml`).** A Lift-mode machine attached
+    to a configuration replaces its ground `level_above` route with a lazy
+    parallel chain of Lift-wired machines. Each upper level has cloned global
+    cells, a lower link, relative numbering, and a shared materialized-depth
+    observation. `up` bodies and the wrappers they install therefore stage
+    rather than performing effects during compilation.
+  - **Closed meta protocol.** Bespoke static execution is limited to meta
+    readers, `tower_level`, `meta_with_run`, `resume`, the private default
+    `eval`/`apply` values, and `open_deref`/`open_set` on evaluator cells that
+    `meta_eval`/`meta_apply` explicitly registered by identity. Primitive effect
+    classes did not change; ordinary program cells and unknown reflection keep
+    their earlier policies.
+  - **Known Code (`lib/stage/stage_value.ml`, `lib/runtime/machine.ml`).** A
+    staged machine packages the wrapper's syntax argument through a configurable
+    meta-Code constructor. Run-scoped physical identity distinguishes known
+    syntax (static, reifies as `Quote`) from residual syntax (dynamic, executes
+    as an expression). Code fields returned by statically folded `code_view`,
+    `code_splice`, `code_match`, and `NamedVar` retain the known status
+    recursively. This fixes the falsifying case: `println(e)` and printing a
+    Code field must print the code the tower saw, never the value that node
+    computes.
+  - **Law (`test/laws/static_reflection_test.ml`).** Five depth-1 samples cover
+    persistent eval counting, scoped eval tracing (whole Code and a `code_view`
+    field), persistent apply counting, scoped apply tracing, and stacked
+    persistent/scoped eval effects. Tower and residual outcomes and byte traces
+    agree; specialization output is empty; every residual has zero evaluator
+    dereferences, evaluator calls, dispatch sites, `NamedVar` lookups,
+    reflection boundaries, and foreign-origin interpreter nodes.
+- Falsified rather than assumed: before the meta protocol, scoped reflection
+  left reader/overlay boundaries; sending wrappers to a ground upper machine
+  printed during compilation; treating every `Value.Code` as residual made the
+  scoped trace print `12`, primitives, and literals instead of the Core nodes
+  the tower printed. The law failed on all three versions.
+- Measurement: every prior figure remains fixed — 73 pure depth-1 samples,
+  906,708 tower dispatches, 2,125,589 evaluator-cell reads, 250 residual nodes;
+  324 effect-order checks; 417 invariant and 18 depth-sensitive checks.
+- Documentation: ADR 0039; spec §8 Phase 9 task status; to-do 9.1 checked and
+  Current state advanced; collapse report Basis text now describes static
+  evaluator changes and identifies dynamic identity as Phase 10's boundary.
+- Verified: `opam exec -- dune build @all`, `opam exec -- dune runtest
+  --force`, `opam exec -- dune exec ash -- --help`, `opam exec -- dune exec ash
+  -- --demo tracing`, `opam exec -- dune exec ash -- --demo level-2-counting`,
+  and `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`
+  all pass.
+- Known issues: `Metrics.source` deliberately runs on a ground evaluator with
+  no tower, so an `up` program's meaningful comparison is tower versus residual;
+  task 9.2's traced-Fibonacci report must present that baseline clearly. Dynamic
+  evaluator identity and meta changes under dynamic choices remain Phase 10.
+- Next: 9.2 — package the traced-Fibonacci source, residual Core, collapse
+  report, expected byte-for-byte output, and CLI command.
+
 ### 2026-09-18 — tasks 8.1, 8.2 (Phase 8 done)
 
 - Completed: scoped meta-overrides, which closes Phase 8. 8.1 built the

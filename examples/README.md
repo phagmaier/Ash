@@ -10,6 +10,7 @@ Run one:
 opam exec -- dune exec ash -- --demos            # list them
 opam exec -- dune exec ash -- --demo tracing
 opam exec -- dune exec ash -- --demo level-2-counting
+opam exec -- dune exec ash -- --demo traced-fibonacci
 ```
 
 What each prints is stored in `test/golden/demos.expected` and compared by
@@ -21,6 +22,7 @@ What each prints is stored in `test/golden/demos.expected` and compared by
 | `fact.ash` | The collapse report's sample program (spec §9.4). Nothing in it is unknown, so it folds to its answer: `--collapse` prints what the tower costs beside what the residual costs. |
 | `depth.ash` | The depth-sensitive shape (task 6.4, spec §9.3's second class). It reads `tower_depth()`, so its residual differs per depth: specialized at depth n, the reading folds to n, and the residual run matches what the depth-n tower did — while the ground source run says 0, which the report states honestly as a difference. |
 | `level_2_counting.ash` | Spec §5.6. Level 1 is made to interpret level 0, and level 2 then counts the work level 1 does. The ratio between the two counters is the per-level cost of a tower nobody has collapsed — the measurement Phase 5 exists to reduce. |
+| `traced_fibonacci.ash` | Phase 9. A runtime cell read keeps Fibonacci recursive in the residual, while a known evaluator replacement becomes `println` calls inside that recursion. The full collapse report and canonical residual Core are pinned in `test/golden/traced_fibonacci.expected`. |
 
 `fact.ash` is not a demo — it is an ordinary program, run with:
 
@@ -30,3 +32,10 @@ opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1
 
 Depth measurements for the same machinery are in
 `docs/progress/0001-depth-cost.md`, and the report reproduces them.
+
+The Phase 9 collapse demo prints its residual Core, report, and exact output
+bytes with one command:
+
+```sh
+opam exec -- dune exec ash -- --collapse examples/traced_fibonacci.ash --depth 1 --show-residual
+```

@@ -16,14 +16,46 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 8 — scoped meta-overrides. Done (8.1, 8.2).
-- **Next:** 9.1 — specialize known persistent and scoped evaluator changes
+- **Phase:** 9 — statically known reflective collapse complete.
+- **Next:** 10.1 — split meta state into static and dynamic knowledge
 - **Last verified:** 2026-09-18 — `opam exec -- dune build @all`,
   `opam exec -- dune runtest --force`, `opam exec -- dune exec ash -- --help`,
   `opam exec -- dune exec ash -- --demo tracing`,
   `opam exec -- dune exec ash -- --demo level-2-counting`, and
-  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1` all
-  pass. Phase 8 measured what D8 chose: `meta_with(eval = …, apply = …) { … }`
+  `opam exec -- dune exec ash -- --demo traced-fibonacci`,
+  `opam exec -- dune exec ash -- --collapse examples/fact.ash --depth 1`, and
+  `opam exec -- dune exec ash -- --collapse examples/traced_fibonacci.ash
+  --depth 1 --show-residual` all pass. The Phase 9 demo is
+  `examples/traced_fibonacci.ash`: its runtime cell read keeps Fibonacci as a
+  residual `LetRec`, while the known tracing evaluator becomes `println` calls
+  inside that recursive computation. The canonical 251-node residual Core,
+  report, and exact expected output bytes are pinned in
+  `test/golden/traced_fibonacci.expected` and reproduced by that one collapse
+  command; `--demo traced-fibonacci` prints the unescaped 59-line trace.
+  `test/golden/traced_fibonacci_golden.ml` asserts the tower and residual
+  answer and output events agree byte-for-byte, no program output occurs during
+  specialization, the residual's recursive body contains print calls, its
+  printed Core round-trips, and all interpreter-residue counters are zero.
+  The report states tower/residual agreement explicitly because a ground
+  source run cannot execute `up`. One specialization point remains for runtime
+  Fibonacci recursion, not interpretation. Task 9.1 makes statically known evaluator changes part of the
+  specialization configuration. A lazy parallel chain of Lift-wired levels
+  executes known `up` bodies without sending effects to a ground evaluator;
+  only the closed meta protocol folds, and only cells returned by `meta_eval`/
+  `meta_apply` may execute `open_deref`/`open_set` during specialization.
+  Persistent and scoped `eval`/`apply` wrappers are consequently inlined at
+  every former dispatch site. Their `print`/`println` calls remain in the
+  residual in order, while the reifier, meta readers, meta cells, overlay
+  runner, `resume`, and default evaluator calls disappear. Syntax handed to a
+  wrapper is recorded as statically known Code for the run, distinct from an
+  unknown residual expression; reifying it emits a `Quote`, and static Code
+  fields returned by code operations retain that status recursively. This is
+  why a trace prints the original Core node rather than its computed value.
+  Five law samples cover persistent counting, scoped tracing, both evaluator slots, and
+  persistent/scoped stacking; tower and residual outcomes and byte traces
+  agree, specialization output is empty, and every residual has zero evaluator
+  dereferences/calls, dispatch sites, `NamedVar` lookups, reflection boundaries,
+  and foreign-origin interpreter nodes. ADR 0039. Phase 8 measured what D8 chose: `meta_with(eval = …, apply = …) { … }`
   pushes a persistent overlay frame — never save/mutate/restore — lookup
   precedes the persistent cells, `NamedVar` never sees a frame (the body lowers
   under the surrounding scope; only right-hand sides bind `eval`/`apply`, to
@@ -562,14 +594,24 @@ instead of becoming a residual failure in that branch.
 
 ## Phase 9 — statically known reflective collapse
 
-- [ ] **9.1 Specialize known persistent and scoped evaluator changes.**
+- [x] **9.1 Specialize known persistent and scoped evaluator changes.**
   - Inline known wrappers at former dispatch sites while preserving effects.
   - Accept: tracing/counting transformations leave zero interpreter residue.
+  - Done (ADR 0039): a Lift-wired static level chain executes the closed meta
+    protocol, evaluator-group cells are explicitly registered apart from
+    program storage, and known syntax passed to wrappers reifies as quoted Code.
+    `test/laws/static_reflection_test.ml` proves persistent/scoped `eval` and
+    `apply`, effect preservation, stacking, and zero interpreter residue.
 
-- [ ] **9.2 Deliver the traced-Fibonacci demo.**
+- [x] **9.2 Deliver the traced-Fibonacci demo.**
   - Include source, residual Core, report, expected output, and CLI command.
   - Accept: tower and residual output agree byte-for-byte, print calls are inlined
     at former eval sites, and interpreter residue is zero.
+  - Done: `examples/traced_fibonacci.ash` retains Fibonacci as a recursive
+    residual through a runtime cell read. `--collapse ... --show-residual`
+    prints canonical Core, report, and exact output bytes; the golden and
+    executable assertions pin all acceptance checks. See
+    `docs/progress/0002-traced-fibonacci.md`.
 
 ## Phase 10 — dynamic reflection and classification
 

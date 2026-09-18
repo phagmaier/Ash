@@ -67,3 +67,17 @@
  (alias runtest)
  (action
   (diff collapse.expected collapse.output)))
+
+(executable
+ (name traced_fibonacci_golden)
+ (libraries ash.core ash.syntax ash.runtime ash.collapse ash.examples)
+ (flags
+  (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
+
+(rule
+ (with-stdout-to traced_fibonacci.output (run ./traced_fibonacci_golden.exe)))
+
+(rule
+ (alias runtest)
+ (action
+  (diff traced_fibonacci.expected traced_fibonacci.output)))

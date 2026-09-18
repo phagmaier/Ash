@@ -39,11 +39,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: recursion on static data, no tower ==
 
@@ -86,11 +85,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: recursion on static data, depth 3 ==
 
@@ -133,11 +131,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: a function of an unknown argument ==
 
@@ -180,11 +177,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: a traversal of a statically shaped list ==
 
@@ -227,11 +223,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: recursion on an unknown argument ==
 
@@ -274,11 +269,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: an accumulator too large for its budget ==
 
@@ -322,11 +316,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: an open-recursion group ==
 
@@ -369,11 +362,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: dispatching on a Core node ==
 
@@ -416,11 +408,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: observable output ==
 
@@ -463,11 +454,10 @@ Outcome
   Residual output:                wrote "hi\n"
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: a store binding the specializer holds ==
 
@@ -510,11 +500,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: mutation across a dynamic branch ==
 
@@ -557,11 +546,10 @@ Outcome
   Residual output:                none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 
 == collapse: an assignment the store cannot place ==
 
@@ -597,9 +585,8 @@ Outcome
   Specialization log:             none
 
 Basis
-  The residual is the program specialized on its own, which is the pure
-  fragment of spec 7.4 step 1. Specializing away a level's interposed
-  evaluator is static reflective collapse, task 9.1; the tower figures
-  above are the measured cost that collapse is set against, not a cost
-  this residual removed.
+  The residual specializes the program and every statically known evaluator
+  change it installs. Persistent and scoped wrappers are inlined at their
+  former dispatch sites, with effects preserved; dynamic evaluator identity
+  remains a reported reflection boundary for Phase 10.
 

@@ -36,12 +36,10 @@
 
    {1 What this does not claim}
 
-   The residual is the program specialized on its own, which is §7.4 step 1.
-   Specializing away the interposed evaluator itself is static reflective
-   collapse, task 9.1. The depth-1 figures here are the interpretation that a
-   tower performs and the residual does not contain — not interpretation this
-   residual removed from a tower. `Ash_collapse.Report` prints the same
-   qualification beneath every report. *)
+   This suite remains the pure §7.4 step-1 criterion: its samples install no
+   reflective change. Task 9.1's separate static-reflection law covers known
+   persistent and scoped wrappers and requires their effects at former dispatch
+   sites with zero interpreter residue. *)
 
 open Ash_core
 open Ash_syntax

@@ -76,6 +76,73 @@ output (0 line(s)):
 value: [2, 67, 715]
 levels materialized: 2
 
+== traced-fibonacci ==
+Phase 9 — traced Fibonacci with a runtime input
+
+output (59 line(s)):
+  'App
+  'Var
+  'Var
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'App
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'App
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'Var
+  'App
+  'Var
+  'App
+  'Var
+  'Var
+  'Lit
+  'If
+  'App
+  'Var
+  'Var
+  'Lit
+  'Var
+
+value: 2
+levels materialized: 1
+
 acceptance
   tracing logs every node, not only the outermost: 59 lines
   level 2 counts level 1's work: 715 interpreter steps for 67 program steps

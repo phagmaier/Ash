@@ -17,6 +17,11 @@ let all =
       title = "§5.6 — level 2 counts the work level 1 does";
       source = Sources.level_2_counting;
     };
+    {
+      name = "traced-fibonacci";
+      title = "Phase 9 — traced Fibonacci with a runtime input";
+      source = Sources.traced_fibonacci;
+    };
   ]
 
 let find name = List.find_opt (fun demo -> String.equal demo.name name) all

@@ -10,7 +10,9 @@
      failure mode the spec calls the most expensive mistake on its list.
    - The level-2 counts are the per-level cost of an unerased tower, which is the
      measurement Phase 5 exists to reduce. They are pinned so that a change in
-     what a level costs is a visible diff rather than a number nobody compared. *)
+     what a level costs is a visible diff rather than a number nobody compared.
+   - The traced-Fibonacci run gives Phase 9 its unescaped 59-line trace; the
+     separate collapse golden pins its residual Core and byte agreement. *)
 
 open Ash_core
 

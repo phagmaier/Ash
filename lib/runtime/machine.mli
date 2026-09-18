@@ -54,6 +54,11 @@ val create :
 
 val evaluator_mode : t -> evaluator_mode
 
+val set_meta_code : t -> (Core.t -> Value.value) -> unit
+(** Set how syntax is packaged when a meta evaluator receives its [Code]
+    argument.  Ground machines use [Value.Code]; the staged evaluator installs
+    a constructor that records the syntax as statically known. *)
+
 (** {1 Calling the group}
 
     These are the dereference points. Every recursive call inside the evaluator

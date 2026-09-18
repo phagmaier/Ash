@@ -146,6 +146,7 @@ type state = {
   mutable forced : generalized list;
   mutable log : generalization list;
   mutable reifying : int;
+  mutable meta_cells : Value.cell list;
 }
 
 let state =
@@ -157,6 +158,7 @@ let state =
     forced = [];
     log = [];
     reifying = 0;
+    meta_cells = [];
   }
 
 let reset () =
@@ -167,7 +169,18 @@ let reset () =
   state.forced <- [];
   state.log <- [];
   state.reifying <- 0;
+  state.meta_cells <- [];
   Emit.reset_counts ()
+
+(* Cells exposed by the statically executed meta protocol are evaluator-group
+   cells, not program storage.  [open_deref]/[open_set] may execute on exactly
+   these cells while specializing a known [up] body; ordinary cells keep the
+   Phase 7 residual-by-default policy. *)
+let register_meta_cell cell =
+  if not (List.exists (Value.same_cell cell) state.meta_cells) then
+    state.meta_cells <- cell :: state.meta_cells
+
+let is_meta_cell cell = List.exists (Value.same_cell cell) state.meta_cells
 
 (* Reifying a closure specializes its body, which may reify further closures.
    That nesting is not a call and has no key, so the depth budget is the only

@@ -11,7 +11,7 @@
 ; whose output has drifted. Same rule, and same reason, as `lib/self/dune`.
 (rule
  (target sources.ml)
- (deps tracing.ash level_2_counting.ash)
+ (deps tracing.ash level_2_counting.ash traced_fibonacci.ash)
  (action
   (with-stdout-to
    %{target}
@@ -20,4 +20,6 @@
     (cat tracing.ash)
     (echo "|ash}\n\nlet level_2_counting = {ash|")
     (cat level_2_counting.ash)
+    (echo "|ash}\n\nlet traced_fibonacci = {ash|")
+    (cat traced_fibonacci.ash)
     (echo "|ash}\n")))))

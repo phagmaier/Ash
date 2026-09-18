@@ -808,6 +808,27 @@ Overlay frames (D8), interaction with captured continuations.
 ### Phase 9 — Static reflection collapses `[3]`
 Reflective modifications known at specialization time.
 - **Done when:** traced `fib` collapses to `fib` with `print` calls inlined at the former eval sites, and zero interpreter residue. **This is the spectacular demo. Prioritise it.**
+- **Task 9.1 done:** known persistent `up` changes and scoped `meta_with`
+  overlays now specialize as evaluator configuration. The staged evaluator
+  materializes a parallel lazy chain whose levels all use Lift semantics and
+  fresh cloned globals; a closed allowlist executes the meta readers, registered
+  evaluator-cell reads/writes, overlay runner, `resume`, and the known default
+  evaluator values. Ordinary cells and unknown reflection retain their existing
+  residual policy. The `Code` handed to an evaluator wrapper is tracked as
+  known syntax for one run and reifies as `Quote`, distinct from residual syntax
+  whose runtime value is unknown. Five law samples cover persistent/scoped
+  `eval` and `apply`, counting, tracing, and stacking: tower and residual agree,
+  specialization produces no program output, effects remain at former dispatch
+  sites, and all interpreter-residue counters are zero. ADR 0039.
+- **Task 9.2 done:** `examples/traced_fibonacci.ash` keeps its input unknown to
+  specialization through a runtime cell read. The residual retains recursive
+  Fibonacci with `println` calls in its body. One CLI command prints canonical
+  residual Core, a measured report, and the exact output bytes; a golden test
+  proves the depth-1 tower and residual return `2`, write the same 59-line
+  trace byte-for-byte, and leave zero interpreter residue. The report identifies
+  tower/residual agreement separately from the ground source baseline, which
+  cannot execute `up`. `docs/progress/0002-traced-fibonacci.md` indexes the
+  artifact.
 
 ### Phase 10 — Dynamic reflection and classification `[4+, open-ended]`
 Split the meta-environment into static and dynamic parts; specialize monovariantly on interpreter identity; where identity is dynamic, emit a residual evaluator and record the boundary.

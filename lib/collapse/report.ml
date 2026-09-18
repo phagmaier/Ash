@@ -55,7 +55,7 @@ let dereferences_summary levels =
          Printf.sprintf "level %d: %d" index cell_dereferences)
        levels)
 
-let to_string (metrics : Metrics.t) =
+let to_string ?(show_residual = false) (metrics : Metrics.t) =
   let buffer = Buffer.create 2048 in
   let add = Buffer.add_string buffer in
   let sizes = metrics.Metrics.sizes in
@@ -87,6 +87,14 @@ let to_string (metrics : Metrics.t) =
   (match metrics.Metrics.residual with
   | Ok residual -> add (line "Residual:" (nodes residual.Metrics.residue.Residue.nodes))
   | Error _ -> add (line "Residual:" "none: specialization failed"));
+
+  if show_residual then (
+    add (section "Residual Core");
+    match metrics.Metrics.residual with
+    | Ok residual ->
+        add (Ash_syntax.Core_printer.to_string residual.Metrics.term);
+        add "\n"
+    | Error error -> add (line "Not produced:" (Error.to_string error)));
 
   add (section "Interpretation left in the residual");
   (match metrics.Metrics.residual with
@@ -155,6 +163,20 @@ let to_string (metrics : Metrics.t) =
   | Ok residual ->
       add (outcome_line "Residual:" residual.Metrics.run.Metrics.outcome ~against:(Some source))
   | Error error -> add (line "Residual:" ("not produced: " ^ Error.to_string error)));
+  if show_residual then
+    (match metrics.Metrics.residual with
+    | Ok residual ->
+        let verdict =
+          match
+            Metrics.agreement tower.Metrics.run.Metrics.outcome
+              residual.Metrics.run.Metrics.outcome
+          with
+          | Metrics.Agrees -> "agrees"
+          | Metrics.Differs -> "DIFFERS"
+          | Metrics.Incomparable -> "carries identity: not comparable across runs"
+        in
+        add (line "Tower vs residual:" verdict)
+    | Error _ -> ());
   add (output_line "Source output:" metrics.Metrics.source.Metrics.output);
   add (output_line "Specialization output:" metrics.Metrics.specialization.Metrics.output);
   (* Beside the output line, never inside it: the compile-time channel is what
@@ -165,17 +187,27 @@ let to_string (metrics : Metrics.t) =
   | Ok residual -> add (output_line "Residual output:" residual.Metrics.run.Metrics.output)
   | Error _ -> ());
 
-  (* Said in the report rather than in a decision record nobody reads beside the
-     numbers: the residual above is not a collapsed tower. *)
+  if show_residual then (
+    let bytes events =
+      String.concat ""
+        (List.filter_map (function Io.Wrote text -> Some text | Io.Read _ -> None) events)
+      |> fun text -> Constant.to_string (Constant.Str text)
+    in
+    add (line "Tower output bytes:" (bytes tower.Metrics.run.Metrics.output));
+    match metrics.Metrics.residual with
+    | Ok residual ->
+        add (line "Residual output bytes:" (bytes residual.Metrics.run.Metrics.output))
+    | Error _ -> ());
+
+  (* Said beside the numbers: task 9.1 handles known reflective configuration,
+     while dynamic evaluator identity remains an explicit later boundary. *)
   add (section "Basis");
-  add "  The residual is the program specialized on its own, which is the pure
+  add "  The residual specializes the program and every statically known evaluator
 ";
-  add "  fragment of spec 7.4 step 1. Specializing away a level's interposed
+  add "  change it installs. Persistent and scoped wrappers are inlined at their
 ";
-  add "  evaluator is static reflective collapse, task 9.1; the tower figures
+  add "  former dispatch sites, with effects preserved; dynamic evaluator identity
 ";
-  add "  above are the measured cost that collapse is set against, not a cost
-";
-  add "  this residual removed.
+  add "  remains a reported reflection boundary for Phase 10.
 ";
   Buffer.contents buffer

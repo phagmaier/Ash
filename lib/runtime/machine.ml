@@ -19,6 +19,7 @@ type t = {
   mutable meta_eval : Value.cell option;
   mutable meta_apply : Value.cell option;
   mutable overlays : overlay_frame list;
+  mutable meta_code : Core.t -> Value.value;
   mutable steps : int;
   mutable eval_calls : int;
   mutable apply_calls : int;
@@ -50,6 +51,7 @@ let create ?(evaluator_mode = Ground) ~eval ~apply ~eval_list () =
     meta_eval = None;
     meta_apply = None;
     overlays = [];
+    meta_code = (fun node -> Value.Code node);
     steps = 0;
     eval_calls = 0;
     apply_calls = 0;
@@ -61,6 +63,7 @@ let create ?(evaluator_mode = Ground) ~eval ~apply ~eval_list () =
   }
 
 let evaluator_mode machine = machine.evaluator_mode
+let set_meta_code machine make = machine.meta_code <- make
 
 (* {1 Persistent overlay frames (spec §D8, Phase 8)}
 
@@ -133,7 +136,7 @@ let rec eval machine node env k =
           let cont = capture_continuation machine ~capture:span k in
           apply upper ~call_site:span override
             [
-              Value.Code node;
+              machine.meta_code node;
               Value.Environment env;
               Value.Continuation cont;
             ]
@@ -147,7 +150,7 @@ let rec eval machine node env k =
           machine.overlays <- [];
           apply machine ~call_site:span override
             [
-              Value.Code node;
+              machine.meta_code node;
               Value.Environment env;
               Value.Continuation cont;
             ]
@@ -318,7 +321,7 @@ let meta_eval_cell machine =
               let span = Core.span node in
               apply upper ~call_site:span replacement
                 [
-                  Value.Code node;
+                  machine.meta_code node;
                   Value.Environment env;
                   (* This level's continuation, one-shot like every other (§D4).
                      A replacement that never invokes it abandons this level, the

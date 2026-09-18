@@ -112,11 +112,11 @@ let start ~registry ~machines =
    The staging machine is attached to the configuration as level 0 — which is
    what measuring at a stated depth means for the specializer:
    [tower_depth()] is a static fact of that configuration and folds to it (ADR
-   0034), while every other meta reading stays dynamic exactly as in any
-   standalone specialization. When [tower] is given the depth reading is the
-   real materialized count; otherwise it is the stated number, which is
-   faithful because the pure fragment cannot shift levels and so cannot observe
-   anything else about a configuration. *)
+   0034). Task 9.1's staged level chain also executes the closed, statically
+   known meta protocol: [up] and [meta_with] wrappers become specialization
+   configuration while their observable effects remain residual. When [tower]
+   is given the initial depth is the real materialized count; otherwise it is
+   the stated number, and a statically followed [up] grows the staged chain. *)
 let specialize_with_stats ?(depth = 0) ?tower ~env term =
   let machine = Ash_stage.Staged_eval.machine ~mode:Ash_stage.Mode.Lift () in
   Machine.set_levels machine

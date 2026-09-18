@@ -1,10 +1,8 @@
 (** The packaged tower demos (to-do task 4.5).
 
-    Two programs, both written in Ash and both stored as `.ash` source next to
-    this module: the §5.3 trace, in which a program replaces the evaluator that
-    is running it, and the §5.6 level-2 count, in which one meta level measures
-    the work another does. They are the milestone-1 evidence, so they are
-    packaged rather than left as prose: the CLI runs them and a golden test pins
+    The programs are written in Ash and stored as `.ash` source next to
+    this module: the §5.3 trace, the §5.6 level-2 count, and Phase 9's traced
+    Fibonacci with a runtime input. The CLI runs them and a golden test pins
     what they print.
 
     A demo runs on its own tower over a buffered {!Ash_runtime.Io} stream, so its
