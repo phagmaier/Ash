@@ -7,4 +7,5 @@
  (name ash)
  (synopsis "A reflective tower that collapses")
  (description
-  "A hygienic language, reflective interpreter tower, and staged collapser."))
+  "A hygienic language, reflective interpreter tower, and staged collapser.")
+ (license MIT))

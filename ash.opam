@@ -3,6 +3,7 @@ synopsis: "A reflective tower that collapses"
 description: "A hygienic language, reflective interpreter tower, and staged collapser."
 maintainer: "Ash contributors"
 authors: "Ash contributors"
+license: "MIT"
 depends: [
   "ocaml" {>= "5.2"}
   "dune" {>= "3.16"}

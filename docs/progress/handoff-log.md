@@ -6,6 +6,23 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-09-18 — pre-push polish (docs + MIT license)
+
+- Completed: pre-GitHub pass. Fixed the README's flagship reflection example,
+  which used a nonexistent `show` primitive — it now mirrors
+  `examples/tracing.ash` verbatim (validated by collapsing the exact snippet:
+  tower and residual both compute `fib(3) = 2`). Added a Status section,
+  linked the docs table, corrected the ADR count to 0001–0042, and added a
+  License section. Verified every markdown link in README, semantics,
+  implementation, evaluation, 0003, and examples docs. Added MIT `LICENSE`
+  (per user choice) plus license fields in `ash.opam`/`dune-project`.
+  Hygiene: tree has no secrets, no tracked build dirs, no files over 1MB.
+- Verified: `dune build @all` and `dune runtest --force` green after all doc
+  and packaging edits.
+- Known issues: none. Uncommitted by rule; commit only when asked. Suggested
+  push commands and GitHub repo description/topics remain the user's step.
+- Next: none — optional work only.
+
 ### 2026-09-18 — review repairs (soundness, robustness, refinements)
 
 - Completed: full review-repair pass; every item verified by the suite.

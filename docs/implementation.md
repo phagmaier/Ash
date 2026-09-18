@@ -22,7 +22,7 @@ and how to verify a change. Session rules and the task plan live in
 | `test/differential/` | Shared-corpus agreement suites |
 | `test/laws/` | Executable specification laws |
 | `test/golden/` | Pinned CLI outputs (`demos`, `collapse`, `traced_fibonacci`, lexer/parser/desugar) |
-| `docs/decisions/` | ADRs 0001–0040, the per-decision rationale |
+| `docs/decisions/` | ADRs 0001–0042, the per-decision rationale |
 | `docs/progress/` | Depth cost, traced-Fibonacci index, Phase 10 measurements + raw JSON |
 | `scripts/` | `measure_phase10.py`, the one-command measurement reproduction |
 
@@ -113,7 +113,7 @@ ADRs are numbered by task order: 0001–0009 bootstrap and primitives,
 0010–0017 surface language and self-interpreter, 0018–0021 code and staging
 foundations, 0022–0025 lazy tower and depth, 0026–0034 pure collapser and
 depth results, 0035–0037 effects, 0038 overlays, 0039–0040 static and dynamic
-reflection. Start from 0008 (CPS/open recursion), 0025 (depth), 0030 (what
+reflection, 0041 release formatting, 0042 primitive error levels. Start from 0008 (CPS/open recursion), 0025 (depth), 0030 (what
 the pure criterion claims), 0034 (depth readings), 0037 (failure agreement),
 and 0040 (dynamic reflection and classification).
 

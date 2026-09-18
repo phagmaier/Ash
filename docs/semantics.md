@@ -3,7 +3,7 @@
 What an Ash program means, and what the implementation guarantees about that
 meaning. This is a reader's guide to the behavior the test suite pins down;
 the design source of truth remains `Ash Reflective Tower.md`, and the
-per-decision rationale lives in `docs/decisions/0001`–`0040`.
+per-decision rationale lives in `docs/decisions/0001`–`0042`.
 
 ## 1. Core language
 

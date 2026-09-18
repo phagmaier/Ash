@@ -12,6 +12,14 @@ The interesting question Ash answers is not "how fast is the compiled code?" but
 a given program, what the interpreter did beside what survives in the residual
 program — measured, not asserted.
 
+## Status
+
+Research prototype, complete. The implementation plan in [`to-do.md`](to-do.md)
+is fully checked through Phase 11 plus a post-release review-repair pass, the
+full test suite is green, and every published number reproduces from the
+commands below. Start with [`docs/evaluation.md`](docs/evaluation.md) for what
+was found — including the limits and what is explicitly not claimed.
+
 ## What it looks like
 
 ```ash
@@ -19,16 +27,19 @@ fn fact(n) = if n <= 1 then 1 else n * fact(n - 1)
 ```
 
 ```ash
+fn fib(n) = if n < 2 then n else fib(n - 1) + fib(n - 2)
+
 up {
   let base = eval
-  eval := fn(e, r, k) -> { print(show(e)); base(e, r, k) }
+  eval := fn(e, r, k) -> { println(head(code_view(e))); base(e, r, k) }
 }
 fib(3)   # prints one line per evaluated node as it runs
 ```
 
 The second program replaces the evaluator running it and traces every step of
-`fib(3)` — 59 lines of output for a five-line program. That is reflection on the
-language's own implementation, from inside the language.
+`fib(3)`. That is reflection on the language's own implementation, from inside
+the language. (This is the essence of `examples/tracing.ash`; run it with
+`--demo tracing` below.)
 
 ## Requirements
 
@@ -113,14 +124,15 @@ run(pow5)(2)   # 32 — built code, then executed
 
 | Document | What it is |
 |----------|------------|
-| `Ash Reflective Tower.md` | The design spec — semantics, tower protocol, staging rules, measured claims |
-| `docs/semantics.md` | What a program means, as built: hygiene through classification |
-| `docs/implementation.md` | Where everything lives: modules, CLI, tests, common tasks |
-| `docs/evaluation.md` | The research result: four classes, depth numbers, residue, limits, claims |
-| `docs/decisions/` | Numbered architecture decisions (ADRs 0001–0041) |
-| `docs/progress/` | Depth-cost baseline, demo index, pinned measurement data |
-| `to-do.md` | The implementation plan and session state |
+| [Ash Reflective Tower.md](Ash%20Reflective%20Tower.md) | The design spec — semantics, tower protocol, staging rules, measured claims |
+| [docs/semantics.md](docs/semantics.md) | What a program means, as built: hygiene through classification |
+| [docs/implementation.md](docs/implementation.md) | Where everything lives: modules, CLI, tests, common tasks |
+| [docs/evaluation.md](docs/evaluation.md) | The research result: four classes, depth numbers, residue, limits, claims |
+| [docs/decisions/](docs/decisions/) | Numbered architecture decisions (ADRs 0001–0042) |
+| [docs/progress/](docs/progress/) | Depth-cost baseline, demo index, pinned measurement data |
+| [to-do.md](to-do.md) | The implementation plan and session state |
+| [AGENTS.md](AGENTS.md) | AI-agent guidance, build invariants — start here before changing code |
 
-**For Developers:** all AI-agent guidance, build invariants, architecture
-decisions, and the implementation plan live in [`AGENTS.md`](AGENTS.md).
-Start there before changing code.
+## License
+
+MIT — see [LICENSE](LICENSE).
