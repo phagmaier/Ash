@@ -5,7 +5,9 @@
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
 (rule
- (with-stdout-to lexer.output (run ./lexer_golden.exe)))
+ (with-stdout-to
+  lexer.output
+  (run ./lexer_golden.exe)))
 
 (rule
  (alias runtest)
@@ -19,7 +21,9 @@
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
 (rule
- (with-stdout-to parser.output (run ./parser_golden.exe)))
+ (with-stdout-to
+  parser.output
+  (run ./parser_golden.exe)))
 
 (rule
  (alias runtest)
@@ -33,7 +37,9 @@
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
 (rule
- (with-stdout-to desugar.output (run ./desugar_golden.exe)))
+ (with-stdout-to
+  desugar.output
+  (run ./desugar_golden.exe)))
 
 (rule
  (alias runtest)
@@ -47,7 +53,9 @@
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
 (rule
- (with-stdout-to demos.output (run ./demos_golden.exe)))
+ (with-stdout-to
+  demos.output
+  (run ./demos_golden.exe)))
 
 (rule
  (alias runtest)
@@ -61,7 +69,9 @@
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
 (rule
- (with-stdout-to collapse.output (run ./collapse_golden.exe)))
+ (with-stdout-to
+  collapse.output
+  (run ./collapse_golden.exe)))
 
 (rule
  (alias runtest)
@@ -75,7 +85,9 @@
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
 (rule
- (with-stdout-to traced_fibonacci.output (run ./traced_fibonacci_golden.exe)))
+ (with-stdout-to
+  traced_fibonacci.output
+  (run ./traced_fibonacci_golden.exe)))
 
 (rule
  (alias runtest)

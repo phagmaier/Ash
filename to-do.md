@@ -16,11 +16,23 @@ live in `Ash Reflective Tower.md`; this file turns them into verifiable tasks.
 
 ## Current state
 
-- **Phase:** 10 — dynamic reflection and conservative four-way classification complete.
-- **Next:** 11.1 — write semantics and implementation documentation.
-- **Last verified:** 2026-09-18 — `opam exec -- dune build @all`,
-  `opam exec -- dune runtest --force`, all golden CLI commands, and
-  `python3 scripts/measure_phase10.py`. The five checked-in classification
+- **Phase:** 11 — complete. Ash is released: docs, evaluation, and
+  reproducible verification from a clean checkout.
+- **Next:** none. Optional work (multi-shot continuations, Futamura 2/3,
+  native backend, delimited-control let-insertion) is explicitly out of scope
+  unless asked.
+- **Last verified:** 2026-09-18 — `rm -rf _build`, `opam exec -- dune build
+  @fmt` (exit 0), `opam exec -- dune build @all` (exit 0),
+  `opam exec -- dune runtest --force` (exit 0, no golden drift), every
+  `README.md` command (`--demos`, all three demos, `fact` and
+  `traced_fibonacci` collapses, `classification_partial` human/JSON,
+  `python3 scripts/measure_phase10.py` byte-identical to the pinned JSON).
+  Tested versions: OCaml 5.4.1, Dune 3.24.2, opam 2.5.2, Python 3.14.7.
+  New `docs/semantics.md` and
+  `docs/implementation.md` cover hygiene, CPS, open recursion, tower
+  materialization, staging, effects, normalization, classification, tested
+  laws, and excluded observations; all earlier laws remain green. Phase 10 stands:
+  the five checked-in classification
   programs produce all four classes at depths 0–3; every one of the 20
   tower/residual pairs agrees on value or failure and exact output. The partial
   runtime-trace sample folds `40 + 2` while producing 50 Core nodes from 47
@@ -542,19 +554,34 @@ instead of becoming a residual failure in that branch.
 
 ## Phase 11 — documentation and release
 
-- [ ] **11.1 Write semantics and implementation documentation.**
+- [x] **11.1 Write semantics and implementation documentation.**
   - Cover hygiene, CPS, OR, tower materialization, staging, effects,
     normalization, classification, tested laws, and excluded observations.
+  - Done: `docs/semantics.md` (twelve sections: Core through excluded
+    observations, with module/ADR/test pointers) and
+    `docs/implementation.md` (layout, layering rule, module guide, CLI,
+    test classes, ADR/progress index, common tasks). No semantic change;
+    full suite green.
 
-- [ ] **11.2 Write the research evaluation.**
+- [x] **11.2 Write the research evaluation.**
   - Present all four classes, depth results, residue explanations, limitations,
     and precise claims without overstating novelty.
+  - Done: `docs/evaluation.md` (question, method, measured four-class table
+    with tower steps/ratios/node counts, depth results, traced-Fibonacci
+    control, cost baseline, limitations, claims/non-claims). Every number is
+    from `docs/progress/phase10-measurements.json` and the golden reports.
 
-- [ ] **11.3 Produce a reproducible release.**
+- [x] **11.3 Produce a reproducible release.**
   - From a clean checkout run formatting, compilation, all test classes, demos,
     and measurements; pin OCaml/Dune/dependency versions.
   - Accept: `README.md` alone lets a new user reproduce both milestones and the
     classification report.
+  - Done: `rm -rf _build` clean build, `dune build @fmt` (exit 0 after
+    `dune fmt` normalized four dune files; `.ml` stays hand-formatted per ADR
+    0041), `dune runtest --force` (exit 0, no golden drift), all demos,
+    both collapse demos, `measure_phase10.py` byte-identical, README rewritten
+    as standalone reproduction with tested versions (OCaml 5.4.1, Dune 3.24.2,
+    opam 2.5.2, Python 3.14.7).
 
 ## Optional work — after Phase 11 only
 

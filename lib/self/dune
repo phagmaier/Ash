@@ -9,6 +9,7 @@
 ; parser and the reader both see as ordinary source, and is embedded here rather
 ; than read from disk at run time: a test that could not find its subject would
 ; be a worse failure than one that disagrees with it.
+
 (rule
  (target self_source.ml)
  (deps eval.ash)
@@ -16,6 +17,7 @@
   (with-stdout-to
    %{target}
    (progn
-    (echo "(* Generated from eval.ash by the rule in lib/self/dune. *)\nlet text = {ash|")
+    (echo
+     "(* Generated from eval.ash by the rule in lib/self/dune. *)\nlet text = {ash|")
     (cat eval.ash)
     (echo "|ash}\n")))))

@@ -6,6 +6,54 @@ New entries go at the top of this file after each completed task.
 Prepend entries, newest first. Include completed task, exact verification, design
 decisions, known issues, and exact next task.
 
+### 2026-09-18 — task 11.3 (Phase 11 done)
+
+- Completed: reproducible release. `rm -rf _build` clean build (exit 0);
+  `dune fmt` normalized four dune files (mechanical only, no `.ml` touched)
+  and `dune build @fmt` exits 0 — ADR 0041 records why `.ml` stays
+  hand-formatted (default-profile ocamlformat rewraps ~9.4k lines, mostly
+  doc comments). `dune runtest --force` exits 0 with no golden drift. All
+  three demos, `fact`/`traced_fibonacci`/`classification_partial`
+  collapses (human + JSON), and `measure_phase10.py` (byte-identical JSON)
+  verified. `README.md` rewritten as standalone reproduction with tested
+  versions (OCaml 5.4.1, Dune 3.24.2, opam 2.5.2, Python 3.14.7) and a docs
+  map. Caution learned: never run `dune exec` invocations in parallel
+  against one `_build` — the second instance cannot resolve executables.
+- Verified: every `README.md` command executed; `git status` shows only
+  intended files (4 dune formats, to-do, handoff, README, 5 new docs).
+- Known issues: none. Uncommitted by rule; commit only when asked.
+- Next: none — optional work only.
+
+### 2026-09-18 — task 11.2
+
+- Completed: `docs/evaluation.md` — governing question, method (one script
+  command, 20 tower/residual pairs), measured four-class table (tower steps,
+  ratios, source→residual nodes per program at depths 0–3), depth results
+  (417 invariant + 18 sensitive checks), traced-Fibonacci static-reflection
+  control (251 nodes, 2598→582 calls, byte-identical 59-line output),
+  cost baseline, limitations, and claims with explicit non-claims per §13.
+  Every number is from `phase10-measurements.json` or the golden reports.
+- Verified: table values cross-checked against the pinned JSON by direct
+  extraction; no code change, so no test rerun required beyond the green
+  11.1 suite.
+- Known issues: none.
+- Next: 11.3 — reproducible release.
+
+### 2026-09-18 — task 11.1
+
+- Completed: `docs/semantics.md` (Core, hygiene, CPS/oracle, open recursion,
+  continuations/envs/run/lift, tower materialization and depth, staging,
+  effects, normalization, classification, tested-laws index, excluded
+  observations) and `docs/implementation.md` (layout, layering rule, module
+  guide, CLI, test classes, ADR/progress index, common tasks). No semantic
+  change; no ADR needed.
+- Verified: `opam exec -- dune build @all`, `opam exec -- dune runtest
+  --force` (exit 0), `ash --demo tracing`, and `ash --collapse
+  examples/fact.ash --depth 1`.
+- Known issues: none. `README.md` pointer left for 11.3, which owns the
+  reproducible-release pass over the README.
+- Next: 11.2 — write the research evaluation.
+
 ### 2026-09-18 — task 10.4 (Phase 10 done)
 
 - Completed: `python3 scripts/measure_phase10.py` records 20 raw JSON reports

@@ -7,7 +7,14 @@
   effect_order_test
   static_reflection_test
   dynamic_reflection_test)
- (libraries ash.core ash.syntax ash.runtime ash.self ash.stage ash.tower ash.collapse)
+ (libraries
+  ash.core
+  ash.syntax
+  ash.runtime
+  ash.self
+  ash.stage
+  ash.tower
+  ash.collapse)
  (flags
   (:standard -w +a-4-9-40-41-42-44-45-70 -warn-error +8+11+26+27+32..39)))
 
@@ -15,5 +22,6 @@
 ; programs every other comparison in this repository uses. Copying the module
 ; rather than restating it is what stops the law suite from quietly testing an
 ; easier corpus than `test/differential/` does.
+
 (copy_files#
  (files ../differential/corpus.ml))

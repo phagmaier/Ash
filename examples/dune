@@ -9,6 +9,7 @@
 ; ordinary source, and are embedded here rather than read from disk at run time:
 ; a demo that could not find its own source would be a worse failure than one
 ; whose output has drifted. Same rule, and same reason, as `lib/self/dune`.
+
 (rule
  (target sources.ml)
  (deps tracing.ash level_2_counting.ash traced_fibonacci.ash)
@@ -16,7 +17,8 @@
   (with-stdout-to
    %{target}
    (progn
-    (echo "(* Generated from the .ash files by the rule in examples/dune. *)\nlet tracing = {ash|")
+    (echo
+     "(* Generated from the .ash files by the rule in examples/dune. *)\nlet tracing = {ash|")
     (cat tracing.ash)
     (echo "|ash}\n\nlet level_2_counting = {ash|")
     (cat level_2_counting.ash)
